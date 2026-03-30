@@ -1,0 +1,2929 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Delegation Receipt Standard</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+        
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="theme/css/custom.css">
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "navy";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="introduction.html">Introduction</a></li><li class="chapter-item expanded affix "><a href="quick-start.html">Quick Start</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">Explanation</li><li class="chapter-item expanded "><a href="explanation/what-is-drs.html"><strong aria-hidden="true">1.</strong> What is DRS?</a></li><li class="chapter-item expanded "><a href="explanation/why-drs-exists.html"><strong aria-hidden="true">2.</strong> Why DRS Exists</a></li><li class="chapter-item expanded "><a href="explanation/five-actors.html"><strong aria-hidden="true">3.</strong> The Five Actors</a></li><li class="chapter-item expanded "><a href="explanation/data-model.html"><strong aria-hidden="true">4.</strong> Data Model</a></li><li class="chapter-item expanded "><a href="explanation/verification-algorithm.html"><strong aria-hidden="true">5.</strong> Verification Algorithm</a></li><li class="chapter-item expanded "><a href="explanation/architecture.html"><strong aria-hidden="true">6.</strong> Architecture</a></li><li class="chapter-item expanded "><a href="explanation/security-model.html"><strong aria-hidden="true">7.</strong> Security Model</a></li><li class="chapter-item expanded "><a href="explanation/regulatory-alignment.html"><strong aria-hidden="true">8.</strong> Regulatory Alignment</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">Tutorials</li><li class="chapter-item expanded "><a href="tutorials/01-issue-first-delegation.html"><strong aria-hidden="true">9.</strong> Issue Your First Delegation</a></li><li class="chapter-item expanded "><a href="tutorials/02-verify-a-bundle.html"><strong aria-hidden="true">10.</strong> Verify a Bundle</a></li><li class="chapter-item expanded "><a href="tutorials/03-end-to-end-trace.html"><strong aria-hidden="true">11.</strong> End-to-End Trace</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">How-To Guides</li><li class="chapter-item expanded "><a href="how-to/developers/install-sdk.html"><strong aria-hidden="true">12.</strong> Install the SDK</a></li><li class="chapter-item expanded "><a href="how-to/developers/mcp-middleware.html"><strong aria-hidden="true">13.</strong> MCP Middleware Integration</a></li><li class="chapter-item expanded "><a href="how-to/developers/a2a-middleware.html"><strong aria-hidden="true">14.</strong> A2A Middleware Integration</a></li><li class="chapter-item expanded "><a href="how-to/developers/human-consent.html"><strong aria-hidden="true">15.</strong> Human Consent Records</a></li><li class="chapter-item expanded "><a href="how-to/developers/sub-delegation.html"><strong aria-hidden="true">16.</strong> Sub-Delegation</a></li><li class="chapter-item expanded "><a href="how-to/operators/deploy-drs-verify.html"><strong aria-hidden="true">17.</strong> Deploy drs-verify</a></li><li class="chapter-item expanded "><a href="how-to/operators/operator-config.html"><strong aria-hidden="true">18.</strong> Operator Configuration</a></li><li class="chapter-item expanded "><a href="how-to/operators/storage-tiers.html"><strong aria-hidden="true">19.</strong> Storage Tiers</a></li><li class="chapter-item expanded "><a href="how-to/operators/key-management.html"><strong aria-hidden="true">20.</strong> Key Management</a></li><li class="chapter-item expanded "><a href="how-to/operators/revocation.html"><strong aria-hidden="true">21.</strong> Revocation</a></li><li class="chapter-item expanded "><a href="how-to/auditors/reconstruct-chain.html"><strong aria-hidden="true">22.</strong> Reconstruct a Chain</a></li><li class="chapter-item expanded "><a href="how-to/auditors/independent-verify.html"><strong aria-hidden="true">23.</strong> Independent Verification</a></li><li class="chapter-item expanded "><a href="how-to/auditors/export-eu-ai-act.html"><strong aria-hidden="true">24.</strong> Export for EU AI Act</a></li><li class="chapter-item expanded "><a href="how-to/auditors/hipaa-evidence.html"><strong aria-hidden="true">25.</strong> HIPAA Audit Evidence</a></li><li class="chapter-item expanded "><a href="how-to/contributors/dev-setup.html"><strong aria-hidden="true">26.</strong> Dev Setup</a></li><li class="chapter-item expanded "><a href="how-to/contributors/architecture-deep-dive.html"><strong aria-hidden="true">27.</strong> Architecture Deep Dive</a></li><li class="chapter-item expanded "><a href="how-to/contributors/testing-standards.html"><strong aria-hidden="true">28.</strong> Testing Standards</a></li><li class="chapter-item expanded "><a href="how-to/contributors/false-positives.html"><strong aria-hidden="true">29.</strong> False Positives: What We Tried</a></li><li class="chapter-item expanded "><a href="how-to/contributors/upstream-monitoring.html"><strong aria-hidden="true">30.</strong> Upstream Monitoring</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">Reference</li><li class="chapter-item expanded "><a href="reference/jwt-fields.html"><strong aria-hidden="true">31.</strong> JWT Fields</a></li><li class="chapter-item expanded "><a href="reference/policy-schema.html"><strong aria-hidden="true">32.</strong> Policy Schema</a></li><li class="chapter-item expanded "><a href="reference/error-codes.html"><strong aria-hidden="true">33.</strong> Error Codes</a></li><li class="chapter-item expanded "><a href="reference/cli-commands.html"><strong aria-hidden="true">34.</strong> CLI Commands</a></li><li class="chapter-item expanded "><a href="reference/api-endpoints.html"><strong aria-hidden="true">35.</strong> API Endpoints</a></li><li class="chapter-item expanded "><a href="reference/configuration.html"><strong aria-hidden="true">36.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="reference/comparison.html"><strong aria-hidden="true">37.</strong> DRS vs Alternatives</a></li><li class="chapter-item expanded "><a href="reference/roadmap.html"><strong aria-hidden="true">38.</strong> Roadmap</a></li><li class="chapter-item expanded "><a href="reference/glossary.html"><strong aria-hidden="true">39.</strong> Glossary</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Delegation Receipt Standard</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="delegation-receipt-standard"><a class="header" href="#delegation-receipt-standard">Delegation Receipt Standard</a></h1>
+<p><span class="research-badge">Research Project</span></p>
+<p><strong>DRS is a per-step delegation receipt standard built on top of OAuth 2.1 + RFC 8693 + MCP.</strong></p>
+<p>Every time an AI agent acts on your behalf, DRS produces a cryptographically signed receipt that proves — to anyone, without contacting a central authority — exactly who authorised what, under which constraints, at what time.</p>
+<h2 id="the-problem-drs-solves"><a class="header" href="#the-problem-drs-solves">The problem DRS solves</a></h2>
+<p>Modern AI agents act through delegation chains. A human authorises an agent, which authorises a sub-agent, which calls a tool. OAuth 2.1 handles the first hop. RFC 8693 defines token exchange. But neither standard requires a receipt at every step — which means any link in the chain can be fabricated after the fact, and no tool server can independently verify the full provenance of a request.</p>
+<p>This is the <strong>chain splicing vulnerability</strong> (CVE-2025-55241, demonstrated in Azure AD). The IETF OAuth Working Group named per-step signed receipts as mitigation #3. DRS is that mitigation, implemented as an open standard on top of the existing OAuth + MCP stack.</p>
+<h2 id="what-drs-is-not"><a class="header" href="#what-drs-is-not">What DRS is not</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>DRS is</th><th>DRS is not</th></tr></thead><tbody>
+<tr><td>A receipt standard for delegation chains</td><td>A replacement for OAuth 2.1</td></tr>
+<tr><td>Built on JWTs, EdDSA, OAuth 2.1, MCP</td><td>A UCAN implementation</td></tr>
+<tr><td>Independently verifiable audit evidence</td><td>An observability tool (Langfuse/Arize do that)</td></tr>
+<tr><td>An open standard, not a platform</td><td>A blockchain product</td></tr>
+<tr><td>The authorisation provenance layer</td><td>A replacement for OpenTelemetry</td></tr>
+</tbody></table>
+</div>
+<h2 id="who-this-is-for"><a class="header" href="#who-this-is-for">Who this is for</a></h2>
+<ul>
+<li><strong><a href="./how-to/developers/install-sdk.html">Developers</a></strong> — building MCP servers or agent runtimes who need DRS integration</li>
+<li><strong><a href="./how-to/operators/deploy-drs-verify.html">Operators</a></strong> — deploying the verification server and configuring enterprise policies</li>
+<li><strong><a href="./how-to/auditors/reconstruct-chain.html">Auditors</a></strong> — reconstructing delegation chains for compliance evidence</li>
+<li><strong><a href="./how-to/contributors/dev-setup.html">Contributors</a></strong> — who want to understand the architecture and extend the codebase</li>
+</ul>
+<h2 id="repository-structure"><a class="header" href="#repository-structure">Repository structure</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Component</th><th>Language</th><th>Role</th></tr></thead><tbody>
+<tr><td><code>drs-core</code></td><td>Rust</td><td>Crypto primitives, JCS canonicalisation, chain verification, WASM build</td></tr>
+<tr><td><code>drs-verify</code></td><td>Go</td><td>Verification HTTP server, MCP/A2A middleware, DID resolver, status list cache</td></tr>
+<tr><td><code>drs-sdk</code></td><td>TypeScript</td><td>Developer SDK (issuance path), CLI tools, browser WASM wrapper</td></tr>
+</tbody></table>
+</div>
+<blockquote>
+<p>This is a research project. The architecture, data model, and algorithms are documented throughout this site. The implementation is the reference implementation of the DRS 4.0 specification.</p>
+<p>Start with <a href="./explanation/what-is-drs.html">What is DRS?</a> for a conceptual overview, or jump straight to the <a href="./quick-start.html">Quick Start</a>.</p>
+</blockquote>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h1>
+<p>Get from zero to a verified delegation bundle in under 10 minutes.</p>
+<h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
+<ul>
+<li>Node.js 20+ and pnpm</li>
+<li>Go 1.22+ (to run drs-verify locally)</li>
+</ul>
+<h2 id="1-install-the-sdk"><a class="header" href="#1-install-the-sdk">1. Install the SDK</a></h2>
+<pre><code class="language-bash">pnpm add @drs/sdk
+</code></pre>
+<h2 id="2-generate-a-keypair"><a class="header" href="#2-generate-a-keypair">2. Generate a keypair</a></h2>
+<pre><code class="language-bash">pnpm exec drs keygen
+</code></pre>
+<p>Output:</p>
+<pre><code>Private key (keep secret): &lt;base64url-encoded 32 bytes&gt;
+DID:                        did:key:z6Mk...
+</code></pre>
+<p>Save both values. The private key signs delegation receipts. The DID is your identity on the chain.</p>
+<h2 id="3-issue-a-root-delegation"><a class="header" href="#3-issue-a-root-delegation">3. Issue a root delegation</a></h2>
+<pre><code class="language-typescript">import { issueRootDelegation } from '@drs/sdk';
+
+const privateKey = Uint8Array.from(Buffer.from('YOUR_PRIVATE_KEY', 'base64url'));
+const now = Math.floor(Date.now() / 1000);
+
+const rootDR = await issueRootDelegation({
+  signingKey:  privateKey,
+  issuerDid:   'did:key:z6MkYOUR_DID',
+  subjectDid:  'did:key:z6MkYOUR_DID',   // human is both issuer and subject at root
+  audienceDid: 'did:key:z6MkAGENT_DID',
+  cmd: '/mcp/tools/call',
+  policy: {
+    allowed_tools: ['web_search'],
+    max_cost_usd: 10.00,
+    pii_access: false,
+  },
+  nbf: now,
+  exp: now + 3600,          // 1 hour
+  rootType: 'automated-system',
+});
+
+console.log('Root DR JWT:', rootDR);
+</code></pre>
+<h2 id="4-start-drs-verify-locally"><a class="header" href="#4-start-drs-verify-locally">4. Start drs-verify locally</a></h2>
+<pre><code class="language-bash">cd drs-verify
+go run ./cmd/server
+# drs-verify listening on :8080
+</code></pre>
+<h2 id="5-build-and-verify-a-bundle"><a class="header" href="#5-build-and-verify-a-bundle">5. Build and verify a bundle</a></h2>
+<pre><code class="language-typescript">import { buildBundle, serialiseBundle, issueInvocation, computeChainHash } from '@drs/sdk';
+
+const invocation = await issueInvocation({
+  signingKey:  agentPrivateKey,
+  issuerDid:   'did:key:z6MkAGENT_DID',
+  subjectDid:  'did:key:z6MkYOUR_DID',
+  cmd: '/mcp/tools/call',
+  args: { tool: 'web_search', query: 'hello', estimated_cost_usd: 0.01 },
+  drChain: [computeChainHash(rootDR)],
+  toolServer: 'did:key:z6MkTOOL_DID',
+});
+
+const bundle = buildBundle({ invocation, receipts: [rootDR] });
+import { writeFileSync } from 'fs';
+writeFileSync('bundle.json', serialiseBundle(bundle));
+</code></pre>
+<pre><code class="language-bash">DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
+</code></pre>
+<p>Expected output:</p>
+<pre><code>✓ Bundle verified
+  Chain depth:    1
+  Root principal: did:key:z6Mk...
+  Subject:        did:key:z6Mk...
+  Command:        /mcp/tools/call
+  Policy result:  pass
+  Blocks:         A✓ B✓ C✓ D✓ E✓ F✓
+</code></pre>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
+<ul>
+<li><strong>Developers:</strong> <a href="./how-to/developers/mcp-middleware.html">MCP Middleware Integration</a> — integrate DRS into your tool server in one day</li>
+<li><strong>Operators:</strong> <a href="./how-to/operators/deploy-drs-verify.html">Deploy drs-verify</a> — run a production verification server</li>
+<li><strong>Auditors:</strong> <a href="./how-to/auditors/reconstruct-chain.html">Reconstruct a Chain</a> — verify audit evidence independently</li>
+<li><strong>Contributors:</strong> <a href="./how-to/contributors/dev-setup.html">Dev Setup</a> — get the full codebase running</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="what-is-drs"><a class="header" href="#what-is-drs">What is DRS?</a></h1>
+<p><strong>DRS (Delegation Receipt Standard) is a per-step delegation receipt standard built on OAuth 2.1 + RFC 8693 + MCP.</strong></p>
+<p>It produces a cryptographically signed receipt at every step of an agent delegation chain so that any party — the tool server, a regulator, an auditor — can independently verify the complete provenance of any agent action without contacting a central authority.</p>
+<h2 id="the-one-sentence-definition"><a class="header" href="#the-one-sentence-definition">The one-sentence definition</a></h2>
+<blockquote>
+<p>DRS adds a tamper-evident, independently verifiable receipt to every hop of an OAuth delegation chain.</p>
+</blockquote>
+<h2 id="what-drs-adds-to-existing-standards"><a class="header" href="#what-drs-adds-to-existing-standards">What DRS adds to existing standards</a></h2>
+<pre><code>OAuth 2.1         → handles the first delegation hop (user → agent)
+RFC 8693          → defines token exchange between agents
+RFC 8693 + DRS    → adds a signed receipt at EVERY hop
+</code></pre>
+<p>Without DRS, an audit trail exists only in server logs controlled by the operator. With DRS, the audit trail is in the receipts themselves — signed by the delegating party, verifiable by anyone with the public key.</p>
+<h2 id="the-chain-splicing-problem"><a class="header" href="#the-chain-splicing-problem">The chain splicing problem</a></h2>
+<p>RFC 8693 allows Agent A to exchange its token for a new token representing Agent B acting on behalf of the original user. The problem: nothing prevents an attacker from splicing an unrelated token into the chain — presenting credentials from scope A while actually invoking scope B.</p>
+<p>CVE-2025-55241 (Azure AD, March 2025) demonstrated this in production. The IETF OAuth WG's suggested mitigation #3 is <strong>per-step signed receipts</strong>. DRS is that mitigation.</p>
+<h2 id="how-drs-works"><a class="header" href="#how-drs-works">How DRS works</a></h2>
+<ol>
+<li><strong>Delegation Receipt (DR):</strong> A signed JWT issued by each delegator. Contains the command, policy constraints, temporal bounds, and a SHA-256 hash of the previous DR.</li>
+<li><strong>Chain:</strong> The linked sequence of DRs from the human root to the invoking agent. Each <code>prev_dr_hash</code> field links back, creating a tamper-evident chain.</li>
+<li><strong>Invocation Receipt:</strong> A signed JWT recording the actual tool call arguments, the full chain of DR hashes, and the tool server's DID.</li>
+<li><strong>Bundle:</strong> The invocation receipt plus all DRs, transmitted as a base64url-encoded JSON object in the <code>X-DRS-Bundle</code> HTTP header.</li>
+</ol>
+<h2 id="what-drs-is-not-1"><a class="header" href="#what-drs-is-not-1">What DRS is not</a></h2>
+<p>DRS is frequently confused with systems it is adjacent to but distinct from:</p>
+<div class="table-wrapper"><table><thead><tr><th>System</th><th>What it does</th><th>How it differs from DRS</th></tr></thead><tbody>
+<tr><td>OAuth 2.1</td><td>Delegates access</td><td>DRS extends it with per-step receipts</td></tr>
+<tr><td>UCAN</td><td>Capability tokens (CBOR/IPLD)</td><td>DRS uses JWTs and OAuth — different ecosystem</td></tr>
+<tr><td>OpenTelemetry</td><td>Distributed tracing</td><td>Observability vs. authorisation provenance</td></tr>
+<tr><td>Langfuse / Arize</td><td>LLM observability</td><td>Logs vs. cryptographic proofs</td></tr>
+<tr><td>Agentic JWT</td><td>JWT profile for agent identity</td><td>Identity vs. delegation chain receipts</td></tr>
+<tr><td>Blockchain audit logs</td><td>Immutable event log</td><td>DRS receipts work without blockchain (on-chain is optional tier 4)</td></tr>
+</tbody></table>
+</div>
+<p>For a detailed comparison, see <a href="explanation/../reference/comparison.html">DRS vs Alternatives</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="why-drs-exists"><a class="header" href="#why-drs-exists">Why DRS Exists</a></h1>
+<p>DRS exists because the AI agent ecosystem is deploying faster than the accountability infrastructure to support it.</p>
+<h2 id="the-market-reality"><a class="header" href="#the-market-reality">The market reality</a></h2>
+<ul>
+<li>75% of C-suite executives rank auditability as their top AI governance requirement</li>
+<li>82% of executives are confident in their AI oversight, but only 14.4% send agents to production with full approval chains</li>
+<li>Only 5.2% of enterprises have AI agents in production today — the accountability gap is the primary blocker</li>
+</ul>
+<p>The question every CISO asks before approving an agent deployment: <em>"If this agent does something it shouldn't, can we prove exactly who authorised it, and what they authorised?"</em></p>
+<p>OAuth 2.1 + server logs cannot answer that question. DRS can.</p>
+<h2 id="the-rfc-8693-gap"><a class="header" href="#the-rfc-8693-gap">The RFC 8693 gap</a></h2>
+<p>RFC 8693 (Token Exchange) defines how Agent A exchanges its bearer token for a new token representing Agent B acting on behalf of the user. This is the correct building block for agentic delegation.</p>
+<p>The gap: RFC 8693 tokens are bearer tokens. Any agent that obtains a valid token can present it as if it were the legitimate holder. There is no per-step binding between the token and the specific delegation act that produced it.</p>
+<p><strong>Chain splicing:</strong> An attacker with access to one token can splice it into a different chain, presenting apparently legitimate credentials while exceeding the scope they were actually granted. CVE-2025-55241 (Azure AD, March 2025) is a real-world exploitation.</p>
+<p>DRS closes this gap: the <code>prev_dr_hash</code> field in each receipt links it cryptographically to the previous one. Any substitution breaks the chain and fails Block B of verification.</p>
+<h2 id="version-history-what-was-tried"><a class="header" href="#version-history-what-was-tried">Version history: what was tried</a></h2>
+<p>DRS reached v4 through three prior architectures that were each scrapped. Understanding what failed is essential for contributors — see <a href="explanation/../how-to/contributors/false-positives.html">False Positives: What We Tried</a> for the full history.</p>
+<h3 id="v1--invented-from-scratch"><a class="header" href="#v1--invented-from-scratch">v1 — Invented from scratch</a></h3>
+<p>Three fundamental errors:</p>
+<ol>
+<li>UCAN already defines delegation chains — v1 reinvented the wheel badly</li>
+<li>Applied a binary Merkle tree to a linear chain (CVE-2012-2459 risk)</li>
+<li>Under-specified security model</li>
+</ol>
+<p><strong>v1 was scrapped.</strong> The document is preserved in <code>docs/DRS_architecture_v1.md</code>.</p>
+<h3 id="v2--ucan-profile-against-wrong-version"><a class="header" href="#v2--ucan-profile-against-wrong-version">v2 — UCAN profile (against wrong version)</a></h3>
+<p>Correctly identified DRS should be a UCAN Profile — but built against UCAN 0.x (JWT) while the actual spec was UCAN v1.0-rc.1 (CBOR/IPLD). Additional problems: TypeScript-only verification with V8 GC pauses destroying the &lt;5ms latency requirement, unbounded DID resolver cache, status list race condition, O(n·m) policy check.</p>
+<p><strong>v2 was scrapped.</strong> The document is preserved in <code>docs/Drs_architecture_v2.md</code>.</p>
+<h3 id="v3v4--oauth-21-profile-current"><a class="header" href="#v3v4--oauth-21-profile-current">v3/v4 — OAuth 2.1 profile (current)</a></h3>
+<p>The final pivot was from UCAN to OAuth 2.1. The reason: the ecosystem standardised on OAuth. AT Protocol and MCP both chose JWT + OAuth. UCAN's production adoption is near-zero. Building on UCAN would have meant building on a standard nobody uses.</p>
+<p>The current architecture separates concerns by language: Rust for crypto (zero GC), Go for verification middleware (goroutines), TypeScript for the developer SDK (npm ecosystem).</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="the-five-actors"><a class="header" href="#the-five-actors">The Five Actors</a></h1>
+<p>DRS defines five actors. Every use case in this documentation maps to one or more of them.</p>
+<h2 id="1-end-user-human-granting-authority"><a class="header" href="#1-end-user-human-granting-authority">1. End User (Human granting authority)</a></h2>
+<p>The human whose data or resources are at stake. They grant the initial delegation through a consent UI that translates policy into plain English.</p>
+<p><strong>What they see:</strong></p>
+<pre><code>Research Agent wants permission to:
+✓  Search the web
+✓  Save files to your workspace
+✗  Cannot access personal data
+✗  Cannot spend more than £50.00
+
+This permission lasts 30 days. Revoke it at any time.
+</code></pre>
+<p>The <code>drs_consent</code> field in the root DR records evidence of this consent: the method (<code>explicit-ui-click</code>), timestamp, session ID, and a SHA-256 hash of the human-readable text the user actually saw — not the machine-readable policy JSON.</p>
+<p><strong>Key concern:</strong> Did I actually authorise this specific action?</p>
+<hr />
+<h2 id="2-developer"><a class="header" href="#2-developer">2. Developer</a></h2>
+<p>Integrates DRS into MCP tool servers or agent runtimes. Interacts with the TypeScript SDK (<code>@drs/sdk</code>) and the drs-verify HTTP API.</p>
+<p><strong>What they do:</strong></p>
+<ul>
+<li>Call <code>issueRootDelegation</code> / <code>issueSubDelegation</code> from the SDK</li>
+<li>Add <code>X-DRS-Bundle</code> header to MCP requests</li>
+<li>Deploy the Go middleware in front of their tool server</li>
+<li>Use the CLI (<code>drs verify</code>, <code>drs audit</code>, <code>drs policy</code>) for debugging</li>
+</ul>
+<p><strong>Key concern:</strong> How do I integrate this in a day?</p>
+<hr />
+<h2 id="3-agent-runtime"><a class="header" href="#3-agent-runtime">3. Agent Runtime</a></h2>
+<p>The automated system that acts on the user's behalf. Can be a single agent or a chain of agents delegating to sub-agents.</p>
+<p><strong>What it does:</strong></p>
+<ul>
+<li>Evaluates its policy before every action (POLA — principle of least authority)</li>
+<li>Issues sub-delegation receipts when delegating to sub-agents</li>
+<li>Escalates out-of-policy requests to a supervisor agent (not a human)</li>
+<li>Auto-renews delegations before expiry for machine-rooted standing delegations</li>
+<li>Stops immediately when any policy constraint is exceeded</li>
+</ul>
+<p><strong>Key concern:</strong> Can I take this action within my current delegation?</p>
+<hr />
+<h2 id="4-tool-server-operator"><a class="header" href="#4-tool-server-operator">4. Tool Server (Operator)</a></h2>
+<p>Receives MCP requests with <code>X-DRS-Bundle</code> headers. Runs full chain verification before executing any tool. Deployed by the enterprise operator.</p>
+<p><strong>What it does:</strong></p>
+<ul>
+<li>Extracts and parses the DRS bundle from the HTTP header</li>
+<li>Runs <code>verify_chain</code> (Blocks A–F) on every request — fail-closed</li>
+<li>Rejects requests with invalid bundles</li>
+<li>Rate-limits by <code>root_principal</code> (not just agent DID) to prevent agent-churn bypass</li>
+<li>Emits <code>drs:tool-call</code> activity events</li>
+</ul>
+<p><strong>Key concern:</strong> Is this agent authorised to call this tool with these arguments?</p>
+<hr />
+<h2 id="5-auditor--compliance-officer"><a class="header" href="#5-auditor--compliance-officer">5. Auditor / Compliance Officer</a></h2>
+<p>Reconstructs delegation chains after the fact to produce evidence for regulators, legal proceedings, or internal investigation. Does not need operator cooperation.</p>
+<p><strong>What they do:</strong></p>
+<pre><code class="language-bash">drs audit retrieve --inv-jti "inv:7h5c4d3e-..."
+drs verify evidence.json
+drs audit export --inv-jti "inv:7h5c4d3e-..." --format eu-ai-act
+</code></pre>
+<p><strong>Key concern:</strong> Can I prove what happened to a standard that satisfies EU AI Act Article 12?</p>
+<hr />
+<h2 id="how-the-actors-interact"><a class="header" href="#how-the-actors-interact">How the actors interact</a></h2>
+<pre><code>End User ──grant──► Agent Runtime ──sub-delegate──► Sub-Agent
+                                                          │
+                                                     invoke tool
+                                                          ▼
+                                                    Tool Server
+                                                  (verify_chain)
+                                                          │
+                                                    emit event
+                                                          ▼
+                                                    Auditor reads
+                                                    evidence later
+</code></pre>
+<p>The Developer builds both the agent runtime and the tool server integrations. The Operator deploys and configures the verification infrastructure.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="data-model"><a class="header" href="#data-model">Data Model</a></h1>
+<p>DRS defines three JWT types and one bundle format. All JWTs use the <code>{"alg":"EdDSA","typ":"JWT"}</code> header and are canonicalised with RFC 8785 JCS before signing.</p>
+<h2 id="1-delegation-receipt-dr"><a class="header" href="#1-delegation-receipt-dr">1. Delegation Receipt (DR)</a></h2>
+<p>A signed JWT issued by each delegator. The root DR is issued by the human (or automated operator). Sub-DRs are issued by each agent in the chain.</p>
+<h3 id="root-dr-payload-example"><a class="header" href="#root-dr-payload-example">Root DR payload example</a></h3>
+<pre><code class="language-json">{
+  "aud": "did:key:z6MkAgent1...",
+  "cmd": "/mcp/tools/call",
+  "drs_consent": {
+    "locale": "en-GB",
+    "method": "explicit-ui-click",
+    "policy_hash": "sha256:abc123...",
+    "session_id": "sess:8f3a2b1c",
+    "timestamp": "2026-03-28T10:30:00Z"
+  },
+  "drs_regulatory": {
+    "frameworks": ["eu-ai-act-art13"],
+    "retention_days": 730,
+    "risk_level": "limited"
+  },
+  "drs_root_type": "human",
+  "drs_type": "delegation-receipt",
+  "drs_v": "4.0",
+  "exp": 1745592000,
+  "iat": 1743000000,
+  "iss": "did:key:z6MkHuman...",
+  "jti": "dr:8f3a2b1c-4d5e-4xxx-8b9c-0d1e2f3a4b5c",
+  "nbf": 1743000000,
+  "policy": {
+    "allowed_tools": ["web_search", "write_file"],
+    "max_calls": 100,
+    "max_cost_usd": 50.00,
+    "pii_access": false,
+    "write_access": false
+  },
+  "prev_dr_hash": null,
+  "sub": "did:key:z6MkHuman..."
+}
+</code></pre>
+<blockquote>
+<p><strong>Note:</strong> Keys are sorted by Unicode code point in the JWT payload (RFC 8785 JCS). This is not cosmetic — it ensures identical bytes for identical data across all implementations.</p>
+</blockquote>
+<h3 id="sub-dr-differences"><a class="header" href="#sub-dr-differences">Sub-DR differences</a></h3>
+<p>Sub-DRs differ from root DRs in three ways:</p>
+<ol>
+<li><code>iss</code> changes to the delegating agent's DID (not the human)</li>
+<li><code>policy</code> must be a strict subset of the parent's policy (POLA)</li>
+<li><code>prev_dr_hash</code> contains <code>sha256:{hex of parent DR JWT bytes}</code> instead of null</li>
+<li><code>drs_consent</code> and <code>drs_root_type</code> are absent</li>
+</ol>
+<h3 id="field-reference"><a class="header" href="#field-reference">Field reference</a></h3>
+<p>See <a href="explanation/../reference/jwt-fields.html">JWT Fields Reference</a> for the complete field table with types and constraints.</p>
+<h2 id="2-invocation-receipt"><a class="header" href="#2-invocation-receipt">2. Invocation Receipt</a></h2>
+<p>Records the actual tool call. Issued by the agent making the call immediately before invoking the tool.</p>
+<pre><code class="language-json">{
+  "args": {
+    "estimated_cost_usd": 0.02,
+    "query": "Monad TPS benchmarks",
+    "tool": "web_search"
+  },
+  "cmd": "/mcp/tools/call",
+  "dr_chain": ["sha256:abc123...", "sha256:def456..."],
+  "drs_type": "invocation-receipt",
+  "drs_v": "4.0",
+  "iat": 1743000300,
+  "iss": "did:key:z6MkAgent2...",
+  "jti": "inv:7h5c4d3e-2a3b-4c5d-6e7f-8a9b0c1d2e3f",
+  "sub": "did:key:z6MkHuman...",
+  "tool_server": "did:key:z6MkToolServer..."
+}
+</code></pre>
+<p>The <code>dr_chain</code> array contains the <code>sha256:{hex}</code> hashes of every DR in the chain, in order from root (index 0) to most recent sub-DR.</p>
+<h2 id="3-drs-bundle"><a class="header" href="#3-drs-bundle">3. DRS Bundle</a></h2>
+<p>The unit of transport. Transmitted as the <code>X-DRS-Bundle</code> HTTP header (base64url of the JSON):</p>
+<pre><code class="language-json">{
+  "bundle_version": "4.0",
+  "invocation": "&lt;invocation-receipt-jwt&gt;",
+  "receipts": [
+    "&lt;root-dr-jwt&gt;",
+    "&lt;sub-dr-jwt-1&gt;",
+    "&lt;sub-dr-jwt-2&gt;"
+  ]
+}
+</code></pre>
+<p>The <code>receipts</code> array is ordered from root (index 0) to most recent sub-delegation.</p>
+<h2 id="chain-hash-computation"><a class="header" href="#chain-hash-computation">Chain hash computation</a></h2>
+<pre><code>prev_dr_hash = "sha256:" + lowercase_hex(SHA-256(UTF-8 bytes of previous DR JWT string))
+</code></pre>
+<p>The hash is computed over the <strong>raw JWT string</strong> (the <code>header.payload.signature</code> format), not just the payload.</p>
+<pre><code class="language-typescript">// TypeScript (drs-sdk)
+function computeChainHash(jwt: string): string {
+  const bytes = new TextEncoder().encode(jwt);
+  const digest = sha256(bytes);
+  return 'sha256:' + Array.from(digest)
+    .map(b =&gt; b.toString(16).padStart(2, '0'))
+    .join('');
+}
+</code></pre>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Rust (drs-core)
+pub fn compute_chain_hash(jwt: &amp;str) -&gt; String {
+    let digest = sha2::Sha256::digest(jwt.as_bytes());
+    format!("sha256:{}", hex::encode(digest))
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Both must produce identical output for the same JWT string. This is verified in the cross-implementation test suite.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="verification-algorithm"><a class="header" href="#verification-algorithm">Verification Algorithm</a></h1>
+<p><code>verify_chain</code> runs six sequential blocks (A–F). The function is <strong>fail-closed</strong>: any error in any block immediately returns an error without evaluating subsequent blocks.</p>
+<h2 id="the-six-blocks"><a class="header" href="#the-six-blocks">The six blocks</a></h2>
+<h3 id="block-a--completeness"><a class="header" href="#block-a--completeness">Block A — Completeness</a></h3>
+<p><strong>What:</strong> Bundle has at least one delegation receipt and exactly one invocation receipt.</p>
+<p><strong>Fail condition:</strong> <code>receipts</code> array is empty, or <code>invocation</code> field is missing or null.</p>
+<hr />
+<h3 id="block-b--structural-integrity"><a class="header" href="#block-b--structural-integrity">Block B — Structural Integrity</a></h3>
+<p><strong>What:</strong> The delegation receipts form a valid tamper-evident chain.</p>
+<p>For each receipt at index <code>i</code>:</p>
+<ul>
+<li><code>receipts[i].aud</code> must equal <code>receipts[i+1].iss</code> (audience of each DR is the issuer of the next)</li>
+<li><code>receipts[i+1].prev_dr_hash</code> must equal <code>sha256:{SHA-256 of receipts[i] JWT bytes}</code></li>
+<li>The invocation's <code>dr_chain[i]</code> must equal <code>sha256:{SHA-256 of receipts[i] JWT bytes}</code></li>
+</ul>
+<p><strong>Fail condition:</strong> Any hash mismatch, any issuer/audience gap, any missing <code>dr_chain</code> entry.</p>
+<p>This block defeats chain splicing: substituting any DR changes its bytes, which changes its hash, which breaks <code>prev_dr_hash</code> in the next DR.</p>
+<hr />
+<h3 id="block-c--cryptographic-validity"><a class="header" href="#block-c--cryptographic-validity">Block C — Cryptographic Validity</a></h3>
+<p><strong>What:</strong> Every JWT signature is valid.</p>
+<p>For each JWT in the bundle:</p>
+<ol>
+<li>Parse JWT header — must be <code>{"alg":"EdDSA","typ":"JWT"}</code></li>
+<li>Resolve the issuer DID to its Ed25519 public key (LRU-cached)</li>
+<li>Verify the EdDSA signature over <code>base64url(header).base64url(payload)</code></li>
+<li>Enforce <code>S &lt; L</code> (strict mode — rejects signature malleability)</li>
+</ol>
+<p><strong>Fail condition:</strong> Any signature invalid, any DID unresolvable, any <code>S ≥ L</code>.</p>
+<blockquote>
+<p><strong>Security:</strong> The multicodec prefix check when resolving <code>did:key</code> DIDs uses <code>crypto/subtle.ConstantTimeCompare</code> in Go and <code>subtle::ConstantTimeEq</code> in Rust. Using <code>bytes.Equal</code> or <code>==</code> leaks timing information.</p>
+</blockquote>
+<hr />
+<h3 id="block-d--semantic--policy-compliance"><a class="header" href="#block-d--semantic--policy-compliance">Block D — Semantic / Policy Compliance</a></h3>
+<p><strong>What:</strong> The invocation arguments comply with every policy in the chain, and no sub-DR escalates beyond its parent.</p>
+<p>Policies are evaluated <strong>conjunctively</strong> — all policies must pass:</p>
+<ul>
+<li><code>args.tool</code> must be in <code>policy.allowed_tools</code> (if set) at every level</li>
+<li><code>args.estimated_cost_usd</code> must be ≤ <code>policy.max_cost_usd</code> (if set) at every level</li>
+<li><code>args.pii_access</code> must be <code>false</code> if <code>policy.pii_access</code> is <code>false</code> at any level</li>
+</ul>
+<p>Sub-DR attenuation check:</p>
+<ul>
+<li>Each sub-DR's <code>policy</code> must be a subset of its parent's <code>policy</code></li>
+<li>Any escalation (wider tool list, higher cost limit, <code>pii_access: true</code> when parent has <code>false</code>) fails this block</li>
+</ul>
+<p><strong>Fail condition:</strong> Any argument exceeds any policy constraint, or any sub-DR escalates permissions.</p>
+<hr />
+<h3 id="block-e--temporal-validity"><a class="header" href="#block-e--temporal-validity">Block E — Temporal Validity</a></h3>
+<p><strong>What:</strong> All receipts are valid at the current time, and temporal bounds are properly nested.</p>
+<ul>
+<li><code>now ≥ receipt.nbf</code> for every receipt</li>
+<li><code>now ≤ receipt.exp</code> for every receipt where <code>exp</code> is not null</li>
+<li>Sub-DR <code>nbf ≥ parent nbf</code></li>
+<li>Sub-DR <code>exp ≤ parent exp</code> (when both are set)</li>
+</ul>
+<p><strong>Fail condition:</strong> Any receipt is expired, not yet valid, or has invalid temporal nesting.</p>
+<hr />
+<h3 id="block-f--revocation"><a class="header" href="#block-f--revocation">Block F — Revocation</a></h3>
+<p><strong>What:</strong> No receipt has been revoked via the Bitstring Status List.</p>
+<p>For each receipt with a <code>drs_status_list_index</code>:</p>
+<ol>
+<li>Fetch the Bitstring Status List from the issuer's DR Store (5-minute TTL cache)</li>
+<li>Check the bit at <code>drs_status_list_index</code></li>
+<li>Bit <code>1</code> = revoked</li>
+</ol>
+<p>The status list cache uses <code>sync.Once</code> to prevent double-fetch under concurrent load.</p>
+<p><strong>Fail condition:</strong> Any receipt is revoked.</p>
+<hr />
+<h2 id="algorithm-pseudocode"><a class="header" href="#algorithm-pseudocode">Algorithm pseudocode</a></h2>
+<pre><code>verify_chain(bundle) → Result&lt;VerifiedChain, VerifyError&gt;:
+
+  # Block A
+  if bundle.receipts is empty: return Err(BUNDLE_INCOMPLETE)
+  if bundle.invocation is null: return Err(BUNDLE_INCOMPLETE)
+
+  drs = [decode_jwt(r) for r in bundle.receipts]
+  inv = decode_jwt(bundle.invocation)
+
+  # Block B
+  for i in 0..len(drs)-1:
+    if drs[i].aud != drs[i+1].iss: return Err(ISSUER_AUDIENCE_GAP)
+    if drs[i+1].prev_dr_hash != sha256(bundle.receipts[i]): return Err(CHAIN_HASH_MISMATCH)
+  for i, dr in enumerate(drs):
+    if inv.dr_chain[i] != sha256(bundle.receipts[i]): return Err(CHAIN_HASH_MISMATCH)
+
+  # Block C
+  for (jwt, payload) in receipts + invocation:
+    pub_key = resolve_did(payload.iss)  # LRU cached, constant-time prefix check
+    if not ed25519_verify_strict(jwt, pub_key): return Err(SIGNATURE_INVALID)
+
+  # Block D
+  for dr in drs:
+    if not args_satisfy_policy(inv.args, dr.policy): return Err(POLICY_VIOLATION)
+  for i in 1..len(drs):
+    if not is_attenuated_subset(drs[i].policy, drs[i-1].policy): return Err(POLICY_ESCALATION)
+
+  # Block E
+  now = unix_timestamp()
+  for dr in drs:
+    if now &lt; dr.nbf: return Err(RECEIPT_NOT_YET_VALID)
+    if dr.exp != null and now &gt; dr.exp: return Err(RECEIPT_EXPIRED)
+  for i in 1..len(drs):
+    if drs[i].nbf &lt; drs[i-1].nbf: return Err(TEMPORAL_BOUNDS_VIOLATION)
+    if both have exp and drs[i].exp &gt; drs[i-1].exp: return Err(TEMPORAL_BOUNDS_VIOLATION)
+
+  # Block F
+  for dr in drs:
+    if dr.drs_status_list_index != null:
+      if is_revoked(dr.drs_status_list_index): return Err(RECEIPT_REVOKED)
+
+  return Ok(VerifiedChain{root_principal, subject, chain_depth, policy_result})
+</code></pre>
+<h2 id="performance-targets"><a class="header" href="#performance-targets">Performance targets</a></h2>
+<p>At 10,000 requests/second on the Go verification server:</p>
+<div class="table-wrapper"><table><thead><tr><th>Operation</th><th>Cost</th><th>Notes</th></tr></thead><tbody>
+<tr><td>Policy check per level</td><td>O(1) avg</td><td>Hash-set intersection in capability index</td></tr>
+<tr><td>DID resolution</td><td>O(1) amortised</td><td>LRU cache, 10,000 entry cap, 1-hour TTL</td></tr>
+<tr><td>Status list check</td><td>O(1) amortised</td><td>5-min TTL, <code>sync.Once</code> guard</td></tr>
+<tr><td>Ed25519 verify</td><td>~0.1ms/sig</td><td><code>ed25519-dalek 2.x</code></td></tr>
+<tr><td>Total per request (2-hop chain)</td><td>~0.8ms p99</td><td></td></tr>
+</tbody></table>
+</div><div style="break-before: page; page-break-before: always;"></div><h1 id="architecture"><a class="header" href="#architecture">Architecture</a></h1>
+<p>DRS uses a three-language stack. Each language handles the layer it is genuinely best suited for. This is not aesthetic preference — it is a consequence of the performance and correctness requirements of each layer.</p>
+<h2 id="the-three-layers"><a class="header" href="#the-three-layers">The three layers</a></h2>
+<pre><code>┌──────────────────────────────────────────────┐
+│  TypeScript SDK  (@drs/sdk)                   │
+│  Issuance path only. Low-frequency.           │
+│  issueRootDelegation, issueSubDelegation,     │
+│  buildBundle, CLI tools                       │
+│  Delegates crypto to WASM or HTTP             │
+└───────────────────┬──────────────────────────┘
+                    │  WASM (drs-core compiled for browser)
+                    │  HTTP (VerifyClient → drs-verify)
+┌───────────────────▼──────────────────────────┐
+│  Go Middleware  (drs-verify)                  │
+│  Verification path. High-frequency.           │
+│  verify_chain (6 blocks), MCP/A2A middleware  │
+│  LRU DID resolver, status list cache          │
+│  Single static binary, goroutine-based        │
+└───────────────────┬──────────────────────────┘
+                    │  Rust crate (native library)
+                    │  WASM (browser target)
+┌───────────────────▼──────────────────────────┐
+│  Rust Core  (drs-core)                        │
+│  Ed25519 sign/verify, SHA-256, JCS (RFC 8785) │
+│  Capability index (O(1) policy check)         │
+│  DID key resolution, chain hash computation   │
+│  Zero GC. Stack-allocated. Deterministic.     │
+└──────────────────────────────────────────────┘
+</code></pre>
+<h2 id="why-rust-for-the-core"><a class="header" href="#why-rust-for-the-core">Why Rust for the core</a></h2>
+<p>Ed25519 signature verification requires deterministic, constant-time operations. V8 (JavaScript/TypeScript) cannot guarantee either:</p>
+<ul>
+<li>GC pauses of 50–1500ms are common under load</li>
+<li>V8 does not guarantee constant-time execution of arithmetic</li>
+</ul>
+<p>Rust's <code>ed25519-dalek 2.x</code> provides:</p>
+<ul>
+<li>RUSTSEC-2022-0093 patched (batch verification side-channel fixed)</li>
+<li><code>verify_strict()</code> enforcing <code>S &lt; L</code> — rejects signature malleability</li>
+<li><code>subtle::ConstantTimeEq</code> for security-sensitive comparisons</li>
+<li>Compiles to native library (used by Go via CGO) and WASM (used in browsers)</li>
+</ul>
+<p>The v2 architecture used TypeScript for verification and hit all of these problems in implementation.</p>
+<h2 id="why-go-for-verification"><a class="header" href="#why-go-for-verification">Why Go for verification</a></h2>
+<p>The verification server handles thousands of concurrent requests. Go's goroutine model gives concurrent request handling without the complexity of async Rust, while the GC is predictable enough for the latency requirements:</p>
+<ul>
+<li><code>sync.Once</code> prevents double-fetch race conditions in the Bitstring Status List cache</li>
+<li><code>hashicorp/golang-lru/v2</code> — LRU with hard cap of 10,000 entries (~640KB)</li>
+<li><code>crypto/subtle.ConstantTimeCompare</code> for DID multicodec prefix checks</li>
+<li><code>CGO_ENABLED=0 go build</code> — single static binary, no runtime dependencies</li>
+<li><code>/healthz</code> and <code>/readyz</code> endpoints for Kubernetes readiness probes</li>
+</ul>
+<h2 id="why-typescript-for-the-sdk"><a class="header" href="#why-typescript-for-the-sdk">Why TypeScript for the SDK</a></h2>
+<p>Delegation issuance is low-frequency (human sets up a session, agent runtime boots). The developer experience matters more than raw performance. TypeScript gives:</p>
+<ul>
+<li>Native npm ecosystem integration — one <code>pnpm add @drs/sdk</code></li>
+<li>IDE autocompletion and type safety</li>
+<li>Browser compatibility for consent UIs</li>
+<li>Matches the existing tech stack of most MCP server developers</li>
+</ul>
+<p>TypeScript never handles verification — that path runs in Go or Rust.</p>
+<h2 id="jcs-canonicalisation"><a class="header" href="#jcs-canonicalisation">JCS canonicalisation</a></h2>
+<p>All JWTs in DRS are canonicalised with RFC 8785 (JSON Canonicalization Scheme) before signing. This ensures two logically equivalent objects always produce identical JWT bytes, regardless of which implementation created them.</p>
+<p>The rules:</p>
+<ul>
+<li>Object keys sorted recursively by Unicode code point</li>
+<li>No whitespace</li>
+<li>IEEE 754 shortest number representation</li>
+</ul>
+<pre><code class="language-typescript">// WRONG — does not sort nested object keys:
+const payload = JSON.stringify(obj);
+
+// CORRECT — RFC 8785 JCS:
+const payload = jcsSerialise(obj);  // from drs-sdk/src/sdk/issue.ts
+</code></pre>
+<p>The Rust implementation uses <code>serde-json-canonicalizer</code>. The TypeScript implementation has an inline <code>jcsSerialise()</code> function. Both must produce identical output for the same logical object — this is tested in the cross-implementation test suite.</p>
+<h2 id="wasm-build"><a class="header" href="#wasm-build">WASM build</a></h2>
+<pre><code class="language-bash">cd drs-core
+wasm-pack build --target web --features wasm
+# Output: drs-core/pkg/ — publish as @drs/wasm
+</code></pre>
+<p>The <code>@drs/wasm</code> package is an optional peer dependency of <code>@drs/sdk</code>. The WASM loader (<code>src/wasm/loader.ts</code>) is:</p>
+<ul>
+<li><strong>Idempotent:</strong> <code>initWasm()</code> can be called multiple times safely</li>
+<li><strong>Lazy:</strong> the WASM binary is not fetched until <code>initWasm()</code> is awaited</li>
+<li><strong>Graceful:</strong> if <code>@drs/wasm</code> is not installed, a clear error is thrown</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="security-model"><a class="header" href="#security-model">Security Model</a></h1>
+<h2 id="threat-table"><a class="header" href="#threat-table">Threat table</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Threat</th><th>Attack vector</th><th>DRS mitigation</th><th>Residual risk</th></tr></thead><tbody>
+<tr><td><strong>Forged root DR</strong></td><td>Attacker creates a fake delegation</td><td>Ed25519 EUF-CMA: forgery requires solving the discrete log</td><td>Private key theft</td></tr>
+<tr><td><strong>Chain splicing</strong></td><td>Compromised agent substitutes unrelated token</td><td><code>prev_dr_hash</code>: any substitution changes the hash chain — fails Block B</td><td>Implementation bugs in hash computation</td></tr>
+<tr><td><strong>Policy escalation</strong></td><td>Sub-DR claims wider permissions than parent</td><td><code>check_policy_attenuation()</code> at issuance + Block D at verification</td><td>Policy schema gaps</td></tr>
+<tr><td><strong>Policy violation</strong></td><td>Agent passes arguments exceeding constraints</td><td>Block D evaluates all policies conjunctively</td><td>Unlisted policy fields are not checked</td></tr>
+<tr><td><strong>DR tampering</strong></td><td>Attacker modifies a signed DR</td><td>Ed25519 signature fails — fails Block C</td><td>None — structural</td></tr>
+<tr><td><strong>Chain injection</strong></td><td>Insert a fake intermediate DR</td><td><code>prev_dr_hash</code> changes break subsequent links — fails Block B</td><td>None — structural</td></tr>
+<tr><td><strong>Replay after revocation</strong></td><td>Agent replays a revoked DR</td><td>Block F: Bitstring Status List (5-min cache TTL)</td><td>Up to 5-minute stale cache window</td></tr>
+<tr><td><strong>JSON malleability</strong></td><td>Different canonical bytes for same logical JSON</td><td>RFC 8785 JCS enforced at both issuance and verification ends</td><td>Non-conforming JCS at one end</td></tr>
+<tr><td><strong>Signature malleability</strong></td><td><code>(R, S)</code> and <code>(R, S+L)</code> both verify under naive check</td><td><code>ed25519-dalek 2.x</code> enforces <code>S &lt; L</code> via <code>verify_strict()</code></td><td>None — library enforces</td></tr>
+<tr><td><strong>DID spoofing</strong></td><td>Attacker impersonates a legitimate issuer</td><td><code>did:key</code> DIDs are derived from the public key — impossible without the private key</td><td><code>did:web</code> requires DNS/TLS security</td></tr>
+<tr><td><strong>Prompt injection</strong></td><td>Attacker embeds instructions in tool content</td><td>DRS records every invocation chain</td><td>Out of scope — model/runtime responsibility</td></tr>
+<tr><td><strong>Model-level bypass</strong></td><td>Adversarial prompts bypass safety constraints</td><td>Model safety ≠ execution safety</td><td>Entirely outside DRS scope</td></tr>
+</tbody></table>
+</div>
+<h2 id="fail-closed-principle"><a class="header" href="#fail-closed-principle">Fail-closed principle</a></h2>
+<p>DRS verification is fail-closed. Any error in any block returns an error and rejects the request. This applies to:</p>
+<ul>
+<li>Unresolvable DIDs</li>
+<li>Malformed JWTs</li>
+<li>Network errors fetching the Bitstring Status List</li>
+<li>Policy fields the verifier does not recognise</li>
+</ul>
+<p>A partially valid chain is an invalid chain.</p>
+<h2 id="constant-time-operations"><a class="header" href="#constant-time-operations">Constant-time operations</a></h2>
+<p>All security-sensitive comparisons use constant-time equality to prevent timing side-channels:</p>
+<div class="table-wrapper"><table><thead><tr><th>Language</th><th>Safe</th><th>Unsafe</th></tr></thead><tbody>
+<tr><td>Go</td><td><code>crypto/subtle.ConstantTimeCompare</code></td><td><code>bytes.Equal</code>, <code>==</code></td></tr>
+<tr><td>Rust</td><td><code>subtle::ConstantTimeEq</code></td><td><code>==</code> on byte slices</td></tr>
+</tbody></table>
+</div>
+<p>This applies specifically to multicodec prefix checks when resolving <code>did:key</code> DIDs. The two-byte prefix <code>[0xed, 0x01]</code> identifies an Ed25519 key. Checking it with a short-circuit comparison leaks timing information about where the mismatch occurs.</p>
+<h2 id="key-management"><a class="header" href="#key-management">Key management</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Key type</th><th>Recommended storage</th><th>Rotation</th></tr></thead><tbody>
+<tr><td>Human root key</td><td>Hardware Security Module or Secure Enclave</td><td>Not rotated (DID is derived from key)</td></tr>
+<tr><td>Operator root key</td><td>HSM required for production</td><td>Annual with overlap period</td></tr>
+<tr><td>Agent session key</td><td>Ephemeral — generated per session</td><td>Per-session, never persisted</td></tr>
+</tbody></table>
+</div>
+<p><code>did:key</code> is the preferred DID method: the DID encodes the public key directly. No registry, no DNS, no trust anchor beyond the key itself. <code>did:web</code> is supported but requires DNS and TLS security.</p>
+<h2 id="what-drs-does-not-protect-against"><a class="header" href="#what-drs-does-not-protect-against">What DRS does not protect against</a></h2>
+<ul>
+<li><strong>Prompt injection:</strong> An attacker embedding instructions in tool output or environment data. This is a model-layer problem. DRS records that the invocation happened and under what authorisation — it does not prevent the model from following injected instructions.</li>
+<li><strong>Key compromise:</strong> If a private key is stolen, the attacker can forge receipts signed by that key. Mitigation: rotate keys, revoke outstanding delegations.</li>
+<li><strong>Post-compromise recovery:</strong> DRS does not define how to recover a system after key material is compromised. That is an operational problem.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="regulatory-alignment"><a class="header" href="#regulatory-alignment">Regulatory Alignment</a></h1>
+<p>DRS is designed to produce evidence that satisfies the specific record-keeping requirements of AI governance regulations. The receipts are cryptographically signed and independently verifiable — an auditor does not need operator cooperation to authenticate the evidence.</p>
+<h2 id="eu-ai-act"><a class="header" href="#eu-ai-act">EU AI Act</a></h2>
+<p><strong>Article 12 — Record-keeping for high-risk AI systems</strong></p>
+<p>Article 12 requires high-risk AI systems to automatically log events with sufficient detail to enable post-market monitoring and investigation. DRS Delegation Receipts satisfy this:</p>
+<ul>
+<li><strong>Tamper-evident:</strong> Ed25519 signatures; any modification breaks verification</li>
+<li><strong>Independently verifiable:</strong> Public keys are encoded in the DID — no central authority needed</li>
+<li><strong>Comprehensive:</strong> Every delegation hop and every invocation is receipted</li>
+</ul>
+<p><strong>Article 13 — Transparency</strong></p>
+<p>Article 13 requires transparency in the operation of high-risk AI systems. DRS provides:</p>
+<ul>
+<li>Human-readable policy translation at the point of consent (the <code>drs_consent.policy_hash</code> covers the text the user saw — not just the machine-readable JSON)</li>
+<li>Complete chain reconstruction without operator involvement</li>
+<li>Per-invocation records linking every agent action to the authorising human</li>
+</ul>
+<p><strong>Export:</strong></p>
+<pre><code class="language-bash">pnpm exec drs audit export --inv-jti "inv:..." --format eu-ai-act --output evidence.json
+</code></pre>
+<h2 id="hipaa-164312b--audit-controls"><a class="header" href="#hipaa-164312b--audit-controls">HIPAA §164.312(b) — Audit Controls</a></h2>
+<p>For healthcare deployments handling PHI, HIPAA §164.312(b) requires audit controls that record and examine activity. DRS provides:</p>
+<ul>
+<li>Invocation Receipts recording every agent action with full delegation provenance</li>
+<li>Signed proof that access was authorised before it occurred (not just a log that it happened)</li>
+<li>Tier 3 (Compliant) storage with WORM policy and 7-year retention</li>
+</ul>
+<h2 id="aiuc-1-certification"><a class="header" href="#aiuc-1-certification">AIUC-1 Certification</a></h2>
+<p>AIUC (AI Underwriting Company, founded July 2025 with $15M seed) certifies AI systems for insurance underwriting. AIUC-1 requires demonstrable proof of authorisation for every agent action — not just server logs.</p>
+<p>The AIUC-1 requirement: <em>"For any agent action, provide cryptographic proof that the action was within the scope of an authorisation granted by an identifiable principal."</em></p>
+<p>DRS Delegation Receipts satisfy this directly. AIUC-1 is identified as the primary near-term commercial opportunity for DRS-based deployments.</p>
+<h2 id="soc-2-type-ii"><a class="header" href="#soc-2-type-ii">SOC 2 Type II</a></h2>
+<p>SOC 2 requires continuous evidence of access controls. DRS provides:</p>
+<ul>
+<li>Signed receipts for every delegation grant (who authorised what, when, with what constraints)</li>
+<li>Tamper-evident chain linking every action to its authorisation</li>
+<li>Revocation mechanism for compromised keys</li>
+</ul>
+<h2 id="finos-ai-governance-framework"><a class="header" href="#finos-ai-governance-framework">FINOS AI Governance Framework</a></h2>
+<p>FINOS Tier 3–4 levels require chain-of-custody evidence admissible in legal proceedings. DRS Delegation Receipts are:</p>
+<ul>
+<li>Based on open standards (Ed25519, JWT, OAuth 2.1) — no proprietary formats</li>
+<li>Independently verifiable — no vendor lock-in for evidence authentication</li>
+<li>Exportable in structured formats</li>
+</ul>
+<p>Relevant financial regulations: SR 11-7 (Federal Reserve model risk management), EBA Guidelines on ICT risk, GDPR Article 22 (automated decision-making explainability), MiFID II audit trails.</p>
+<h2 id="storage-tiers-and-retention"><a class="header" href="#storage-tiers-and-retention">Storage tiers and retention</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Tier</th><th><code>storage_tier</code></th><th>Backend</th><th>Retention</th><th>Use case</th></tr></thead><tbody>
+<tr><td>Session</td><td><code>0</code></td><td>In-memory</td><td>Process lifetime</td><td>Development, testing</td></tr>
+<tr><td>Ephemeral</td><td><code>1</code></td><td>Local filesystem</td><td>Configurable TTL</td><td>Non-regulated production</td></tr>
+<tr><td>Durable</td><td><code>2</code></td><td>S3 / GCS / Azure Blob</td><td>Configurable</td><td>Standard production</td></tr>
+<tr><td>Compliant</td><td><code>3</code></td><td>WORM object storage</td><td>7 years minimum</td><td>HIPAA, financial services</td></tr>
+<tr><td>On-chain</td><td><code>4</code></td><td>Monad EVM</td><td>Permanent</td><td>Highest-assurance regulatory</td></tr>
+</tbody></table>
+</div>
+<p>Configure via <code>storage_tier</code> in the <a href="explanation/../how-to/operators/operator-config.html">Operator Configuration</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="tutorial-issue-your-first-delegation"><a class="header" href="#tutorial-issue-your-first-delegation">Tutorial: Issue Your First Delegation</a></h1>
+<p>This tutorial walks through issuing a root delegation receipt and a sub-delegation from scratch using the TypeScript SDK. You will end up with two signed JWTs linked by <code>prev_dr_hash</code>.</p>
+<h2 id="prerequisites-1"><a class="header" href="#prerequisites-1">Prerequisites</a></h2>
+<ul>
+<li>Node.js 20+ and pnpm</li>
+<li><code>@drs/sdk</code> installed: <code>pnpm add @drs/sdk</code></li>
+</ul>
+<h2 id="step-1-generate-two-keypairs"><a class="header" href="#step-1-generate-two-keypairs">Step 1: Generate two keypairs</a></h2>
+<pre><code class="language-bash"># Human keypair
+pnpm exec drs keygen
+# Private key: &lt;HUMAN_PRIVATE_KEY&gt;
+# DID:         did:key:z6MkHUMAN...
+
+# Agent keypair
+pnpm exec drs keygen
+# Private key: &lt;AGENT_PRIVATE_KEY&gt;
+# DID:         did:key:z6MkAGENT...
+</code></pre>
+<h2 id="step-2-issue-the-root-delegation"><a class="header" href="#step-2-issue-the-root-delegation">Step 2: Issue the root delegation</a></h2>
+<p>Create <code>issue-demo.ts</code>:</p>
+<pre><code class="language-typescript">import { issueRootDelegation, computeChainHash } from '@drs/sdk';
+
+const humanKey = Uint8Array.from(Buffer.from('HUMAN_PRIVATE_KEY', 'base64url'));
+const now = Math.floor(Date.now() / 1000);
+
+const rootDR = await issueRootDelegation({
+  signingKey:  humanKey,
+  issuerDid:   'did:key:z6MkHUMAN...',
+  subjectDid:  'did:key:z6MkHUMAN...',   // human is both issuer and subject at root
+  audienceDid: 'did:key:z6MkAGENT...',
+  cmd: '/mcp/tools/call',
+  policy: {
+    allowed_tools: ['web_search', 'write_file'],
+    max_cost_usd: 50.00,
+    pii_access: false,
+    write_access: false,
+  },
+  nbf: now,
+  exp: now + 86400,   // 24 hours
+  rootType: 'human',
+  consent: {
+    method: 'explicit-ui-click',
+    timestamp: new Date().toISOString(),
+    session_id: 'sess:' + crypto.randomUUID(),
+    policy_hash: 'sha256:placeholder', // In production: sha256 of human-readable text
+    locale: 'en-GB',
+  },
+});
+
+console.log('Root DR JWT:', rootDR);
+console.log('Root DR hash:', computeChainHash(rootDR));
+</code></pre>
+<p>Run it:</p>
+<pre><code class="language-bash">pnpm exec tsx issue-demo.ts
+</code></pre>
+<h2 id="step-3-issue-a-sub-delegation"><a class="header" href="#step-3-issue-a-sub-delegation">Step 3: Issue a sub-delegation</a></h2>
+<p>The agent narrows the policy before delegating further:</p>
+<pre><code class="language-typescript">import { issueSubDelegation } from '@drs/sdk';
+
+const agentKey = Uint8Array.from(Buffer.from('AGENT_PRIVATE_KEY', 'base64url'));
+
+const parentPolicy = {
+  allowed_tools: ['web_search', 'write_file'],
+  max_cost_usd: 50.00,
+  pii_access: false,
+  write_access: false,
+};
+
+const subDR = await issueSubDelegation({
+  signingKey:   agentKey,
+  issuerDid:    'did:key:z6MkAGENT...',
+  subjectDid:   'did:key:z6MkHUMAN...',    // subject never changes
+  audienceDid:  'did:key:z6MkSUBAGENT...',
+  cmd: '/mcp/tools/call',
+  policy: {
+    allowed_tools: ['web_search'],           // tightened: removed write_file
+    max_cost_usd: 5.00,                      // tightened: £50 → £5
+    pii_access: false,
+    write_access: false,
+  },
+  nbf: now,
+  exp: now + 3600,     // 1 hour (shorter than parent's 24 hours)
+  parentJwt:    rootDR,
+  parentPolicy: parentPolicy,
+  parentNbf:    now,
+  parentExp:    now + 86400,
+});
+
+console.log('Sub-DR JWT:', subDR);
+</code></pre>
+<h2 id="what-you-built"><a class="header" href="#what-you-built">What you built</a></h2>
+<p>You now have two JWTs where:</p>
+<ul>
+<li><code>subDR</code> payload contains <code>"prev_dr_hash": "sha256:{hash of rootDR}"</code></li>
+<li>The policy in <code>subDR</code> is strictly contained within <code>rootDR</code>'s policy</li>
+<li>Any tampering with <code>rootDR</code> breaks the hash chain — fails Block B of verification</li>
+</ul>
+<h2 id="what-happens-if-you-try-to-escalate"><a class="header" href="#what-happens-if-you-try-to-escalate">What happens if you try to escalate?</a></h2>
+<p>Try setting <code>max_cost_usd: 100</code> in the sub-delegation (exceeds the parent's 50):</p>
+<pre><code>DrsError: POLICY_ESCALATION — max_cost_usd 100 exceeds parent limit 50
+</code></pre>
+<p>The error fires at issuance — before any signing occurs. You cannot accidentally create an invalid chain.</p>
+<h2 id="next-steps-1"><a class="header" href="#next-steps-1">Next steps</a></h2>
+<ul>
+<li><a href="tutorials/./02-verify-a-bundle.html">Tutorial: Verify a Bundle</a> — verify the chain you just built</li>
+<li><a href="tutorials/../how-to/developers/sub-delegation.html">Sub-Delegation how-to</a> — detailed attenuation rules</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="tutorial-verify-a-bundle"><a class="header" href="#tutorial-verify-a-bundle">Tutorial: Verify a Bundle</a></h1>
+<p>This tutorial builds on <a href="tutorials/./01-issue-first-delegation.html">Issue Your First Delegation</a>. You will wrap the delegation chain in a bundle, send it to drs-verify, and confirm it passes all six verification blocks.</p>
+<h2 id="prerequisites-2"><a class="header" href="#prerequisites-2">Prerequisites</a></h2>
+<ul>
+<li>Go 1.22+ with <code>drs-verify</code> source</li>
+<li>The <code>rootDR</code> and <code>subDR</code> JWTs from Tutorial 1</li>
+<li><code>@drs/sdk</code> installed</li>
+</ul>
+<h2 id="step-1-start-drs-verify"><a class="header" href="#step-1-start-drs-verify">Step 1: Start drs-verify</a></h2>
+<pre><code class="language-bash">cd drs-verify
+go run ./cmd/server
+# drs-verify listening on :8080
+</code></pre>
+<h2 id="step-2-issue-an-invocation-receipt"><a class="header" href="#step-2-issue-an-invocation-receipt">Step 2: Issue an invocation receipt</a></h2>
+<pre><code class="language-typescript">import { issueInvocation, computeChainHash, buildBundle, serialiseBundle } from '@drs/sdk';
+import { writeFileSync } from 'fs';
+
+const agentKey = Uint8Array.from(Buffer.from('SUBAGENT_PRIVATE_KEY', 'base64url'));
+
+const invocation = await issueInvocation({
+  signingKey:  agentKey,
+  issuerDid:   'did:key:z6MkSUBAGENT...',
+  subjectDid:  'did:key:z6MkHUMAN...',
+  cmd: '/mcp/tools/call',
+  args: {
+    tool: 'web_search',
+    query: 'Monad TPS benchmarks',
+    estimated_cost_usd: 0.02,
+  },
+  drChain: [
+    computeChainHash(rootDR),
+    computeChainHash(subDR),
+  ],
+  toolServer: 'did:key:z6MkTOOLSERVER...',
+});
+
+// Build and serialise the bundle
+const bundle = buildBundle({
+  invocation,
+  receipts: [rootDR, subDR],
+});
+
+writeFileSync('bundle.json', serialiseBundle(bundle));
+console.log('Bundle written to bundle.json');
+</code></pre>
+<h2 id="step-3-verify-via-cli"><a class="header" href="#step-3-verify-via-cli">Step 3: Verify via CLI</a></h2>
+<pre><code class="language-bash">DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
+</code></pre>
+<p>Expected output:</p>
+<pre><code>✓ Bundle verified
+  Chain depth:    2
+  Root principal: did:key:z6MkHUMAN...
+  Subject:        did:key:z6MkHUMAN...
+  Command:        /mcp/tools/call
+  Policy result:  pass
+  Blocks:         A✓ B✓ C✓ D✓ E✓ F✓
+</code></pre>
+<h2 id="step-4-verify-via-http-api-directly"><a class="header" href="#step-4-verify-via-http-api-directly">Step 4: Verify via HTTP API directly</a></h2>
+<pre><code class="language-bash">curl -s -X POST http://localhost:8080/verify \
+  -H "Content-Type: application/json" \
+  -d @bundle.json | jq .
+</code></pre>
+<pre><code class="language-json">{
+  "valid": true,
+  "chain_depth": 2,
+  "root_principal": "did:key:z6MkHUMAN...",
+  "subject": "did:key:z6MkHUMAN...",
+  "command": "/mcp/tools/call",
+  "policy_result": "pass"
+}
+</code></pre>
+<h2 id="step-5-test-a-rejection"><a class="header" href="#step-5-test-a-rejection">Step 5: Test a rejection</a></h2>
+<p>Tamper with the bundle — modify one character in <code>rootDR</code>:</p>
+<pre><code class="language-bash"># Create a tampered bundle
+cat bundle.json | sed 's/"receipts":\["eyJ/\"receipts\":[\"fakeXXX/' &gt; tampered.json
+DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify tampered.json
+</code></pre>
+<p>Expected:</p>
+<pre><code>✗ Verification failed
+  Block:  B (structural integrity)
+  Error:  CHAIN_HASH_MISMATCH — prev_dr_hash mismatch at chain index 1
+</code></pre>
+<h2 id="step-6-print-the-full-audit-trail"><a class="header" href="#step-6-print-the-full-audit-trail">Step 6: Print the full audit trail</a></h2>
+<pre><code class="language-bash">pnpm exec drs audit bundle.json
+</code></pre>
+<p>This prints a human-readable breakdown of every receipt in the chain: issuers, audiences, policies, temporal bounds, and consent records.</p>
+<h2 id="next-steps-2"><a class="header" href="#next-steps-2">Next steps</a></h2>
+<ul>
+<li><a href="tutorials/./03-end-to-end-trace.html">End-to-End Trace</a> — watch the full lifecycle including tool server execution</li>
+<li><a href="tutorials/../how-to/developers/mcp-middleware.html">MCP Middleware Integration</a> — integrate this verification flow into a real MCP server</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="tutorial-end-to-end-trace"><a class="header" href="#tutorial-end-to-end-trace">Tutorial: End-to-End Trace</a></h1>
+<p>This tutorial traces one complete tool call through the full DRS lifecycle — from the human granting authority to the auditor reading the evidence. It covers every actor and every component.</p>
+<h2 id="the-scenario"><a class="header" href="#the-scenario">The scenario</a></h2>
+<ul>
+<li><strong>Amara (End User):</strong> grants a research agent permission to use <code>web_search</code>, spend up to £50</li>
+<li><strong>Research Agent:</strong> delegates to a sub-agent with tighter constraints (£5, <code>web_search</code> only)</li>
+<li><strong>Sub-Agent:</strong> calls <code>web_search</code> on the tool server</li>
+<li><strong>Tool Server:</strong> runs <code>verify_chain</code> before executing</li>
+<li><strong>Auditor:</strong> reconstructs the chain afterwards</li>
+</ul>
+<hr />
+<h2 id="step-1-amara-grants-authority"><a class="header" href="#step-1-amara-grants-authority">Step 1: Amara grants authority</a></h2>
+<p>Amara sees a consent UI on the developer's application:</p>
+<pre><code>Research Agent wants permission to:
+✓  Search the web
+✗  Cannot access personal data
+✗  Cannot spend more than £50.00
+
+This permission lasts 30 days.  [Allow] [Deny]
+</code></pre>
+<p>Amara clicks <strong>Allow</strong>. The SDK issues the root DR:</p>
+<pre><code>Root DR JWT payload (keys sorted by JCS):
+{
+  "aud": "did:key:z6MkAgent1...",
+  "cmd": "/mcp/tools/call",
+  "drs_consent": {
+    "locale": "en-GB",
+    "method": "explicit-ui-click",
+    "policy_hash": "sha256:a1b2c3...",   ← SHA-256 of the text Amara saw
+    "session_id": "sess:abc-123",
+    "timestamp": "2026-03-28T10:30:00Z"
+  },
+  "drs_root_type": "human",
+  "drs_type": "delegation-receipt",
+  "drs_v": "4.0",
+  "exp": 1748437800,
+  "iat": 1743000000,
+  "iss": "did:key:z6MkAmara...",
+  "jti": "dr:8f3a2b1c-4d5e-4abc-8b9c-0d1e2f3a4b5c",
+  "nbf": 1743000000,
+  "policy": { "allowed_tools": ["web_search"], "max_cost_usd": 50 },
+  "prev_dr_hash": null,
+  "sub": "did:key:z6MkAmara..."
+}
+</code></pre>
+<p>The JWT is signed with Amara's Ed25519 private key.</p>
+<hr />
+<h2 id="step-2-research-agent-evaluates-and-sub-delegates"><a class="header" href="#step-2-research-agent-evaluates-and-sub-delegates">Step 2: Research Agent evaluates and sub-delegates</a></h2>
+<p>Before acting, the Research Agent evaluates the proposed <code>web_search</code> call against its current policy:</p>
+<ul>
+<li><code>web_search</code> ∈ <code>allowed_tools</code> ✓</li>
+<li><code>estimated_cost: 0.02</code> ≤ <code>max_cost_usd: 50</code> ✓</li>
+</ul>
+<p>The Research Agent decides to delegate to the Sub-Agent with tighter constraints (POLA):</p>
+<pre><code>Sub-DR JWT payload:
+{
+  "aud": "did:key:z6MkAgent2...",
+  "cmd": "/mcp/tools/call",
+  "drs_type": "delegation-receipt",
+  "drs_v": "4.0",
+  "exp": 1743003600,          ← 1 hour (shorter than Amara's 30 days)
+  "iat": 1743000010,
+  "iss": "did:key:z6MkAgent1...",
+  "jti": "dr:1a2b3c4d-5e6f-4xyz-9abc-def012345678",
+  "nbf": 1743000000,
+  "policy": { "allowed_tools": ["web_search"], "max_cost_usd": 5 },
+  "prev_dr_hash": "sha256:abc123...",   ← SHA-256 of rootDR JWT bytes
+  "sub": "did:key:z6MkAmara..."         ← unchanged
+}
+</code></pre>
+<hr />
+<h2 id="step-3-sub-agent-creates-the-invocation-receipt"><a class="header" href="#step-3-sub-agent-creates-the-invocation-receipt">Step 3: Sub-Agent creates the invocation receipt</a></h2>
+<p>The Sub-Agent records the actual tool call:</p>
+<pre><code>Invocation Receipt JWT payload:
+{
+  "args": {
+    "estimated_cost_usd": 0.02,
+    "query": "Monad TPS benchmarks",
+    "tool": "web_search"
+  },
+  "cmd": "/mcp/tools/call",
+  "dr_chain": [
+    "sha256:abc123...",   ← SHA-256 of rootDR
+    "sha256:def456..."    ← SHA-256 of subDR
+  ],
+  "drs_type": "invocation-receipt",
+  "drs_v": "4.0",
+  "iat": 1743000300,
+  "iss": "did:key:z6MkAgent2...",
+  "jti": "inv:7h5c4d3e-2a3b-4c5d-6e7f-8a9b0c1d2e3f",
+  "sub": "did:key:z6MkAmara...",
+  "tool_server": "did:key:z6MkToolServer..."
+}
+</code></pre>
+<hr />
+<h2 id="step-4-tool-server-receives-and-verifies"><a class="header" href="#step-4-tool-server-receives-and-verifies">Step 4: Tool server receives and verifies</a></h2>
+<p>The Sub-Agent sends:</p>
+<pre><code>POST /mcp/tools/call HTTP/1.1
+Authorization: Bearer &lt;oauth-token&gt;
+X-DRS-Bundle: eyJidW5kbGVfdmVyc2lvbiI6IjQuMCIsImludm9jYXRpb24i...
+Content-Type: application/json
+
+{"tool": "web_search", "query": "Monad TPS benchmarks"}
+</code></pre>
+<p>The MCP middleware runs <code>verify_chain</code>:</p>
+<pre><code>Block A: receipts=[rootDR, subDR], invocation present                → PASS ✓
+Block B: rootDR.aud == subDR.iss (z6MkAgent1)                        → PASS ✓
+         subDR.prev_dr_hash == sha256(rootDR)                         → PASS ✓
+         inv.dr_chain matches [sha256(rootDR), sha256(subDR)]         → PASS ✓
+Block C: Ed25519 verify rootDR (Amara's key)                         → PASS ✓
+         Ed25519 verify subDR (Agent1's key)                          → PASS ✓
+         Ed25519 verify invocation (Agent2's key)                     → PASS ✓
+Block D: web_search ∈ allowed_tools at both DR levels                → PASS ✓
+         0.02 ≤ 5 (subDR) ≤ 50 (rootDR)                             → PASS ✓
+         subDR policy ⊆ rootDR policy (attenuation check)            → PASS ✓
+Block E: now=1743000300 ∈ [1743000000, 1743003600] (subDR window)    → PASS ✓
+         now=1743000300 ∈ [1743000000, 1748437800] (rootDR window)   → PASS ✓
+Block F: rootDR jti "dr:8f3a..." not in status list                  → PASS ✓
+         subDR jti "dr:1a2b..." not in status list                   → PASS ✓
+
+RESULT: VALID — executing tool call
+</code></pre>
+<hr />
+<h2 id="step-5-tool-executes-and-emits-event"><a class="header" href="#step-5-tool-executes-and-emits-event">Step 5: Tool executes and emits event</a></h2>
+<p>The tool server runs <code>web_search</code> and emits:</p>
+<pre><code class="language-json">{
+  "event": "drs:tool-call",
+  "root_principal": "did:key:z6MkAmara...",
+  "chain_depth": 2,
+  "command": "/mcp/tools/call",
+  "tool": "web_search",
+  "policy_result": "pass",
+  "cost_usd": 0.02,
+  "inv_jti": "inv:7h5c4d3e-..."
+}
+</code></pre>
+<p>Amara's activity feed updates: <em>"Research agent used web_search — £0.02 of £50.00 budget used."</em></p>
+<hr />
+<h2 id="step-6-auditor-reconstructs-the-chain-later"><a class="header" href="#step-6-auditor-reconstructs-the-chain-later">Step 6: Auditor reconstructs the chain (later)</a></h2>
+<p>Three months later, a compliance officer wants evidence:</p>
+<pre><code class="language-bash">pnpm exec drs audit retrieve --inv-jti "inv:7h5c4d3e-..." --output evidence.json
+pnpm exec drs verify evidence.json
+pnpm exec drs audit evidence.json
+</code></pre>
+<p>Output:</p>
+<pre><code>DRS Chain Audit
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Receipt 0 (root — human)
+  Issued by:  did:key:z6MkAmara...
+  Granted to: did:key:z6MkAgent1...
+  Policy:     max_cost_usd=50, allowed_tools=[web_search]
+  Valid:      2026-03-28 → 2026-05-28
+  Consent:    explicit-ui-click at 2026-03-28T10:30:00Z (en-GB)
+
+Receipt 1 (sub-delegation)
+  Issued by:  did:key:z6MkAgent1...
+  Granted to: did:key:z6MkAgent2...
+  Policy:     max_cost_usd=5, allowed_tools=[web_search]
+  Chain hash: sha256:def456... ✓
+
+Invocation
+  Called by:  did:key:z6MkAgent2...
+  Tool:       web_search("Monad TPS benchmarks")
+  Cost:       $0.02 of $5.00 (sub-delegation limit)
+  Chain hash: sha256:ghi789... ✓
+
+All 3 signatures valid. Chain intact. No revocations.
+</code></pre>
+<p>The compliance officer does not need to contact the operator. The evidence is in the receipts.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="install-the-sdk"><a class="header" href="#install-the-sdk">Install the SDK</a></h1>
+<h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
+<ul>
+<li>Node.js 20+</li>
+<li>pnpm (required — do not use npm or yarn)</li>
+</ul>
+<h2 id="install"><a class="header" href="#install">Install</a></h2>
+<pre><code class="language-bash">pnpm add @drs/sdk
+</code></pre>
+<h2 id="optional-browser-side-verification"><a class="header" href="#optional-browser-side-verification">Optional: browser-side verification</a></h2>
+<p>For client-side verification in browser environments, also install the WASM package:</p>
+<pre><code class="language-bash">pnpm add @drs/wasm
+</code></pre>
+<p><code>@drs/sdk</code> detects <code>@drs/wasm</code> at runtime. If absent, the SDK's <code>VerifyClient</code> falls back to calling drs-verify over HTTP. If present, <code>initWasm()</code> loads the WASM module for local verification.</p>
+<h2 id="typescript-configuration"><a class="header" href="#typescript-configuration">TypeScript configuration</a></h2>
+<pre><code class="language-json">{
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"]
+  }
+}
+</code></pre>
+<h2 id="verify-the-install"><a class="header" href="#verify-the-install">Verify the install</a></h2>
+<pre><code class="language-bash">pnpm exec drs keygen
+</code></pre>
+<p>Expected:</p>
+<pre><code>Private key (keep secret): &lt;base64url 32 bytes&gt;
+DID:                        did:key:z6Mk...
+</code></pre>
+<h2 id="whats-in-the-package"><a class="header" href="#whats-in-the-package">What's in the package</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Export path</th><th>Contents</th></tr></thead><tbody>
+<tr><td><code>@drs/sdk</code> (main)</td><td><code>issueRootDelegation</code>, <code>issueSubDelegation</code>, <code>issueInvocation</code>, <code>buildBundle</code>, <code>serialiseBundle</code>, <code>parseBundle</code>, <code>computeChainHash</code>, <code>checkPolicyAttenuation</code>, <code>translatePolicy</code></td></tr>
+<tr><td><code>@drs/sdk/verify</code></td><td><code>VerifyClient</code> — HTTP client for drs-verify</td></tr>
+<tr><td><code>@drs/sdk/wasm</code></td><td><code>initWasm</code>, <code>getWasmModule</code>, <code>isWasmReady</code></td></tr>
+<tr><td><code>@drs/sdk/types</code></td><td>All TypeScript interfaces</td></tr>
+</tbody></table>
+</div>
+<h2 id="building-the-wasm-package-yourself"><a class="header" href="#building-the-wasm-package-yourself">Building the WASM package yourself</a></h2>
+<p>If you are developing locally or want to use unreleased drs-core changes:</p>
+<pre><code class="language-bash">cd drs-core
+wasm-pack build --target web --features wasm
+# Output: drs-core/pkg/
+
+# Link it locally
+cd drs-core/pkg &amp;&amp; pnpm link --global
+cd drs-sdk &amp;&amp; pnpm link --global @drs/wasm
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="mcp-middleware-integration"><a class="header" href="#mcp-middleware-integration">MCP Middleware Integration</a></h1>
+<p>Add DRS verification to an MCP server. The Go middleware handles all verification — your tool handler code does not change.</p>
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
+<pre><code>MCP Client
+    │  POST /mcp/tools/call
+    │  X-DRS-Bundle: &lt;base64url bundle&gt;
+    ▼
+drs-verify middleware
+    │  parse bundle
+    │  run verify_chain (blocks A–F)
+    ▼ VALID
+Your tool handler
+    ▼
+Response + drs:tool-call event emitted
+</code></pre>
+<p>If verification fails, the middleware returns <code>403</code> with a JSON error body before your handler is called.</p>
+<h2 id="option-a-go-middleware-native"><a class="header" href="#option-a-go-middleware-native">Option A: Go middleware (native)</a></h2>
+<p>If your MCP server is in Go, import the middleware package directly:</p>
+<pre><code class="language-go">package main
+
+import (
+    "net/http"
+    "time"
+
+    "github.com/yourorg/drs/drs-verify/pkg/middleware"
+    "github.com/yourorg/drs/drs-verify/pkg/resolver"
+    "github.com/yourorg/drs/drs-verify/pkg/verify"
+)
+
+func main() {
+    res, _ := resolver.New(10_000, time.Hour)
+    verifier := verify.New(res)
+
+    mcp := middleware.NewMCP(verifier, middleware.MCPConfig{
+        RequireBundle: true,   // 403 on missing X-DRS-Bundle header
+        EmitEvents:    true,   // emit drs:tool-call events
+    })
+
+    mux := http.NewServeMux()
+    mux.Handle("/mcp/", mcp.Wrap(yourMCPHandler))
+    http.ListenAndServe(":8080", mux)
+}
+</code></pre>
+<h2 id="option-b-sidecar-any-language"><a class="header" href="#option-b-sidecar-any-language">Option B: Sidecar (any language)</a></h2>
+<p>Run drs-verify as a sidecar in front of your server. It listens on <code>:8081</code> and proxies verified requests to your server on <code>:8080</code>:</p>
+<pre><code class="language-bash">docker run -d \
+  --name drs-verify \
+  --network host \
+  -e DRS_LISTEN_ADDR=:8081 \
+  -e DRS_UPSTREAM=http://localhost:8080 \
+  -e DRS_REQUIRE_BUNDLE=true \
+  ghcr.io/yourorg/drs-verify:latest
+</code></pre>
+<p>Point your MCP client at <code>:8081</code>. Your server on <code>:8080</code> only receives requests that have passed full verification.</p>
+<h2 id="option-c-typescript-verifyclient"><a class="header" href="#option-c-typescript-verifyclient">Option C: TypeScript VerifyClient</a></h2>
+<p>For TypeScript MCP servers that need fine-grained control:</p>
+<pre><code class="language-typescript">import { VerifyClient, parseBundle } from '@drs/sdk';
+
+const drs = new VerifyClient({ baseUrl: process.env.DRS_VERIFY_URL! });
+
+app.post('/mcp/tools/call', async (req, res) =&gt; {
+  const bundleHeader = req.headers['x-drs-bundle'] as string;
+
+  if (!bundleHeader) {
+    return res.status(403).json({ error: 'DRS bundle required' });
+  }
+
+  const result = await drs.verify(bundleHeader);
+  if (!result.valid) {
+    return res.status(403).json({
+      error: result.error,
+      block: result.block,
+      message: result.message,
+    });
+  }
+
+  // result.context contains:
+  //   root_principal, subject, chain_depth, policy_result
+  return executeTool(req.body, result.context);
+});
+</code></pre>
+<h2 id="testing-your-integration"><a class="header" href="#testing-your-integration">Testing your integration</a></h2>
+<pre><code class="language-bash"># Valid bundle — expect 200
+DRS_VERIFY_URL=http://localhost:8081 pnpm exec drs verify bundle.json
+
+# Missing bundle — expect 403
+curl -X POST http://localhost:8081/mcp/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{"tool":"web_search","query":"test"}'
+# {"error":"DRS bundle required"}
+
+# Tampered bundle — expect 403
+curl -X POST http://localhost:8081/mcp/tools/call \
+  -H "X-DRS-Bundle: $(echo 'corrupt' | base64)" \
+  -H "Content-Type: application/json" \
+  -d '{"tool":"web_search","query":"test"}'
+# {"error":"BUNDLE_INCOMPLETE","block":"A","message":"..."}
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="a2a-middleware-integration"><a class="header" href="#a2a-middleware-integration">A2A Middleware Integration</a></h1>
+<p>DRS integrates with the Agent-to-Agent (A2A) protocol using the same bundle mechanism as MCP.</p>
+<h2 id="transport"><a class="header" href="#transport">Transport</a></h2>
+<p>The DRS bundle is transmitted as the <code>X-DRS-Bundle</code> header in A2A requests, identical to MCP:</p>
+<pre><code>POST /a2a/tasks/send HTTP/1.1
+X-DRS-Bundle: &lt;base64url bundle&gt;
+Content-Type: application/json
+</code></pre>
+<p>The bundle must contain the full delegation chain from the original human root through every agent hop to the current caller.</p>
+<h2 id="go-middleware"><a class="header" href="#go-middleware">Go middleware</a></h2>
+<pre><code class="language-go">import "github.com/yourorg/drs/drs-verify/pkg/middleware"
+
+a2a := middleware.NewA2A(verifier, middleware.A2AConfig{
+    RequireBundle: true,
+    HeaderName:    "X-DRS-Bundle",
+})
+
+mux.Handle("/a2a/", a2a.Wrap(yourA2AHandler))
+</code></pre>
+<h2 id="sidecar-for-non-go-a2a-servers"><a class="header" href="#sidecar-for-non-go-a2a-servers">Sidecar for non-Go A2A servers</a></h2>
+<pre><code class="language-bash">docker run -d \
+  -e DRS_LISTEN_ADDR=:8082 \
+  -e DRS_UPSTREAM=http://localhost:8080 \
+  -e DRS_REQUIRE_BUNDLE=true \
+  ghcr.io/yourorg/drs-verify:latest
+</code></pre>
+<h2 id="chain-depth-in-multi-agent-a2a-topologies"><a class="header" href="#chain-depth-in-multi-agent-a2a-topologies">Chain depth in multi-agent A2A topologies</a></h2>
+<p>In A2A deployments, an orchestrator agent may dispatch to multiple worker agents. Each worker must carry the full chain from the human root to itself:</p>
+<pre><code>Human → Orchestrator DR → Worker DR → Invocation
+</code></pre>
+<p>The Worker's bundle must include:</p>
+<ul>
+<li><code>receipts[0]</code>: Root DR (human → orchestrator)</li>
+<li><code>receipts[1]</code>: Sub-DR (orchestrator → worker)</li>
+<li><code>invocation</code>: Invocation receipt (worker → tool server)</li>
+</ul>
+<p>The Orchestrator issues the Sub-DR to the Worker before dispatching the task. The Worker creates the Invocation Receipt.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="human-consent-records"><a class="header" href="#human-consent-records">Human Consent Records</a></h1>
+<p>When a human grants authority, the root DR must include a <code>drs_consent</code> record proving the user saw and approved the policy in human-readable form.</p>
+<h2 id="why-it-matters"><a class="header" href="#why-it-matters">Why it matters</a></h2>
+<p>The <code>policy</code> field in a DR is machine-readable JSON. A user who clicks "Allow" on a form that shows them <code>{"max_cost_usd":50}</code> has not meaningfully consented — they have not understood what they approved.</p>
+<p>The <code>drs_consent.policy_hash</code> is the SHA-256 of the <strong>human-readable text</strong> the user actually saw. Auditors can verify that the consent UI displayed legible information, not raw JSON.</p>
+<h2 id="generating-the-human-readable-text"><a class="header" href="#generating-the-human-readable-text">Generating the human-readable text</a></h2>
+<p>Use the SDK's <code>translatePolicy</code> function:</p>
+<pre><code class="language-typescript">import { translatePolicy } from '@drs/sdk';
+
+const humanText = translatePolicy({
+  allowed_tools: ['web_search', 'write_file'],
+  max_cost_usd: 50.00,
+  pii_access: false,
+  write_access: false,
+}, { locale: 'en-GB' });
+
+// Output:
+// Research Agent wants permission to:
+// ✓  Search the web
+// ✓  Save files to your workspace
+// ✗  Cannot access personal data
+// ✗  Cannot spend more than £50.00
+</code></pre>
+<p>Or via CLI:</p>
+<pre><code class="language-bash">echo '{"allowed_tools":["web_search"],"max_cost_usd":50}' | pnpm exec drs translate --locale en-GB
+</code></pre>
+<h2 id="computing-the-policy-hash"><a class="header" href="#computing-the-policy-hash">Computing the policy hash</a></h2>
+<pre><code class="language-typescript">import { computeChainHash } from '@drs/sdk';
+
+// Hash the text the user saw — not the policy JSON
+const policyHash = computeChainHash(humanText);
+// "sha256:a1b2c3..."
+</code></pre>
+<h2 id="building-the-consent-record"><a class="header" href="#building-the-consent-record">Building the consent record</a></h2>
+<pre><code class="language-typescript">import { issueRootDelegation, computeChainHash, translatePolicy } from '@drs/sdk';
+
+const policy = {
+  allowed_tools: ['web_search'],
+  max_cost_usd: 50.00,
+  pii_access: false,
+};
+
+// 1. Translate for the user
+const humanText = translatePolicy(policy, { locale: 'en-GB' });
+
+// 2. Show humanText in your consent UI
+// await showConsentDialog(humanText);  — user clicks Allow
+
+// 3. Record their consent
+const rootDR = await issueRootDelegation({
+  // ... other params ...
+  policy,
+  rootType: 'human',
+  consent: {
+    method: 'explicit-ui-click',
+    timestamp: new Date().toISOString(),
+    session_id: 'sess:' + crypto.randomUUID(),
+    policy_hash: computeChainHash(humanText),
+    locale: 'en-GB',
+  },
+});
+</code></pre>
+<h2 id="consent-methods"><a class="header" href="#consent-methods">Consent methods</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Value</th><th>When to use</th></tr></thead><tbody>
+<tr><td><code>explicit-ui-click</code></td><td>User clicked an "Allow" or "I agree" button</td></tr>
+<tr><td><code>explicit-ui-checkbox</code></td><td>User checked a checkbox next to each permission</td></tr>
+<tr><td><code>api-delegation</code></td><td>Programmatic delegation (organisation-rooted, no human interaction)</td></tr>
+<tr><td><code>operator-policy</code></td><td>Automated-system root — no human involved</td></tr>
+</tbody></table>
+</div>
+<h2 id="machine-rooted-delegations"><a class="header" href="#machine-rooted-delegations">Machine-rooted delegations</a></h2>
+<p>If <code>rootType</code> is <code>"automated-system"</code> or <code>"organisation"</code>, the <code>consent</code> field is optional. These root types are used by operators delegating to their own agents without per-session human approval.</p>
+<pre><code class="language-typescript">const rootDR = await issueRootDelegation({
+  // ...
+  rootType: 'automated-system',
+  // consent: not required
+});
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="sub-delegation"><a class="header" href="#sub-delegation">Sub-Delegation</a></h1>
+<p>Sub-delegations allow an agent to pass a subset of its authority to another agent. The child policy must not escalate beyond the parent — this is the Principle of Least Authority (POLA).</p>
+<h2 id="attenuation-rules"><a class="header" href="#attenuation-rules">Attenuation rules</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Parent policy field</th><th>Child constraint</th></tr></thead><tbody>
+<tr><td><code>allowed_tools: [A, B, C]</code></td><td>Child <code>allowed_tools</code> must be ⊆ <code>{A, B, C}</code></td></tr>
+<tr><td><code>max_cost_usd: 50</code></td><td>Child <code>max_cost_usd</code> must be ≤ <code>50</code></td></tr>
+<tr><td><code>pii_access: false</code></td><td>Child must have <code>pii_access: false</code></td></tr>
+<tr><td><code>write_access: false</code></td><td>Child must have <code>write_access: false</code></td></tr>
+<tr><td><code>max_calls: 100</code></td><td>Child <code>max_calls</code> must be ≤ <code>100</code></td></tr>
+<tr><td><code>exp: T</code></td><td>Child <code>exp</code> must be ≤ <code>T</code></td></tr>
+<tr><td><code>nbf: T</code></td><td>Child <code>nbf</code> must be ≥ <code>T</code></td></tr>
+</tbody></table>
+</div>
+<p>Violation at issuance throws <code>DrsError: POLICY_ESCALATION</code>. Violation in a received bundle fails Block D of <code>verify_chain</code>.</p>
+<h2 id="example-narrowing-authority"><a class="header" href="#example-narrowing-authority">Example: narrowing authority</a></h2>
+<pre><code class="language-typescript">import { issueSubDelegation } from '@drs/sdk';
+
+const parentPolicy = {
+  allowed_tools: ['web_search', 'write_file', 'read_file'],
+  max_cost_usd: 50.00,
+  pii_access: false,
+  write_access: true,
+};
+
+// Agent narrows authority before delegating
+const subDR = await issueSubDelegation({
+  signingKey:   agentPrivateKey,
+  issuerDid:    'did:key:z6MkAgent1...',
+  subjectDid:   'did:key:z6MkHuman...',   // always the original human
+  audienceDid:  'did:key:z6MkAgent2...',
+  cmd: '/mcp/tools/call',
+  policy: {
+    allowed_tools: ['web_search'],         // ⊆ parent's [web_search, write_file, read_file]
+    max_cost_usd:  5.00,                   // ≤ parent's 50
+    pii_access:    false,                  // same (can't relax)
+    write_access:  false,                  // tightened: parent allowed true
+  },
+  nbf:          parentNbf,                 // ≥ parent's nbf
+  exp:          parentNbf + 3600,          // ≤ parent's exp
+  parentJwt:    parentDR,
+  parentPolicy: parentPolicy,
+  parentNbf:    parentNbf,
+  parentExp:    parentExp,
+});
+</code></pre>
+<h2 id="what-happens-if-you-escalate"><a class="header" href="#what-happens-if-you-escalate">What happens if you escalate?</a></h2>
+<pre><code class="language-typescript">// This throws POLICY_ESCALATION:
+await issueSubDelegation({
+  policy: {
+    allowed_tools: ['web_search', 'write_file', 'execute_code'],  // added execute_code
+    max_cost_usd: 100,                                             // exceeded parent's 50
+  },
+  // ...
+});
+// DrsError: POLICY_ESCALATION — allowed_tools contains execute_code not in parent policy
+</code></pre>
+<p>The error fires before any signing. Invalid chains cannot be created.</p>
+<h2 id="the-sub-field-never-changes"><a class="header" href="#the-sub-field-never-changes">The <code>sub</code> field never changes</a></h2>
+<p>The <code>sub</code> (subject) field represents the original resource owner — always the human at the root of the chain. It must remain identical through every sub-delegation:</p>
+<pre><code>rootDR.sub  = "did:key:z6MkHuman..."
+subDR.sub   = "did:key:z6MkHuman..."   ← same
+inv.sub     = "did:key:z6MkHuman..."   ← same
+</code></pre>
+<p>Changing <code>sub</code> in a sub-delegation is a structural error caught by Block B.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="deploy-drs-verify"><a class="header" href="#deploy-drs-verify">Deploy drs-verify</a></h1>
+<p>drs-verify is a single static Go binary with no runtime dependencies. It compiles with <code>CGO_ENABLED=0</code> and runs in a distroless container.</p>
+<h2 id="docker-recommended-for-production"><a class="header" href="#docker-recommended-for-production">Docker (recommended for production)</a></h2>
+<pre><code class="language-bash">docker pull ghcr.io/yourorg/drs-verify:latest
+
+docker run -d \
+  --name drs-verify \
+  -p 8080:8080 \
+  -e DRS_LISTEN_ADDR=:8080 \
+  -e DRS_CACHE_SIZE=10000 \
+  -e DRS_CACHE_TTL=1h \
+  -e DRS_STATUS_CACHE_TTL=5m \
+  -e DRS_REQUIRE_BUNDLE=true \
+  ghcr.io/yourorg/drs-verify:latest
+</code></pre>
+<h2 id="build-from-source"><a class="header" href="#build-from-source">Build from source</a></h2>
+<pre><code class="language-bash">cd drs-verify
+CGO_ENABLED=0 GOOS=linux go build -o drs-verify ./cmd/server
+./drs-verify
+# drs-verify listening on :8080
+</code></pre>
+<h2 id="health-checks"><a class="header" href="#health-checks">Health checks</a></h2>
+<pre><code class="language-bash"># Liveness
+curl http://localhost:8080/healthz
+# {"status":"ok"}
+
+# Readiness (includes cache state)
+curl http://localhost:8080/readyz
+# {"status":"ok","cache_size":0,"uptime_seconds":12}
+</code></pre>
+<p>Configure your load balancer or Kubernetes probe to use <code>/readyz</code> — it only returns <code>ok</code> when the server is fully initialised.</p>
+<h2 id="kubernetes-deployment"><a class="header" href="#kubernetes-deployment">Kubernetes deployment</a></h2>
+<pre><code class="language-yaml">apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: drs-verify
+  labels:
+    app: drs-verify
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: drs-verify
+  template:
+    metadata:
+      labels:
+        app: drs-verify
+    spec:
+      containers:
+      - name: drs-verify
+        image: ghcr.io/yourorg/drs-verify:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DRS_LISTEN_ADDR
+          value: ":8080"
+        - name: DRS_CACHE_SIZE
+          value: "10000"
+        - name: DRS_CACHE_TTL
+          value: "1h"
+        - name: DRS_REQUIRE_BUNDLE
+          value: "true"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+</code></pre>
+<h2 id="sidecar-pattern"><a class="header" href="#sidecar-pattern">Sidecar pattern</a></h2>
+<p>To add DRS to an existing MCP server without modifying it, run drs-verify as a sidecar that proxies to the upstream server:</p>
+<pre><code class="language-yaml">containers:
+- name: drs-verify
+  image: ghcr.io/yourorg/drs-verify:latest
+  env:
+  - name: DRS_LISTEN_ADDR
+    value: ":8081"
+  - name: DRS_UPSTREAM
+    value: "http://localhost:8080"   # your MCP server
+  - name: DRS_REQUIRE_BUNDLE
+    value: "true"
+- name: your-mcp-server
+  # ... your existing container
+</code></pre>
+<p>Clients connect to port <code>8081</code>. Your server on <code>8080</code> only receives verified requests.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="operator-configuration"><a class="header" href="#operator-configuration">Operator Configuration</a></h1>
+<p>Machine-to-machine deployments (no live human in the delegation loop) use an <code>OperatorConfig</code> loaded at startup. This governs how the operator issues root delegations, manages key material, and handles out-of-policy requests.</p>
+<h2 id="configuration-file-format"><a class="header" href="#configuration-file-format">Configuration file format</a></h2>
+<pre><code class="language-json">{
+  "drs_root_type": "automated-system",
+  "operator_did": "did:key:z6MkOperator...",
+  "operator_key_management": "env",
+  "standing_policy": {
+    "allowed_tools": ["web_search", "write_file", "read_file"],
+    "max_cost_usd": 100.00,
+    "pii_access": false,
+    "write_access": true
+  },
+  "renewal_rules": {
+    "auto_renew": true,
+    "session_ttl_hours": 8,
+    "max_renewal_count": 0
+  },
+  "escalation": {
+    "target_type": "organisation",
+    "supervisor_did": "did:key:z6MkSupervisor...",
+    "fallback": "deny"
+  },
+  "storage_tier": 2
+}
+</code></pre>
+<p>Load in TypeScript:</p>
+<pre><code class="language-typescript">import { parseOperatorConfig } from '@drs/sdk';
+import { readFileSync } from 'fs';
+
+const cfg = parseOperatorConfig(
+  JSON.parse(readFileSync('operator-config.json', 'utf-8'))
+);
+// Throws DrsError: INVALID_OPERATOR_CONFIG if any field is invalid
+</code></pre>
+<h2 id="key-management-options"><a class="header" href="#key-management-options">Key management options</a></h2>
+<div class="table-wrapper"><table><thead><tr><th><code>operator_key_management</code></th><th>Where the key lives</th></tr></thead><tbody>
+<tr><td><code>"env"</code></td><td><code>DRS_OPERATOR_KEY</code> environment variable (base64url-encoded 32 bytes)</td></tr>
+<tr><td><code>"file"</code></td><td>Path in <code>operator_key_path</code> — raw 32-byte Ed25519 key file</td></tr>
+<tr><td><code>"aws-kms"</code></td><td>AWS KMS — requires <code>DRS_KMS_KEY_ID</code> env var</td></tr>
+<tr><td><code>"gcp-kms"</code></td><td>GCP Cloud KMS — requires <code>DRS_GCP_KEY_NAME</code> env var</td></tr>
+</tbody></table>
+</div>
+<blockquote>
+<p><strong>Security:</strong> Never use <code>"file"</code> or <code>"env"</code> in production with keys that have regulatory significance. Use <code>"aws-kms"</code> or <code>"gcp-kms"</code> for production operator keys. See <a href="how-to/operators/./key-management.html">Key Management</a>.</p>
+</blockquote>
+<h2 id="root-type"><a class="header" href="#root-type">Root type</a></h2>
+<div class="table-wrapper"><table><thead><tr><th><code>drs_root_type</code></th><th>When to use</th></tr></thead><tbody>
+<tr><td><code>"automated-system"</code></td><td>Fully automated operator — no human consent loop</td></tr>
+<tr><td><code>"organisation"</code></td><td>Represents an organisation that has a defined approval process</td></tr>
+</tbody></table>
+</div>
+<p>Human-rooted delegations (<code>"human"</code>) are not used in <code>OperatorConfig</code> — they require a live human consent interaction per session.</p>
+<h2 id="renewal-rules"><a class="header" href="#renewal-rules">Renewal rules</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>auto_renew</code></td><td>If <code>true</code>, the agent runtime renews the session delegation before it expires</td></tr>
+<tr><td><code>session_ttl_hours</code></td><td>How long each session delegation is valid</td></tr>
+<tr><td><code>max_renewal_count</code></td><td>Maximum renewals per original session. <code>0</code> = unlimited</td></tr>
+</tbody></table>
+</div>
+<h2 id="escalation-behaviour"><a class="header" href="#escalation-behaviour">Escalation behaviour</a></h2>
+<p>When an agent requests an action exceeding the <code>standing_policy</code>:</p>
+<ol>
+<li>Request is held (not rejected immediately)</li>
+<li>Notification sent to <code>supervisor_did</code></li>
+<li>If supervisor approves: a new sub-DR is issued with expanded policy</li>
+<li>If supervisor does not respond within timeout: <code>fallback</code> applies</li>
+</ol>
+<div class="table-wrapper"><table><thead><tr><th><code>fallback</code></th><th>Behaviour</th></tr></thead><tbody>
+<tr><td><code>"deny"</code></td><td>Request is rejected — safe default</td></tr>
+<tr><td><code>"allow-degraded"</code></td><td>Request is allowed with a degraded policy — only use when availability is more critical than strict policy enforcement</td></tr>
+</tbody></table>
+</div>
+<blockquote>
+<p><strong>Security:</strong> <code>"allow-degraded"</code> should never be the default in regulated deployments. Discuss with your security team before enabling it.</p>
+</blockquote>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="storage-tiers"><a class="header" href="#storage-tiers">Storage Tiers</a></h1>
+<p>DRS defines five storage tiers for delegation receipts, ordered by durability and compliance requirements.</p>
+<h2 id="tier-reference"><a class="header" href="#tier-reference">Tier reference</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Tier</th><th><code>storage_tier</code></th><th>Backend</th><th>Retention</th><th>Use case</th></tr></thead><tbody>
+<tr><td>Session</td><td><code>0</code></td><td>In-memory</td><td>Process lifetime</td><td>Development, testing</td></tr>
+<tr><td>Ephemeral</td><td><code>1</code></td><td>Local filesystem</td><td>Configurable TTL</td><td>Non-regulated production</td></tr>
+<tr><td>Durable</td><td><code>2</code></td><td>S3 / GCS / Azure Blob</td><td>Configurable</td><td>Standard production</td></tr>
+<tr><td>Compliant</td><td><code>3</code></td><td>WORM-enabled object storage</td><td>7 years minimum</td><td>HIPAA, financial services, SOC 2</td></tr>
+<tr><td>On-chain</td><td><code>4</code></td><td>Monad EVM</td><td>Permanent</td><td>Highest-assurance regulatory, AIUC-1</td></tr>
+</tbody></table>
+</div>
+<h2 id="when-to-use-each-tier"><a class="header" href="#when-to-use-each-tier">When to use each tier</a></h2>
+<p><strong>Tier 0 (Session):</strong> Use only for local development and tests. Receipts are lost on process restart.</p>
+<p><strong>Tier 1 (Ephemeral):</strong> Non-regulated production deployments where receipts are needed for debugging and short-term audit but not long-term compliance. Configure TTL to match your operational requirements.</p>
+<p><strong>Tier 2 (Durable):</strong> Standard production. Object storage provides high durability and availability. No special compliance controls — suitable when regulatory requirements do not mandate WORM.</p>
+<p><strong>Tier 3 (Compliant):</strong> Required for HIPAA, SOC 2, financial services, and EU AI Act high-risk deployments. Uses WORM-enabled object storage (S3 Object Lock, Azure Blob Immutable Storage, GCS Bucket Lock). Minimum 7-year retention.</p>
+<p><strong>Tier 4 (On-chain):</strong> Permanent, publicly auditable. Receipts are anchored to the Monad EVM. Use when you need independent third-party auditability or when the evidence must be verifiable without any operator infrastructure.</p>
+<h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<pre><code class="language-bash"># Tier 2 — Durable (S3)
+DRS_STORAGE_TIER=2
+DRS_S3_BUCKET=my-drs-receipts
+DRS_S3_REGION=eu-west-1
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+
+# Tier 3 — Compliant (WORM S3)
+DRS_STORAGE_TIER=3
+DRS_S3_BUCKET=my-drs-receipts-compliant
+DRS_S3_WORM_POLICY=true
+DRS_RETENTION_DAYS=2555    # 7 years
+</code></pre>
+<h2 id="setting-it-in-operatorconfig"><a class="header" href="#setting-it-in-operatorconfig">Setting it in OperatorConfig</a></h2>
+<pre><code class="language-json">{
+  "storage_tier": 3
+}
+</code></pre>
+<p>The tier is set once in the operator configuration and applies to all receipts issued by that operator.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="key-management-1"><a class="header" href="#key-management-1">Key Management</a></h1>
+<h2 id="key-types-and-requirements"><a class="header" href="#key-types-and-requirements">Key types and requirements</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Key type</th><th>Recommended storage</th><th>Rotation</th></tr></thead><tbody>
+<tr><td>Human root key</td><td>Hardware Security Module or device Secure Enclave</td><td>Not rotated — DID is derived from key</td></tr>
+<tr><td>Operator root key</td><td>HSM required for production</td><td>Annual with overlap period</td></tr>
+<tr><td>Agent session key</td><td>Ephemeral — generated per session, never stored</td><td>Per-session</td></tr>
+</tbody></table>
+</div>
+<h2 id="why-agent-keys-must-be-ephemeral"><a class="header" href="#why-agent-keys-must-be-ephemeral">Why agent keys must be ephemeral</a></h2>
+<p>Long-lived agent private keys are a liability: if the agent is compromised, all delegations signed by that key are at risk. Ephemeral keys limit the blast radius: a compromised key can only affect delegations from the current session, which expire when the session ends.</p>
+<h2 id="generating-keys"><a class="header" href="#generating-keys">Generating keys</a></h2>
+<p><strong>Development only (never in production):</strong></p>
+<pre><code class="language-bash">pnpm exec drs keygen
+# Private key: &lt;base64url 32 bytes&gt;
+# DID:         did:key:z6Mk...
+</code></pre>
+<p><strong>Production operator key (AWS KMS):</strong></p>
+<pre><code class="language-bash"># Create an Ed25519 key in AWS KMS
+aws kms create-key \
+  --key-spec ECC_NIST_P256 \
+  --key-usage SIGN_VERIFY \
+  --description "DRS operator key - production"
+
+# Set the key ID in operator config
+echo "DRS_KMS_KEY_ID=&lt;key-id&gt;" &gt;&gt; .env
+</code></pre>
+<h2 id="did-method-choices"><a class="header" href="#did-method-choices">DID method choices</a></h2>
+<p><strong><code>did:key</code> (recommended):</strong> The DID is derived directly from the public key. No registry, no DNS, no trust anchor beyond the key itself. The verification key is self-contained in the DID string.</p>
+<p><strong><code>did:web</code>:</strong> The DID is resolved by fetching a DID document from an HTTPS URL. Useful when you need to rotate keys without changing the DID (the DID document can be updated). Requires your domain's DNS and TLS to be secure — a compromised domain means a compromised DID.</p>
+<h2 id="key-rotation"><a class="header" href="#key-rotation">Key rotation</a></h2>
+<p>For <code>did:key</code> DIDs, rotating the key means generating a new key and a new DID. The process:</p>
+<ol>
+<li>Generate new key and DID</li>
+<li>Update <code>operator_did</code> in your <code>OperatorConfig</code></li>
+<li>New root delegations are issued under the new DID</li>
+<li>Old delegations (signed with the previous key) remain valid until they expire</li>
+<li>After old delegations expire, the old key can be decommissioned</li>
+</ol>
+<h2 id="protecting-signing-keys"><a class="header" href="#protecting-signing-keys">Protecting signing keys</a></h2>
+<ul>
+<li>Never log private key material, even in debug builds</li>
+<li>Never store private keys in environment variables in production (use <code>aws-kms</code> or <code>gcp-kms</code>)</li>
+<li>Never include private keys in Docker images</li>
+<li>Never commit keys to version control</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="revocation"><a class="header" href="#revocation">Revocation</a></h1>
+<p>DRS uses the W3C Bitstring Status List specification for revocation. Revoked receipts fail Block F of <code>verify_chain</code>.</p>
+<h2 id="how-revocation-works"><a class="header" href="#how-revocation-works">How revocation works</a></h2>
+<ol>
+<li>When issuing a DR, optionally include a <code>drs_status_list_index</code> integer field</li>
+<li>The issuer maintains a Bitstring Status List — a bitfield where each position corresponds to a JTI</li>
+<li>To revoke a DR, set the bit at its <code>drs_status_list_index</code> to <code>1</code></li>
+<li>drs-verify fetches the status list (5-minute TTL cache) and checks the bit at the DR's index</li>
+<li>Bit <code>1</code> = revoked — verification fails with <code>RECEIPT_REVOKED</code></li>
+</ol>
+<h2 id="revoking-a-delegation"><a class="header" href="#revoking-a-delegation">Revoking a delegation</a></h2>
+<p>Via the drs-verify admin API:</p>
+<pre><code class="language-bash">curl -X POST http://localhost:8080/admin/revoke \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"jti": "dr:8f3a2b1c-4d5e-4xxx-8b9c-0d1e2f3a4b5c"}'
+
+# Response: {"revoked": true, "jti": "dr:8f3a2b1c-..."}
+</code></pre>
+<h2 id="cache-window"><a class="header" href="#cache-window">Cache window</a></h2>
+<p>Revocations take effect within 5 minutes (the default status list cache TTL). For high-security deployments that require faster revocation:</p>
+<pre><code class="language-bash">DRS_STATUS_CACHE_TTL=30s
+</code></pre>
+<p>Setting this too low increases load on the status list endpoint. For most deployments, 5 minutes is appropriate.</p>
+<h2 id="emergency-revocation"><a class="header" href="#emergency-revocation">Emergency revocation</a></h2>
+<p>For compromised keys, revoke all active delegations issued by the compromised key:</p>
+<pre><code class="language-bash"># Revoke all active DRs for a given issuer DID
+curl -X POST http://localhost:8080/admin/revoke-by-issuer \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"issuer_did": "did:key:z6MkCompromised..."}'
+</code></pre>
+<p>After revoking, rotate the compromised key and issue new root delegations from the new key.</p>
+<h2 id="status-list-cache-concurrency"><a class="header" href="#status-list-cache-concurrency">Status list cache concurrency</a></h2>
+<p>The status list cache uses <code>sync.Once</code> internally to prevent double-fetch race conditions under concurrent load. When the cache expires and multiple requests arrive simultaneously, only one fetch is made — the others wait and use the result.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="reconstruct-a-delegation-chain"><a class="header" href="#reconstruct-a-delegation-chain">Reconstruct a Delegation Chain</a></h1>
+<p>You can reconstruct and verify any delegation chain from stored receipts without operator cooperation. All you need are the JWT strings and the DIDs.</p>
+<h2 id="step-1-retrieve-the-bundle"><a class="header" href="#step-1-retrieve-the-bundle">Step 1: Retrieve the bundle</a></h2>
+<p>If the operator has provided the bundle file:</p>
+<pre><code class="language-bash">pnpm exec drs audit retrieve --inv-jti "inv:7h5c4d3e-..." --output evidence.json
+</code></pre>
+<p>Or assemble manually from JWT strings provided by the operator:</p>
+<pre><code class="language-json">{
+  "bundle_version": "4.0",
+  "invocation": "&lt;invocation-receipt-jwt&gt;",
+  "receipts": [
+    "&lt;root-dr-jwt&gt;",
+    "&lt;sub-dr-jwt-1&gt;"
+  ]
+}
+</code></pre>
+<h2 id="step-2-verify-the-chain"><a class="header" href="#step-2-verify-the-chain">Step 2: Verify the chain</a></h2>
+<pre><code class="language-bash">pnpm exec drs verify evidence.json
+</code></pre>
+<p>This runs all six verification blocks locally. The public keys are resolved from the DID strings embedded in each JWT's <code>iss</code> field. No network calls to any operator system.</p>
+<pre><code>✓ Bundle verified
+  Chain depth:    2
+  Root principal: did:key:z6MkHuman...
+  Subject:        did:key:z6MkHuman...
+  Command:        /mcp/tools/call
+  Policy result:  pass
+  Blocks:         A✓ B✓ C✓ D✓ E✓ F✓
+</code></pre>
+<h2 id="step-3-read-the-full-audit-trail"><a class="header" href="#step-3-read-the-full-audit-trail">Step 3: Read the full audit trail</a></h2>
+<pre><code class="language-bash">pnpm exec drs audit evidence.json
+</code></pre>
+<p>Output:</p>
+<pre><code>DRS Chain Audit
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Receipt 0 (root — human)
+  Issued by:   did:key:z6MkHuman...
+  Granted to:  did:key:z6MkAgent1...
+  Command:     /mcp/tools/call
+  Policy:      max_cost_usd=50, allowed_tools=[web_search,write_file]
+  Valid:        2026-03-28 10:30:00 → 2026-05-28 10:30:00
+  Consent:      explicit-ui-click at 2026-03-28T10:30:00Z (locale: en-GB)
+  Policy hash:  sha256:a1b2c3...  (hash of text user saw)
+
+Receipt 1 (sub-delegation)
+  Issued by:   did:key:z6MkAgent1...
+  Granted to:  did:key:z6MkAgent2...
+  Policy:      max_cost_usd=5, allowed_tools=[web_search]
+  Chain hash:  sha256:def456... ✓
+
+Invocation
+  Called by:   did:key:z6MkAgent2...
+  Tool:        web_search
+  Args:        {"estimated_cost_usd": 0.02, "query": "Monad TPS"}
+  Budget used: $0.02 of $5.00 (sub) / $50.00 (root)
+  Chain:       sha256:abc123... → sha256:def456... ✓
+
+All 3 signatures valid. Chain intact. No revocations found.
+</code></pre>
+<h2 id="step-4-verify-the-consent-record"><a class="header" href="#step-4-verify-the-consent-record">Step 4: Verify the consent record</a></h2>
+<p>To confirm the user saw human-readable policy (not raw JSON):</p>
+<pre><code class="language-bash">pnpm exec drs policy evidence.json --receipt 0
+</code></pre>
+<p>This shows the policy of the root DR. Cross-reference the <code>policy_hash</code> in the consent record with:</p>
+<pre><code class="language-bash">pnpm exec drs translate --input-json '{"allowed_tools":["web_search"],"max_cost_usd":50}' \
+  | sha256sum
+</code></pre>
+<p>If the SHA-256 of the translated text matches <code>drs_consent.policy_hash</code>, the user saw legible information.</p>
+<h2 id="what-you-can-prove"><a class="header" href="#what-you-can-prove">What you can prove</a></h2>
+<p>From the DRS chain alone, you can prove:</p>
+<ul>
+<li><strong>Who authorised</strong> the action (the <code>iss</code> of the root DR, with their Ed25519 signature)</li>
+<li><strong>What they authorised</strong> (the <code>policy</code> field at every level)</li>
+<li><strong>When they authorised it</strong> (the <code>nbf</code>, <code>exp</code>, <code>iat</code> fields)</li>
+<li><strong>What actually happened</strong> (the invocation receipt's <code>args</code> field)</li>
+<li><strong>That consent was meaningful</strong> (the <code>drs_consent.policy_hash</code> links to human-readable text)</li>
+<li><strong>That the chain is intact</strong> (all <code>prev_dr_hash</code> values verify, all signatures valid)</li>
+</ul>
+<p>You cannot prove these things from server logs alone.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="independent-verification"><a class="header" href="#independent-verification">Independent Verification</a></h1>
+<p>DRS chains can be verified by anyone, without contacting the operator, without a DRS account, and without any central authority.</p>
+<h2 id="what-you-need"><a class="header" href="#what-you-need">What you need</a></h2>
+<ul>
+<li>The DRS bundle (the JWT strings)</li>
+<li>The <code>drs verify</code> CLI (from <code>@drs/sdk</code>) or a running drs-verify instance</li>
+</ul>
+<h2 id="what-you-do-not-need"><a class="header" href="#what-you-do-not-need">What you do NOT need</a></h2>
+<ul>
+<li>Access to the operator's systems or databases</li>
+<li>A DRS account or subscription</li>
+<li>Network access to the original issuer</li>
+<li>Any trusted third party to authenticate the evidence</li>
+</ul>
+<h2 id="why-this-works"><a class="header" href="#why-this-works">Why this works</a></h2>
+<p>Each Delegation Receipt is signed with the issuer's Ed25519 private key. The issuer's public key is encoded directly in their <code>did:key</code> DID:</p>
+<pre><code>did:key:z6Mk{base58btc(multicodec_prefix + public_key_bytes)}
+</code></pre>
+<p>Anyone with the DID can derive the public key and verify the signature. No registry lookup, no HTTP request, no trust anchor beyond the public key.</p>
+<h2 id="offline-verification"><a class="header" href="#offline-verification">Offline verification</a></h2>
+<p>All blocks except F (revocation) can be run offline:</p>
+<pre><code class="language-bash">pnpm exec drs verify bundle.json --offline
+</code></pre>
+<p>The <code>--offline</code> flag skips Block F (Bitstring Status List lookup). All cryptographic, structural, policy, and temporal checks run locally with no network calls.</p>
+<p>Use <code>--offline</code> when:</p>
+<ul>
+<li>You have no network access</li>
+<li>You are verifying historical evidence (revocation status is not relevant for a past action)</li>
+<li>You distrust the network path to the status list server</li>
+</ul>
+<h2 id="full-online-verification"><a class="header" href="#full-online-verification">Full online verification</a></h2>
+<pre><code class="language-bash">DRS_VERIFY_URL=http://your-drs-verify-instance:8080 pnpm exec drs verify bundle.json
+</code></pre>
+<p>Or spin up your own drs-verify instance and point at it:</p>
+<pre><code class="language-bash">cd drs-verify &amp;&amp; go run ./cmd/server &amp;
+pnpm exec drs verify bundle.json
+</code></pre>
+<h2 id="checking-signatures-manually"><a class="header" href="#checking-signatures-manually">Checking signatures manually</a></h2>
+<p>If you want to verify a signature without the CLI tools, every DRS JWT is a standard EdDSA JWT. Any JWT library that supports <code>alg: EdDSA</code> can verify it:</p>
+<pre><code class="language-bash"># Decode and verify using jwt.io or any EdDSA-capable tool
+# The DID in the "iss" field encodes the public key:
+# did:key:z6Mk{base58(0xed01 + pub_key_bytes)}
+
+# Extract pub key from DID:
+echo "did:key:z6Mk..." | pnpm exec drs resolve-did
+# {"public_key_hex": "0102030405..."}
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="export-evidence-for-eu-ai-act"><a class="header" href="#export-evidence-for-eu-ai-act">Export Evidence for EU AI Act</a></h1>
+<p>DRS provides a dedicated export format for EU AI Act compliance evidence. The export covers Article 12 (record-keeping) and Article 13 (transparency) requirements.</p>
+<h2 id="export-command"><a class="header" href="#export-command">Export command</a></h2>
+<pre><code class="language-bash">pnpm exec drs audit export \
+  --inv-jti "inv:7h5c4d3e-..." \
+  --format eu-ai-act \
+  --output eu-ai-act-evidence.json
+</code></pre>
+<h2 id="what-the-export-contains"><a class="header" href="#what-the-export-contains">What the export contains</a></h2>
+<pre><code class="language-json">{
+  "export_format": "eu-ai-act",
+  "export_timestamp": "2026-03-30T10:00:00Z",
+  "article_12_evidence": {
+    "delegation_chain": [
+      {
+        "receipt_index": 0,
+        "type": "root-delegation",
+        "issuer": "did:key:z6MkHuman...",
+        "audience": "did:key:z6MkAgent1...",
+        "issued_at": "2026-03-28T10:30:00Z",
+        "valid_until": "2026-05-28T10:30:00Z",
+        "policy_summary": "web_search only, max £50",
+        "signature_valid": true,
+        "jwt": "&lt;root-dr-jwt&gt;"
+      }
+    ],
+    "invocation": {
+      "type": "invocation-receipt",
+      "issuer": "did:key:z6MkAgent2...",
+      "tool": "web_search",
+      "args_summary": "query: Monad TPS benchmarks",
+      "cost_usd": 0.02,
+      "signature_valid": true,
+      "jwt": "&lt;invocation-jwt&gt;"
+    },
+    "chain_verification": {
+      "all_signatures_valid": true,
+      "chain_intact": true,
+      "no_revocations": true,
+      "blocks_passed": ["A", "B", "C", "D", "E", "F"]
+    }
+  },
+  "article_13_evidence": {
+    "consent_record": {
+      "method": "explicit-ui-click",
+      "timestamp": "2026-03-28T10:30:00Z",
+      "locale": "en-GB",
+      "policy_hash": "sha256:a1b2c3...",
+      "policy_text_shown_to_user": "Research Agent wants permission to:\n✓  Search the web\n✗  Cannot spend more than £50.00"
+    }
+  }
+}
+</code></pre>
+<h2 id="submitting-the-evidence"><a class="header" href="#submitting-the-evidence">Submitting the evidence</a></h2>
+<p>Submit <code>eu-ai-act-evidence.json</code> to:</p>
+<ul>
+<li>Your internal compliance officer for review</li>
+<li>The notified body conducting a conformity assessment</li>
+<li>The national market surveillance authority if requested</li>
+</ul>
+<p>The evidence is self-contained — no operator cooperation is needed to authenticate it. All signatures are verifiable from the public keys encoded in the DIDs.</p>
+<h2 id="batch-export"><a class="header" href="#batch-export">Batch export</a></h2>
+<p>For a date range of invocations:</p>
+<pre><code class="language-bash">pnpm exec drs audit export \
+  --subject "did:key:z6MkHuman..." \
+  --date-range "2026-01-01/2026-03-31" \
+  --format eu-ai-act \
+  --output q1-2026-eu-ai-act.json
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="hipaa-audit-evidence"><a class="header" href="#hipaa-audit-evidence">HIPAA Audit Evidence</a></h1>
+<p>For healthcare deployments handling Protected Health Information (PHI), HIPAA §164.312(b) requires audit controls that record and examine activity in information systems containing PHI.</p>
+<h2 id="what-drs-provides-for-hipaa"><a class="header" href="#what-drs-provides-for-hipaa">What DRS provides for HIPAA</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>HIPAA Requirement</th><th>DRS Mechanism</th></tr></thead><tbody>
+<tr><td>Record activity in PHI systems</td><td>Invocation Receipts — every agent action recorded and signed</td></tr>
+<tr><td>Verify authorisation was granted before access</td><td>Delegation Receipts — signed proof of authorisation before invocation</td></tr>
+<tr><td>Tamper-evident audit trail</td><td>Ed25519 signatures + <code>prev_dr_hash</code> chain</td></tr>
+<tr><td>Independent auditability</td><td><code>did:key</code> resolution — no central authority needed</td></tr>
+<tr><td>Retention (7 years minimum)</td><td>Tier 3 storage — WORM-enabled with configurable retention</td></tr>
+</tbody></table>
+</div>
+<h2 id="retrieving-evidence-for-a-hipaa-audit"><a class="header" href="#retrieving-evidence-for-a-hipaa-audit">Retrieving evidence for a HIPAA audit</a></h2>
+<pre><code class="language-bash"># Retrieve all invocations by an agent that touched PHI systems
+pnpm exec drs audit retrieve \
+  --tool-server "did:key:z6MkPHISystem..." \
+  --date-range "2026-01-01/2026-03-31" \
+  --output hipaa-audit-trail.json
+
+# Verify the entire set
+pnpm exec drs verify hipaa-audit-trail.json
+
+# Print human-readable audit trail
+pnpm exec drs audit hipaa-audit-trail.json
+</code></pre>
+<h2 id="required-storage-configuration-for-hipaa"><a class="header" href="#required-storage-configuration-for-hipaa">Required storage configuration for HIPAA</a></h2>
+<p>PHI-touching deployments must use Tier 3 storage:</p>
+<pre><code class="language-bash">DRS_STORAGE_TIER=3
+DRS_S3_WORM_POLICY=true
+DRS_RETENTION_DAYS=2555    # 7 years = 365 × 7
+</code></pre>
+<p>Or in <code>OperatorConfig</code>:</p>
+<pre><code class="language-json">{
+  "storage_tier": 3,
+  "drs_regulatory": {
+    "frameworks": ["hipaa-164.312b"],
+    "retention_days": 2555
+  }
+}
+</code></pre>
+<h2 id="demonstrating-authorisation-for-baa-compliance"><a class="header" href="#demonstrating-authorisation-for-baa-compliance">Demonstrating authorisation for BAA compliance</a></h2>
+<p>Under a Business Associate Agreement (BAA), you must demonstrate that agent access to PHI was:</p>
+<ol>
+<li>Authorised by an identified individual (the <code>iss</code> of the root DR, with valid signature)</li>
+<li>Within the scope of the authorisation (Block D policy compliance)</li>
+<li>Logged with a tamper-evident record (the signed invocation receipt)</li>
+</ol>
+<pre><code class="language-bash"># Export HIPAA evidence for a specific invocation
+pnpm exec drs audit export \
+  --inv-jti "inv:7h5c4d3e-..." \
+  --format hipaa \
+  --output hipaa-single-event.json
+</code></pre>
+<p>The output includes: delegation chain with signatures, invocation record, verification result, and retention metadata.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="development-setup"><a class="header" href="#development-setup">Development Setup</a></h1>
+<h2 id="prerequisites-3"><a class="header" href="#prerequisites-3">Prerequisites</a></h2>
+<p>Install all three language toolchains:</p>
+<pre><code class="language-bash"># Rust 1.77+
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup install stable
+
+# Go 1.22+
+# Download from https://go.dev/dl/ or via your package manager
+
+# Node.js 20+ and pnpm
+# Node: https://nodejs.org or nvm
+npm install -g pnpm
+
+# wasm-pack (for WASM builds)
+cargo install wasm-pack
+</code></pre>
+<h2 id="clone-and-build"><a class="header" href="#clone-and-build">Clone and build</a></h2>
+<pre><code class="language-bash">git clone https://github.com/yourorg/drs
+cd drs
+
+# Rust core
+cd drs-core
+cargo build
+cargo test
+cd ..
+
+# Go middleware
+cd drs-verify
+go build ./...
+go test ./... -race
+cd ..
+
+# TypeScript SDK
+cd drs-sdk
+pnpm install
+pnpm test
+pnpm typecheck
+cd ..
+</code></pre>
+<h2 id="optional-wasm-build"><a class="header" href="#optional-wasm-build">Optional: WASM build</a></h2>
+<pre><code class="language-bash">cd drs-core
+wasm-pack build --target web --features wasm
+# Output: drs-core/pkg/
+</code></pre>
+<h2 id="run-all-tests"><a class="header" href="#run-all-tests">Run all tests</a></h2>
+<pre><code class="language-bash"># Rust
+cd drs-core &amp;&amp; cargo test
+
+# Go (with race detector and coverage)
+cd drs-verify &amp;&amp; go test ./... -race -coverprofile=coverage.out
+go tool cover -html=coverage.out
+
+# TypeScript
+cd drs-sdk &amp;&amp; pnpm test
+cd drs-sdk &amp;&amp; pnpm typecheck
+</code></pre>
+<h2 id="formatting-and-linting"><a class="header" href="#formatting-and-linting">Formatting and linting</a></h2>
+<pre><code class="language-bash"># Rust
+cd drs-core &amp;&amp; cargo fmt &amp;&amp; cargo clippy
+
+# Go
+cd drs-verify &amp;&amp; gofmt -w . &amp;&amp; go vet ./...
+
+# TypeScript
+cd drs-sdk &amp;&amp; pnpm prettier --write .
+</code></pre>
+<p>CI enforces all formatters. <code>cargo fmt --check</code>, <code>gofmt -l .</code>, and <code>pnpm prettier --check .</code> must all pass.</p>
+<h2 id="running-drs-verify-locally"><a class="header" href="#running-drs-verify-locally">Running drs-verify locally</a></h2>
+<pre><code class="language-bash">cd drs-verify
+go run ./cmd/server
+# drs-verify listening on :8080
+
+# In another terminal:
+curl http://localhost:8080/healthz
+# {"status":"ok"}
+</code></pre>
+<h2 id="ide-setup"><a class="header" href="#ide-setup">IDE setup</a></h2>
+<p><strong>VS Code:</strong> Install the <code>rust-analyzer</code>, <code>Go</code>, and <code>TypeScript</code> extensions. The project includes workspace settings that configure formatters.</p>
+<p><strong>IntelliJ / GoLand:</strong> The Go module layout is standard — open <code>drs-verify/</code> as a Go module.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="architecture-deep-dive"><a class="header" href="#architecture-deep-dive">Architecture Deep Dive</a></h1>
+<p>Read this before touching the crypto layer or the verification path.</p>
+<h2 id="required-reading"><a class="header" href="#required-reading">Required reading</a></h2>
+<p>Before making changes to the core verification logic:</p>
+<ol>
+<li><code>docs/Drs_language&amp;algorithms.md</code> — authoritative reference for language choices and corrected algorithms</li>
+<li><code>docs/Drs_architecture_v2.md</code> — the full DRS 4.0.0 specification</li>
+<li><a href="how-to/contributors/./false-positives.html">False Positives: What We Tried</a> — the v1 and v2 failures</li>
+</ol>
+<h2 id="module-boundaries"><a class="header" href="#module-boundaries">Module boundaries</a></h2>
+<p>Each module has exactly one responsibility. Do not write code that crosses these boundaries:</p>
+<div class="table-wrapper"><table><thead><tr><th>Module</th><th>Responsibility</th><th>Does NOT do</th></tr></thead><tbody>
+<tr><td><code>drs-core/src/crypto/</code></td><td>Ed25519 sign/verify, SHA-256</td><td>JWT parsing, policy evaluation</td></tr>
+<tr><td><code>drs-core/src/chain/</code></td><td>Chain hash computation, <code>verify_chain</code></td><td>Network I/O, caching</td></tr>
+<tr><td><code>drs-core/src/jcs/</code></td><td>RFC 8785 canonicalisation</td><td>Serialisation to non-JSON formats</td></tr>
+<tr><td><code>drs-core/src/capability/</code></td><td>Policy evaluation, attenuation check</td><td>Crypto operations</td></tr>
+<tr><td><code>drs-core/src/did/</code></td><td><code>did:key</code> decode to public key bytes</td><td>DID resolution with caching</td></tr>
+<tr><td><code>drs-verify/pkg/resolver/</code></td><td>DID resolution + LRU cache</td><td>Chain verification</td></tr>
+<tr><td><code>drs-verify/pkg/verify/</code></td><td><code>verify_chain</code> (6 blocks)</td><td>DID resolution, HTTP I/O</td></tr>
+<tr><td><code>drs-verify/pkg/middleware/</code></td><td>HTTP request/response handling</td><td>Verification logic</td></tr>
+<tr><td><code>drs-verify/pkg/policy/</code></td><td>Policy field evaluation</td><td>Signing, serialisation</td></tr>
+<tr><td><code>drs-sdk/src/sdk/</code></td><td>Issuance (sign + build JWTs)</td><td>Verification</td></tr>
+<tr><td><code>drs-sdk/src/verify/</code></td><td>HTTP client to drs-verify</td><td>Verification logic itself</td></tr>
+<tr><td><code>drs-sdk/src/cli/</code></td><td>CLI command dispatch</td><td>SDK logic</td></tr>
+</tbody></table>
+</div>
+<h2 id="data-flow"><a class="header" href="#data-flow">Data flow</a></h2>
+<pre><code>Issuance (TypeScript SDK):
+  Policy params → jcsSerialise(payload) → ed.signAsync → JWT string
+
+Verification (Go, calls Rust):
+  JWT string → parse header/payload → resolve_did → ed25519_verify_strict
+            → check_policy_attenuation → is_revoked → VerifiedChain
+
+DID resolution (Go):
+  DID string → base58Decode → strip multicodec prefix [0xed, 0x01]
+             → [32]byte public key (constant-time prefix check)
+</code></pre>
+<h2 id="adding-a-new-algorithm"><a class="header" href="#adding-a-new-algorithm">Adding a new algorithm</a></h2>
+<ol>
+<li>Write it in Rust first (<code>drs-core/src/</code>)</li>
+<li>Write tests with official test vectors from the relevant RFC</li>
+<li>If Go middleware needs it: re-implement with the same interface (Go cannot call Rust without CGO complexity — prefer reimplementation for simple algorithms)</li>
+<li>TypeScript only calls WASM or the HTTP API — no algorithm logic in TypeScript</li>
+</ol>
+<h2 id="security-sensitive-code-checklist"><a class="header" href="#security-sensitive-code-checklist">Security-sensitive code checklist</a></h2>
+<p>Before merging any change to the crypto or verification path:</p>
+<ul>
+<li><input disabled="" type="checkbox"/>
+Comparisons on key material use constant-time equality (<code>subtle::ConstantTimeEq</code> / <code>crypto/subtle.ConstantTimeCompare</code>)</li>
+<li><input disabled="" type="checkbox"/>
+No <code>unwrap()</code> in Rust library code — use <code>Result&lt;T, E&gt;</code> and propagate</li>
+<li><input disabled="" type="checkbox"/>
+No <code>_</code> on error returns in Go production paths — check and propagate</li>
+<li><input disabled="" type="checkbox"/>
+Signing keys are not logged, even in debug</li>
+<li><input disabled="" type="checkbox"/>
+New error messages do not expose key material or sensitive internal state</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="testing-standards"><a class="header" href="#testing-standards">Testing Standards</a></h1>
+<p>Every source file has a corresponding test file. Tests are not optional and are not written after the fact.</p>
+<h2 id="file-structure"><a class="header" href="#file-structure">File structure</a></h2>
+<pre><code># Rust
+drs-core/src/chain/verify.rs
+drs-core/src/chain/verify_test.rs   ← or #[cfg(test)] module inline
+
+# Go
+drs-verify/pkg/verify/chain.go
+drs-verify/pkg/verify/chain_test.go ← same package, _test.go suffix
+
+# TypeScript
+drs-sdk/src/sdk/issue.ts
+drs-sdk/src/sdk/issue.test.ts
+</code></pre>
+<h2 id="what-must-be-tested"><a class="header" href="#what-must-be-tested">What must be tested</a></h2>
+<p>For every module, write tests covering:</p>
+<p><strong>Happy path:</strong> Expected input produces expected output.</p>
+<p><strong>Boundary conditions:</strong></p>
+<ul>
+<li>Empty input (empty chain, empty policy, empty args)</li>
+<li>Maximum chain depth (10 hops)</li>
+<li>Expired timestamps (<code>now &gt; exp</code>)</li>
+<li>Not-yet-valid timestamps (<code>now &lt; nbf</code>)</li>
+</ul>
+<p><strong>Error paths:</strong> Every <code>Err(...)</code>, <code>error</code> return, and <code>DrsError</code> throw has at least one test that triggers it.</p>
+<p><strong>Security properties — these are non-negotiable:</strong></p>
+<ul>
+<li>Signature forgery must fail Block C</li>
+<li>Policy escalation must fail <code>checkPolicyAttenuation</code> and Block D</li>
+<li>Revoked chains must fail Block F</li>
+<li>Tampered DRs (modified payload) must fail Block C</li>
+<li>Chain splicing (wrong <code>prev_dr_hash</code>) must fail Block B</li>
+<li>Temporal violations (sub-DR <code>exp &gt; parent exp</code>) must fail Block E</li>
+</ul>
+<h2 id="rfc-test-vectors"><a class="header" href="#rfc-test-vectors">RFC test vectors</a></h2>
+<p><code>jcs_canonicalise</code> and <code>compute_cid</code> must pass all official RFC 8785 test vectors. These are non-negotiable:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[test]
+fn test_jcs_rfc8785_vector_1() {
+    // From RFC 8785 Appendix B
+    let input = r#"{"b":1,"a":2}"#;
+    let expected = r#"{"a":2,"b":1}"#;
+    assert_eq!(jcs_canonicalise(input).unwrap(), expected);
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Canonicalisation divergence between implementations breaks cross-implementation JWT verification. These tests are a compatibility guarantee, not just unit tests.</p>
+<h2 id="running-tests"><a class="header" href="#running-tests">Running tests</a></h2>
+<pre><code class="language-bash"># Rust — with coverage
+cargo test
+cargo tarpaulin --out Html   # requires cargo-tarpaulin
+
+# Go — with race detector
+go test ./... -race -coverprofile=coverage.out
+go tool cover -html=coverage.out
+
+# TypeScript
+pnpm test                  # vitest run
+pnpm test -- --reporter=verbose
+</code></pre>
+<h2 id="test-naming-convention"><a class="header" href="#test-naming-convention">Test naming convention</a></h2>
+<p>Name tests to describe the property being tested, not the implementation:</p>
+<pre><code># Good
+TestSignatureForgeryShouldFail
+TestPolicyEscalationRejectedAtIssuance
+TestExpiredReceiptFailsTemporalBlock
+
+# Bad
+TestVerifyChain
+TestIssueSubDelegation
+TestBlock3
+</code></pre>
+<p>When a test fails, the name should tell you what property was violated.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="false-positives-what-we-tried"><a class="header" href="#false-positives-what-we-tried">False Positives: What We Tried</a></h1>
+<p>This is a research project. Three architectural approaches were designed and discarded before the current architecture. This page is preserved as a record of what failed and why — essential context for anyone contributing to the codebase.</p>
+<blockquote>
+<p>"Those who cannot remember the past are condemned to repeat it." — George Santayana</p>
+</blockquote>
+<h2 id="v1-invented-from-scratch"><a class="header" href="#v1-invented-from-scratch">v1: Invented from scratch</a></h2>
+<p><strong>The hypothesis:</strong> We need a new delegation chain system for AI agents.</p>
+<p><strong>What we built:</strong> A custom delegation chain with Ed25519 signatures and a binary Merkle tree over the chain.</p>
+<p><strong>The errors:</strong></p>
+<p><strong>Error 1 — Reinvented the wheel:</strong> UCAN (User Controlled Authorization Network) already defines cryptographic delegation chains. We built something equivalent but worse, without the benefit of the prior art and the community that had already reviewed it.</p>
+<p><strong>Error 2 — Wrong data structure:</strong> We applied a binary Merkle tree to a linear delegation chain. A linear chain is not a tree. The Merkle tree added complexity without benefit, and it introduced the same last-node duplication vulnerability as Bitcoin's transaction Merkle tree (CVE-2012-2459).</p>
+<p><strong>Error 3 — "Ed25519 is simply secure":</strong> This is not a security model. A security model names the threats, the mechanisms that counter them, and the residual risks. "Simply secure" means nothing to an auditor.</p>
+<p><strong>The lesson:</strong> Check whether the problem is already solved before designing a solution. Read the existing standards. Read the CVE history of similar approaches.</p>
+<p><strong>v1 documents:</strong> <code>docs/DRS_architecture_v1.md</code></p>
+<hr />
+<h2 id="v2-ucan-profile-wrong-version"><a class="header" href="#v2-ucan-profile-wrong-version">v2: UCAN Profile (wrong version)</a></h2>
+<p><strong>The hypothesis:</strong> DRS should be a UCAN Profile — extend UCAN rather than invent something new. This was the correct insight.</p>
+<p><strong>What we built:</strong> A UCAN 0.x Profile with JWT-based delegation tokens.</p>
+<p><strong>The errors:</strong></p>
+<p><strong>Error 1 — Wrong spec version:</strong> We built against UCAN 0.x (JWT-based, <code>att.nb</code> policy field) while the actual current specification was UCAN v1.0-rc.1 (CBOR/IPLD-based, <code>cmd</code>/<code>pol</code> policy). We discovered this when we tried to validate against real UCAN implementations.</p>
+<p><strong>Error 2 — TypeScript for verification:</strong> Verification is a high-frequency, latency-sensitive operation. V8 (Node.js) has GC pauses of 50–1500ms. The &lt;5ms p99 latency requirement was mathematically impossible with TypeScript on the verification path. We measured 120ms median verification time under moderate load.</p>
+<p><strong>Error 3 — Unbounded DID resolver cache:</strong> The cache grew without bound under agent churn. With 10,000 active agents, the cache consumed &gt;640MB. There was no eviction policy.</p>
+<p><strong>Error 4 — Status list race condition:</strong> Two concurrent requests arriving when the status list cache expired could both issue HTTP GET requests to the status list server. This is a double-fetch race condition. Under load, this caused 2–10× the expected traffic on the status list endpoint.</p>
+<p><strong>Error 5 — O(n·m) policy check:</strong> <code>is_attenuated_subset()</code> iterated over all n fields in the parent policy and all m fields in the child policy. At moderate load (1,000 req/sec with 5-level chains), this produced 25 million comparisons per second.</p>
+<p><strong>Error 6 — Wrong canonicalisation:</strong> We used JCS on JSON for JWT signing, but UCAN v1.0 uses CBOR encoding, not JSON. The JWT payloads were valid JSON but the wrong format for the specification we were implementing against.</p>
+<p><strong>The lesson:</strong> Read the specification you are implementing against before writing any code. Check the encoding format. Check the version number. Validate against a reference implementation early.</p>
+<p><strong>v2 documents:</strong> <code>docs/Drs_architecture_v2.md</code></p>
+<hr />
+<h2 id="v3v4-oauth-21-profile-current"><a class="header" href="#v3v4-oauth-21-profile-current">v3/v4: OAuth 2.1 Profile (current)</a></h2>
+<p><strong>The pivot:</strong> From UCAN to OAuth 2.1.</p>
+<p><strong>Why the pivot:</strong> The ecosystem standardised on OAuth. AT Protocol chose JWT + OAuth. MCP chose JWT + OAuth. UCAN's production adoption is near-zero (Storacha is the only known production deployment). Building on UCAN would have meant building for a standard that the target ecosystem does not use.</p>
+<p><strong>What changed:</strong></p>
+<ul>
+<li>UCAN → OAuth 2.1 + RFC 8693 as the base layer</li>
+<li>TypeScript verification → Go verification server (goroutines, predictable GC)</li>
+<li>Unbounded cache → <code>golang-lru/v2</code> with hard cap of 10,000 entries</li>
+<li>Race condition → <code>sync.Once</code> on status list fetch</li>
+<li>O(n·m) policy check → capability index with O(1) average lookup</li>
+<li>JSON/CBOR confusion → JWT throughout, JCS canonicalisation for signing</li>
+</ul>
+<p><strong>What stayed the same:</strong></p>
+<ul>
+<li>Ed25519 signatures (correct from the start)</li>
+<li>The concept of per-step delegation receipts (correct from v2)</li>
+<li>The chain hash linking mechanism (correct from v2, minus the Merkle tree)</li>
+<li>The five-actor model (refined from v1)</li>
+</ul>
+<p>The current architecture is not a revolution — it is the same core idea implemented correctly, on the right base layer, in the right languages.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="upstream-monitoring"><a class="header" href="#upstream-monitoring">Upstream Monitoring</a></h1>
+<p>DRS depends on external specifications and libraries that evolve. Upstream changes can break assumptions baked into our architecture without any change to the DRS codebase.</p>
+<h2 id="what-to-watch"><a class="header" href="#what-to-watch">What to watch</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Source</th><th>What to watch</th><th>Why it matters</th></tr></thead><tbody>
+<tr><td><code>ed25519-dalek</code> (Rust)</td><td>RUSTSEC advisories, 2.x API changes</td><td>Core signing/verification library — RUSTSEC-2022-0093 is the reference for why we use 2.x</td></tr>
+<tr><td><code>serde-json-canonicalizer</code></td><td>RFC 8785 compliance updates, new test vectors</td><td>JCS divergence breaks cross-implementation JWT verification</td></tr>
+<tr><td><code>golang-lru/v2</code></td><td>API changes, eviction policy updates</td><td>DID resolver cache — eviction semantics affect security properties</td></tr>
+<tr><td>W3C DID Core / <code>did:key</code></td><td>Multicodec prefix changes, new key type support</td><td>The <code>[0xed, 0x01]</code> prefix check is hard-coded — any change breaks all DID resolution</td></tr>
+<tr><td><code>golang-jwt/jwt</code> v5</td><td>API changes, new algorithm support</td><td>JWT parsing in the Go verification server</td></tr>
+<tr><td>MCP (Model Context Protocol)</td><td>Middleware adapter interface changes, new transport types</td><td><code>X-DRS-Bundle</code> header integration — transport changes affect bundle delivery</td></tr>
+<tr><td>A2A (Agent-to-Agent Protocol)</td><td>Interceptor interface changes</td><td>A2A middleware integration</td></tr>
+<tr><td>IETF OAuth WG</td><td>RFC 8693 updates, new chain-splicing guidance</td><td>DRS is positioned as RFC 8693 mitigation #3 — spec changes affect our positioning</td></tr>
+<tr><td>W3C Bitstring Status List</td><td>Spec changes to revocation format</td><td>Block F implementation</td></tr>
+</tbody></table>
+</div>
+<h2 id="when-you-notice-a-change"><a class="header" href="#when-you-notice-a-change">When you notice a change</a></h2>
+<ol>
+<li><strong>Stop.</strong> Do not silently update the dependency or adapt the code.</li>
+<li>Open a GitHub issue with this format:</li>
+</ol>
+<pre><code>UPSTREAM CHANGE DETECTED
+
+Source: &lt;spec/crate/library name&gt;
+Version: &lt;old version&gt; → &lt;new version&gt;
+What changed: &lt;one sentence&gt;
+DRS impact: &lt;which layer(s) and files are affected&gt;
+Recommended action: &lt;what we need to decide&gt;
+Reference: &lt;URL to release notes, advisory, or spec section&gt;
+</code></pre>
+<ol start="3">
+<li>Wait for the maintainer to confirm before incorporating the change.</li>
+<li>Once confirmed, discuss architecture impact before writing any code.</li>
+</ol>
+<h2 id="the-upstream-drift-lesson"><a class="header" href="#the-upstream-drift-lesson">The upstream drift lesson</a></h2>
+<p>v2 failed partly because it was built against UCAN 0.x while the actual specification was UCAN v1.0-rc.1. The difference between versions was not cosmetic — it was a complete change in encoding format (JSON → CBOR) and policy language (<code>att.nb</code> → <code>cmd</code>/<code>pol</code>).</p>
+<p>Upstream drift caught during development is a discussion. Upstream drift caught in production is a vulnerability or a broken implementation.</p>
+<h2 id="subscribing-to-security-advisories"><a class="header" href="#subscribing-to-security-advisories">Subscribing to security advisories</a></h2>
+<pre><code class="language-bash"># Watch for Rust security advisories
+cargo install cargo-audit
+cargo audit   # run periodically in CI
+
+# Go vulnerability database
+go install golang.org/x/vuln/cmd/govulncheck@latest
+govulncheck ./...
+</code></pre>
+<p>Both <code>cargo audit</code> and <code>govulncheck</code> should run in CI on every PR that touches dependencies.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="jwt-fields-reference"><a class="header" href="#jwt-fields-reference">JWT Fields Reference</a></h1>
+<p>All DRS JWTs use the header <code>{"alg":"EdDSA","typ":"JWT"}</code> with keys sorted by Unicode code point (RFC 8785 JCS). The signature covers <code>base64url(header).base64url(payload)</code>.</p>
+<h2 id="delegation-receipt-payload"><a class="header" href="#delegation-receipt-payload">Delegation Receipt payload</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Constraints</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>iss</code></td><td>DID string</td><td>Yes</td><td>Valid <code>did:key</code> or <code>did:web</code></td><td>Issuer — the party granting delegation</td></tr>
+<tr><td><code>sub</code></td><td>DID string</td><td>Yes</td><td>Must match root DR's <code>sub</code> at every hop</td><td>Subject — the original resource owner; never changes through chain hops</td></tr>
+<tr><td><code>aud</code></td><td>DID string</td><td>Yes</td><td>Valid DID</td><td>Audience — the party receiving the delegation</td></tr>
+<tr><td><code>drs_v</code></td><td>string</td><td>Yes</td><td>Must be <code>"4.0"</code></td><td>DRS specification version</td></tr>
+<tr><td><code>drs_type</code></td><td>string</td><td>Yes</td><td>Must be <code>"delegation-receipt"</code></td><td>JWT type discriminator</td></tr>
+<tr><td><code>cmd</code></td><td>string</td><td>Yes</td><td>Non-empty</td><td>MCP command path, e.g. <code>/mcp/tools/call</code></td></tr>
+<tr><td><code>policy</code></td><td>object</td><td>Yes</td><td>See <a href="reference/./policy-schema.html">Policy Schema</a></td><td>Capability constraints</td></tr>
+<tr><td><code>nbf</code></td><td>integer</td><td>Yes</td><td>Unix seconds; ≥ parent's <code>nbf</code> in sub-DRs</td><td>Not-before — when the delegation becomes valid</td></tr>
+<tr><td><code>exp</code></td><td>integer or null</td><td>Yes</td><td>Unix seconds; ≤ parent's <code>exp</code> in sub-DRs when both set</td><td>Expiry — null for standing delegations</td></tr>
+<tr><td><code>iat</code></td><td>integer</td><td>Yes</td><td>Unix seconds</td><td>Issued-at time</td></tr>
+<tr><td><code>jti</code></td><td>string</td><td>Yes</td><td>Format: <code>dr:</code> + UUID v4</td><td>Unique identifier for revocation lookup</td></tr>
+<tr><td><code>prev_dr_hash</code></td><td>string or null</td><td>Yes</td><td>Format: <code>sha256:{64 hex chars}</code> or null</td><td>Hash of previous DR's JWT bytes; null at chain root</td></tr>
+<tr><td><code>drs_consent</code></td><td>object</td><td>When <code>drs_root_type</code> is <code>"human"</code></td><td>See below</td><td>Human consent evidence</td></tr>
+<tr><td><code>drs_root_type</code></td><td>string</td><td>Yes on root DR</td><td><code>"human"</code> | <code>"organisation"</code> | <code>"automated-system"</code></td><td>Trust anchor type; absent on sub-DRs</td></tr>
+<tr><td><code>drs_regulatory</code></td><td>object</td><td>No</td><td>See below</td><td>Storage tier and retention requirements</td></tr>
+<tr><td><code>drs_status_list_index</code></td><td>integer</td><td>No</td><td>Non-negative</td><td>Position in Bitstring Status List; absent if revocation not used</td></tr>
+</tbody></table>
+</div>
+<h2 id="invocation-receipt-payload"><a class="header" href="#invocation-receipt-payload">Invocation Receipt payload</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Constraints</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>iss</code></td><td>DID string</td><td>Yes</td><td>Must match last DR's <code>aud</code></td><td>Issuer — the agent making the call</td></tr>
+<tr><td><code>sub</code></td><td>DID string</td><td>Yes</td><td>Must match root DR's <code>sub</code></td><td>Subject — the original human</td></tr>
+<tr><td><code>drs_v</code></td><td>string</td><td>Yes</td><td>Must be <code>"4.0"</code></td><td>DRS spec version</td></tr>
+<tr><td><code>drs_type</code></td><td>string</td><td>Yes</td><td>Must be <code>"invocation-receipt"</code></td><td>Type discriminator</td></tr>
+<tr><td><code>cmd</code></td><td>string</td><td>Yes</td><td>Must match all DR <code>cmd</code> fields</td><td>MCP command path</td></tr>
+<tr><td><code>args</code></td><td>object</td><td>Yes</td><td>Evaluated against all DR policies</td><td>Actual invocation arguments</td></tr>
+<tr><td><code>dr_chain</code></td><td>string[]</td><td>Yes</td><td>Length = number of DRs; each <code>sha256:{hex}</code></td><td>Ordered hashes of every DR in the chain</td></tr>
+<tr><td><code>tool_server</code></td><td>DID string</td><td>Yes</td><td>Valid DID</td><td>DID of the tool server</td></tr>
+<tr><td><code>iat</code></td><td>integer</td><td>Yes</td><td>Unix seconds</td><td>Issued-at time</td></tr>
+<tr><td><code>jti</code></td><td>string</td><td>Yes</td><td>Format: <code>inv:</code> + UUID v4</td><td>Unique identifier</td></tr>
+</tbody></table>
+</div>
+<h2 id="consentrecord-object"><a class="header" href="#consentrecord-object">ConsentRecord object</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>method</code></td><td>string</td><td>Yes</td><td><code>"explicit-ui-click"</code> | <code>"explicit-ui-checkbox"</code> | <code>"api-delegation"</code> | <code>"operator-policy"</code></td></tr>
+<tr><td><code>timestamp</code></td><td>ISO 8601 string</td><td>Yes</td><td>When the user consented</td></tr>
+<tr><td><code>session_id</code></td><td>string</td><td>Yes</td><td>Session identifier, prefixed <code>sess:</code></td></tr>
+<tr><td><code>policy_hash</code></td><td>string</td><td>Yes</td><td><code>sha256:{hex}</code> of the human-readable policy text the user saw</td></tr>
+<tr><td><code>locale</code></td><td>IETF language tag</td><td>Yes</td><td>Language of the consent UI (e.g. <code>en-GB</code>, <code>fr-FR</code>)</td></tr>
+</tbody></table>
+</div>
+<h2 id="regulatorymetadata-object"><a class="header" href="#regulatorymetadata-object">RegulatoryMetadata object</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>frameworks</code></td><td>string[]</td><td>Regulatory frameworks: <code>"eu-ai-act-art13"</code>, <code>"hipaa-164.312b"</code>, <code>"sox"</code>, <code>"finos-tier3"</code></td></tr>
+<tr><td><code>risk_level</code></td><td>string</td><td><code>"unacceptable"</code> | <code>"high"</code> | <code>"limited"</code> | <code>"minimal"</code></td></tr>
+<tr><td><code>retention_days</code></td><td>integer</td><td>Minimum retention in days (0 = forever)</td></tr>
+</tbody></table>
+</div>
+<h2 id="drs-bundle"><a class="header" href="#drs-bundle">DRS Bundle</a></h2>
+<pre><code class="language-json">{
+  "bundle_version": "4.0",
+  "invocation": "&lt;invocation-receipt-jwt&gt;",
+  "receipts": ["&lt;root-dr-jwt&gt;", "&lt;sub-dr-jwt-1&gt;"]
+}
+</code></pre>
+<p>Transmitted as <code>X-DRS-Bundle: base64url({bundle_json})</code> HTTP header.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="policy-schema"><a class="header" href="#policy-schema">Policy Schema</a></h1>
+<p>The <code>policy</code> object defines capability constraints on a delegation. All fields are optional — an absent field means no constraint for that dimension.</p>
+<h2 id="fields"><a class="header" href="#fields">Fields</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>allowed_tools</code></td><td>string[]</td><td>Unrestricted</td><td>Allowlist of MCP tool names. If absent, all tools are permitted.</td></tr>
+<tr><td><code>max_cost_usd</code></td><td>number</td><td>Unlimited</td><td>Maximum USD cost per invocation. Checked against <code>args.estimated_cost_usd</code>.</td></tr>
+<tr><td><code>pii_access</code></td><td>boolean</td><td><code>false</code></td><td>Whether access to personally identifiable information is permitted.</td></tr>
+<tr><td><code>write_access</code></td><td>boolean</td><td><code>false</code></td><td>Whether write operations are permitted.</td></tr>
+<tr><td><code>max_calls</code></td><td>integer</td><td>Unlimited</td><td>Maximum total invocations. Tracked by the agent runtime, not enforced by <code>verify_chain</code>.</td></tr>
+<tr><td><code>allowed_resources</code></td><td>string[]</td><td>Unrestricted</td><td>Allowlist of resource URIs.</td></tr>
+</tbody></table>
+</div>
+<h2 id="policy-evaluation-block-d"><a class="header" href="#policy-evaluation-block-d">Policy evaluation (Block D)</a></h2>
+<p>Policies are evaluated <strong>conjunctively</strong>: every policy in the chain must pass. The invocation <code>args</code> are checked against every DR's policy from root to the immediate sub-DR.</p>
+<p>For each DR's policy:</p>
+<pre><code>PASS if:
+  (policy.allowed_tools is absent) OR (args.tool ∈ policy.allowed_tools)
+  AND
+  (policy.max_cost_usd is absent) OR (args.estimated_cost_usd ≤ policy.max_cost_usd)
+  AND
+  (policy.pii_access is true) OR (args.pii_access is false or absent)
+  AND
+  (policy.write_access is true) OR (args.write_access is false or absent)
+</code></pre>
+<h2 id="attenuation-rules-1"><a class="header" href="#attenuation-rules-1">Attenuation rules</a></h2>
+<p>Sub-delegation policies must be strict subsets (attenuation) of the parent:</p>
+<div class="table-wrapper"><table><thead><tr><th>Parent field</th><th>Child constraint</th></tr></thead><tbody>
+<tr><td><code>allowed_tools: [A, B, C]</code></td><td>Child <code>allowed_tools</code> ⊆ <code>{A, B, C}</code> — cannot add new tools</td></tr>
+<tr><td><code>max_cost_usd: N</code></td><td>Child <code>max_cost_usd</code> ≤ <code>N</code> — cannot increase limit</td></tr>
+<tr><td><code>pii_access: false</code></td><td>Child must have <code>pii_access: false</code> — cannot re-enable</td></tr>
+<tr><td><code>write_access: false</code></td><td>Child must have <code>write_access: false</code> — cannot re-enable</td></tr>
+<tr><td><code>max_calls: N</code></td><td>Child <code>max_calls</code> ≤ <code>N</code> — cannot increase limit</td></tr>
+</tbody></table>
+</div>
+<h2 id="example-policies"><a class="header" href="#example-policies">Example policies</a></h2>
+<p><strong>Minimal (research agent, read-only):</strong></p>
+<pre><code class="language-json">{
+  "allowed_tools": ["web_search", "read_file"],
+  "max_cost_usd": 10.00,
+  "pii_access": false,
+  "write_access": false
+}
+</code></pre>
+<p><strong>Operator standing policy (automated system):</strong></p>
+<pre><code class="language-json">{
+  "allowed_tools": ["web_search", "write_file", "read_file", "execute_code"],
+  "max_cost_usd": 500.00,
+  "pii_access": false,
+  "write_access": true,
+  "max_calls": 10000
+}
+</code></pre>
+<p><strong>Single-tool sub-delegation (tight):</strong></p>
+<pre><code class="language-json">{
+  "allowed_tools": ["web_search"],
+  "max_cost_usd": 1.00,
+  "pii_access": false,
+  "write_access": false,
+  "max_calls": 10
+}
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="error-codes"><a class="header" href="#error-codes">Error Codes</a></h1>
+<h2 id="sdk-errors-typescript"><a class="header" href="#sdk-errors-typescript">SDK errors (TypeScript)</a></h2>
+<p>These errors are thrown by the SDK during issuance. They fire before any signing occurs — invalid chains cannot be created.</p>
+<div class="table-wrapper"><table><thead><tr><th>Code</th><th>Thrown by</th><th>Description</th><th>Fix</th></tr></thead><tbody>
+<tr><td><code>MISSING_CONSENT</code></td><td><code>issueRootDelegation</code></td><td>Human-rooted delegation issued without a <code>consent</code> field</td><td>Add <code>consent</code> to <code>issueRootDelegation</code> params</td></tr>
+<tr><td><code>POLICY_ESCALATION</code></td><td><code>issueSubDelegation</code></td><td>Child policy field exceeds parent constraint</td><td>Reduce the escalating field to be within parent bounds</td></tr>
+<tr><td><code>TEMPORAL_BOUNDS_VIOLATION</code></td><td><code>issueSubDelegation</code></td><td><code>nbf &lt; parentNbf</code> or <code>exp &gt; parentExp</code></td><td>Adjust temporal bounds to be nested within parent bounds</td></tr>
+<tr><td><code>INVALID_OPERATOR_CONFIG</code></td><td><code>validateOperatorConfig</code>, <code>parseOperatorConfig</code></td><td>Missing required field or invalid value</td><td>Check the field named in the error message</td></tr>
+</tbody></table>
+</div>
+<h2 id="verification-errors-go--returned-as-http-403-json"><a class="header" href="#verification-errors-go--returned-as-http-403-json">Verification errors (Go — returned as HTTP 403 JSON)</a></h2>
+<p>These errors are returned by <code>verify_chain</code> when a bundle fails verification.</p>
+<div class="table-wrapper"><table><thead><tr><th>Code</th><th>Block</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>BUNDLE_INCOMPLETE</code></td><td>A</td><td>Bundle has no receipts or is missing the invocation receipt</td></tr>
+<tr><td><code>ISSUER_AUDIENCE_GAP</code></td><td>B</td><td><code>receipts[i].aud</code> ≠ <code>receipts[i+1].iss</code></td></tr>
+<tr><td><code>CHAIN_HASH_MISMATCH</code></td><td>B</td><td><code>prev_dr_hash</code> does not match SHA-256 of previous DR JWT bytes</td></tr>
+<tr><td><code>DR_CHAIN_MISMATCH</code></td><td>B</td><td><code>invocation.dr_chain[i]</code> does not match SHA-256 of <code>receipts[i]</code> JWT bytes</td></tr>
+<tr><td><code>INVALID_JWT_HEADER</code></td><td>C</td><td>JWT header is not <code>{"alg":"EdDSA","typ":"JWT"}</code></td></tr>
+<tr><td><code>DID_UNRESOLVABLE</code></td><td>C</td><td>Issuer DID could not be resolved to an Ed25519 public key</td></tr>
+<tr><td><code>SIGNATURE_INVALID</code></td><td>C</td><td>Ed25519 signature verification failed</td></tr>
+<tr><td><code>SIGNATURE_MALLEABILITY</code></td><td>C</td><td>Signature rejected: <code>S ≥ L</code> (strict mode violation)</td></tr>
+<tr><td><code>POLICY_VIOLATION</code></td><td>D</td><td>Invocation <code>args</code> exceed a policy constraint</td></tr>
+<tr><td><code>POLICY_ESCALATION</code></td><td>D</td><td>Sub-DR policy escalates beyond parent policy</td></tr>
+<tr><td><code>RECEIPT_NOT_YET_VALID</code></td><td>E</td><td><code>now &lt; receipt.nbf</code></td></tr>
+<tr><td><code>RECEIPT_EXPIRED</code></td><td>E</td><td><code>now &gt; receipt.exp</code></td></tr>
+<tr><td><code>TEMPORAL_BOUNDS_VIOLATION</code></td><td>E</td><td>Sub-DR temporal bounds not nested within parent bounds</td></tr>
+<tr><td><code>RECEIPT_REVOKED</code></td><td>F</td><td>Receipt found in Bitstring Status List</td></tr>
+</tbody></table>
+</div>
+<h2 id="http-403-response-body-format"><a class="header" href="#http-403-response-body-format">HTTP 403 response body format</a></h2>
+<pre><code class="language-json">{
+  "valid": false,
+  "error": "CHAIN_HASH_MISMATCH",
+  "block": "B",
+  "message": "prev_dr_hash mismatch at chain index 1: expected sha256:abc123..., got sha256:def456..."
+}
+</code></pre>
+<p>The <code>message</code> field always contains a full English sentence with diagnosis. The <code>block</code> field (A–F) tells you which verification stage failed.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="cli-commands"><a class="header" href="#cli-commands">CLI Commands</a></h1>
+<p>The <code>drs</code> CLI is included in <code>@drs/sdk</code>. Install globally:</p>
+<pre><code class="language-bash">pnpm add -g @drs/sdk
+drs --help
+</code></pre>
+<p>Or use without global install via:</p>
+<pre><code class="language-bash">pnpm exec drs &lt;command&gt;
+</code></pre>
+<hr />
+<h2 id="drs-verify"><a class="header" href="#drs-verify">drs verify</a></h2>
+<p>Verify a DRS bundle against drs-verify.</p>
+<pre><code class="language-bash">drs verify &lt;bundle-file&gt; [options]
+</code></pre>
+<div class="table-wrapper"><table><thead><tr><th>Option</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>--url &lt;url&gt;</code></td><td>drs-verify base URL (default: <code>$DRS_VERIFY_URL</code>)</td></tr>
+<tr><td><code>--offline</code></td><td>Skip Block F (revocation check) — runs all other blocks locally</td></tr>
+</tbody></table>
+</div>
+<p><strong>Examples:</strong></p>
+<pre><code class="language-bash"># Verify against local drs-verify
+DRS_VERIFY_URL=http://localhost:8080 drs verify bundle.json
+
+# Offline verification (no revocation check)
+drs verify bundle.json --offline
+
+# Verify and show all block results
+drs verify bundle.json --verbose
+</code></pre>
+<p><strong>Exit codes:</strong> <code>0</code> = valid, <code>1</code> = invalid, <code>2</code> = error (malformed input, server unreachable)</p>
+<hr />
+<h2 id="drs-audit"><a class="header" href="#drs-audit">drs audit</a></h2>
+<p>Print the full human-readable audit trail for a bundle.</p>
+<pre><code class="language-bash">drs audit &lt;bundle-file&gt;
+</code></pre>
+<p>Shows: issuer/audience for each receipt, policy at each level, consent record, temporal bounds, chain hashes, and invocation arguments.</p>
+<hr />
+<h2 id="drs-policy"><a class="header" href="#drs-policy">drs policy</a></h2>
+<p>Display the policy from a delegation receipt.</p>
+<pre><code class="language-bash">drs policy &lt;bundle-file&gt; [--receipt &lt;index&gt;]
+</code></pre>
+<p><code>--receipt 0</code> shows the root DR's policy. <code>--receipt 1</code> shows the first sub-DR's policy. Default: shows all.</p>
+<hr />
+<h2 id="drs-translate"><a class="header" href="#drs-translate">drs translate</a></h2>
+<p>Translate a policy JSON object to plain English.</p>
+<pre><code class="language-bash">drs translate &lt;policy-file&gt; [--locale &lt;locale&gt;]
+</code></pre>
+<pre><code class="language-bash">echo '{"allowed_tools":["web_search"],"max_cost_usd":50,"pii_access":false}' \
+  | drs translate --locale en-GB
+</code></pre>
+<p>Output:</p>
+<pre><code>Research Agent wants permission to:
+✓  Search the web
+✗  Cannot access personal data
+✗  Cannot spend more than £50.00
+</code></pre>
+<p>Supported locales: <code>en-GB</code>, <code>en-US</code>, <code>fr-FR</code>, <code>de-DE</code> (others fall back to <code>en-US</code>).</p>
+<hr />
+<h2 id="drs-keygen"><a class="header" href="#drs-keygen">drs keygen</a></h2>
+<p>Generate a new Ed25519 keypair.</p>
+<pre><code class="language-bash">drs keygen [--output &lt;file&gt;]
+</code></pre>
+<p>Without <code>--output</code>: prints private key (base64url) and DID to stdout.</p>
+<p>With <code>--output keypair.json</code>: writes:</p>
+<pre><code class="language-json">{
+  "private_key": "&lt;base64url 32 bytes&gt;",
+  "did": "did:key:z6Mk...",
+  "created_at": "2026-03-30T10:00:00Z"
+}
+</code></pre>
+<blockquote>
+<p><strong>Security:</strong> The private key is printed to stdout or written to the output file in plaintext. Use HSM or KMS for production keys — the <code>keygen</code> command is for development only.</p>
+</blockquote>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="api-endpoints"><a class="header" href="#api-endpoints">API Endpoints</a></h1>
+<p>The drs-verify HTTP server exposes these endpoints.</p>
+<h2 id="post-verify"><a class="header" href="#post-verify">POST /verify</a></h2>
+<p>Verify a DRS bundle. This is the primary endpoint.</p>
+<p><strong>Request:</strong></p>
+<pre><code>POST /verify
+Content-Type: application/json
+</code></pre>
+<pre><code class="language-json">{
+  "bundle_version": "4.0",
+  "invocation": "&lt;invocation-receipt-jwt&gt;",
+  "receipts": ["&lt;root-dr-jwt&gt;", "&lt;sub-dr-jwt&gt;"]
+}
+</code></pre>
+<p><strong>Response — valid (200):</strong></p>
+<pre><code class="language-json">{
+  "valid": true,
+  "chain_depth": 2,
+  "root_principal": "did:key:z6MkHuman...",
+  "subject": "did:key:z6MkHuman...",
+  "command": "/mcp/tools/call",
+  "policy_result": "pass"
+}
+</code></pre>
+<p><strong>Response — invalid (403):</strong></p>
+<pre><code class="language-json">{
+  "valid": false,
+  "error": "CHAIN_HASH_MISMATCH",
+  "block": "B",
+  "message": "prev_dr_hash mismatch at chain index 1: expected sha256:abc..., got sha256:def..."
+}
+</code></pre>
+<p><strong>Response — malformed input (400):</strong></p>
+<pre><code class="language-json">{
+  "error": "INVALID_INPUT",
+  "message": "bundle_version must be \"4.0\""
+}
+</code></pre>
+<hr />
+<h2 id="post-mcp-middleware"><a class="header" href="#post-mcp-middleware">POST /mcp/* (middleware)</a></h2>
+<p>When <code>DRS_UPSTREAM</code> is configured, drs-verify acts as a reverse proxy. All requests to <code>/mcp/*</code> are intercepted, the <code>X-DRS-Bundle</code> header is verified, and the request is proxied upstream if valid.</p>
+<p><strong>Request:</strong> Any MCP request with <code>X-DRS-Bundle</code> header:</p>
+<pre><code>POST /mcp/tools/call
+X-DRS-Bundle: &lt;base64url bundle&gt;
+Content-Type: application/json
+</code></pre>
+<p><strong>On valid bundle:</strong> Proxied to <code>$DRS_UPSTREAM/mcp/tools/call</code>.</p>
+<p><strong>On invalid bundle (403):</strong></p>
+<pre><code class="language-json">{
+  "error": "SIGNATURE_INVALID",
+  "block": "C",
+  "message": "Ed25519 signature verification failed for issuer did:key:z6Mk..."
+}
+</code></pre>
+<p><strong>On missing bundle (403, when <code>DRS_REQUIRE_BUNDLE=true</code>):</strong></p>
+<pre><code class="language-json">{
+  "error": "BUNDLE_MISSING",
+  "message": "X-DRS-Bundle header is required"
+}
+</code></pre>
+<hr />
+<h2 id="get-healthz"><a class="header" href="#get-healthz">GET /healthz</a></h2>
+<p>Liveness check.</p>
+<pre><code>GET /healthz
+</code></pre>
+<p>Response (200):</p>
+<pre><code class="language-json">{"status": "ok"}
+</code></pre>
+<p>Returns <code>503</code> only if the server cannot handle requests (e.g., during shutdown).</p>
+<hr />
+<h2 id="get-readyz"><a class="header" href="#get-readyz">GET /readyz</a></h2>
+<p>Readiness check. Returns <code>ok</code> when the server is fully initialised and ready to handle verification requests.</p>
+<pre><code>GET /readyz
+</code></pre>
+<p>Response (200):</p>
+<pre><code class="language-json">{
+  "status": "ok",
+  "cache_size": 42,
+  "uptime_seconds": 3600
+}
+</code></pre>
+<p>Use <code>/readyz</code> for Kubernetes readiness probes. Use <code>/healthz</code> for liveness probes.</p>
+<hr />
+<h2 id="post-adminrevoke"><a class="header" href="#post-adminrevoke">POST /admin/revoke</a></h2>
+<p>Revoke a delegation receipt by JTI.</p>
+<pre><code>POST /admin/revoke
+Authorization: Bearer &lt;admin-token&gt;
+Content-Type: application/json
+</code></pre>
+<pre><code class="language-json">{"jti": "dr:8f3a2b1c-4d5e-4xxx-8b9c-0d1e2f3a4b5c"}
+</code></pre>
+<p>Response (200):</p>
+<pre><code class="language-json">{"revoked": true, "jti": "dr:8f3a2b1c-..."}
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="configuration-reference"><a class="header" href="#configuration-reference">Configuration Reference</a></h1>
+<p>All configuration is via environment variables. No hard-coded URLs, ports, or keys in any DRS component.</p>
+<h2 id="drs-verify-environment-variables"><a class="header" href="#drs-verify-environment-variables">drs-verify environment variables</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>DRS_LISTEN_ADDR</code></td><td><code>:8080</code></td><td>HTTP listen address (e.g. <code>0.0.0.0:8080</code>, <code>:8443</code>)</td></tr>
+<tr><td><code>DRS_CACHE_SIZE</code></td><td><code>10000</code></td><td>LRU DID resolver cache maximum entries. Hard cap — entries are evicted when full.</td></tr>
+<tr><td><code>DRS_CACHE_TTL</code></td><td><code>1h</code></td><td>DID resolver cache entry TTL. Format: <code>30s</code>, <code>5m</code>, <code>1h</code>, <code>24h</code>.</td></tr>
+<tr><td><code>DRS_STATUS_CACHE_TTL</code></td><td><code>5m</code></td><td>Bitstring Status List cache TTL. Revocations take effect within this window.</td></tr>
+<tr><td><code>DRS_REQUIRE_BUNDLE</code></td><td><code>false</code></td><td>When <code>true</code>, requests to <code>/mcp/*</code> without <code>X-DRS-Bundle</code> header return <code>403</code>.</td></tr>
+<tr><td><code>DRS_UPSTREAM</code></td><td>—</td><td>When set, drs-verify acts as a reverse proxy to this URL (sidecar mode).</td></tr>
+<tr><td><code>DRS_STORAGE_TIER</code></td><td><code>0</code></td><td>Receipt storage tier: <code>0</code>=memory, <code>1</code>=filesystem, <code>2</code>=S3, <code>3</code>=WORM S3, <code>4</code>=on-chain.</td></tr>
+<tr><td><code>DRS_S3_BUCKET</code></td><td>—</td><td>S3 bucket name (required for tier 2–3).</td></tr>
+<tr><td><code>DRS_S3_REGION</code></td><td><code>us-east-1</code></td><td>AWS region for S3 bucket.</td></tr>
+<tr><td><code>DRS_S3_WORM_POLICY</code></td><td><code>false</code></td><td>Enable S3 Object Lock (WORM) — required for tier 3.</td></tr>
+<tr><td><code>DRS_RETENTION_DAYS</code></td><td><code>0</code></td><td>Receipt retention in days. <code>0</code> = indefinite. Used for tier 3 WORM policy.</td></tr>
+<tr><td><code>DRS_ADMIN_TOKEN</code></td><td>—</td><td>Bearer token required for <code>/admin/*</code> endpoints.</td></tr>
+</tbody></table>
+</div>
+<h2 id="drs-sdk-cli-environment-variables"><a class="header" href="#drs-sdk-cli-environment-variables">drs-sdk CLI environment variables</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>DRS_VERIFY_URL</code></td><td>—</td><td>drs-verify base URL used by <code>drs verify</code> and <code>VerifyClient</code>.</td></tr>
+</tbody></table>
+</div>
+<h2 id="operatorconfig-fields"><a class="header" href="#operatorconfig-fields">OperatorConfig fields</a></h2>
+<p>See <a href="reference/../how-to/operators/operator-config.html">Operator Configuration</a> for the full OperatorConfig JSON schema and field descriptions.</p>
+<h2 id="docker-compose-example"><a class="header" href="#docker-compose-example">Docker Compose example</a></h2>
+<pre><code class="language-yaml">version: '3.8'
+services:
+  drs-verify:
+    image: ghcr.io/yourorg/drs-verify:latest
+    ports:
+      - "8080:8080"
+    environment:
+      DRS_LISTEN_ADDR: ":8080"
+      DRS_CACHE_SIZE: "10000"
+      DRS_CACHE_TTL: "1h"
+      DRS_STATUS_CACHE_TTL: "5m"
+      DRS_REQUIRE_BUNDLE: "true"
+      DRS_STORAGE_TIER: "2"
+      DRS_S3_BUCKET: "my-drs-receipts"
+      DRS_S3_REGION: "eu-west-1"
+    secrets:
+      - aws_credentials
+
+secrets:
+  aws_credentials:
+    file: ./aws-credentials
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="drs-vs-alternatives"><a class="header" href="#drs-vs-alternatives">DRS vs Alternatives</a></h1>
+<p>DRS is a narrow standard solving a specific problem. Understanding what it is and is not helps you decide where it belongs in your stack.</p>
+<h2 id="comparison-table"><a class="header" href="#comparison-table">Comparison table</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>System</th><th>Core purpose</th><th>Independently verifiable?</th><th>Per-step receipts?</th><th>OAuth ecosystem?</th><th>Production adoption</th></tr></thead><tbody>
+<tr><td><strong>DRS</strong></td><td>Delegation chain receipts</td><td>✓ Yes</td><td>✓ Yes</td><td>✓ Yes</td><td>Research / early</td></tr>
+<tr><td><strong>OAuth 2.1</strong></td><td>User → service delegation</td><td>—</td><td>— (no receipts)</td><td>✓ Yes</td><td>Universal</td></tr>
+<tr><td><strong>RFC 8693</strong></td><td>Token exchange between agents</td><td>—</td><td>— (bearer tokens)</td><td>✓ Yes</td><td>Growing</td></tr>
+<tr><td><strong>UCAN</strong></td><td>Capability-based delegation</td><td>✓ Yes</td><td>✓ Yes</td><td>✗ CBOR/IPLD</td><td>~1 production user</td></tr>
+<tr><td><strong>OpenTelemetry</strong></td><td>Distributed tracing</td><td>✗ Operator-controlled</td><td>— (spans, not receipts)</td><td>Agnostic</td><td>Universal</td></tr>
+<tr><td><strong>Langfuse / Arize</strong></td><td>LLM observability</td><td>✗ Operator-controlled</td><td>— (logs/evals)</td><td>Agnostic</td><td>Growing</td></tr>
+<tr><td><strong>Agentic JWT</strong></td><td>JWT profile for agent identity</td><td>Partial</td><td>— (identity, not chains)</td><td>✓ Yes</td><td>Research</td></tr>
+</tbody></table>
+</div>
+<h2 id="why-not-ucan"><a class="header" href="#why-not-ucan">Why not UCAN?</a></h2>
+<p>UCAN is technically correct. The reason DRS uses OAuth 2.1 instead is ecosystem adoption:</p>
+<ul>
+<li>AT Protocol chose JWT + OAuth 2.1</li>
+<li>MCP (Model Context Protocol) chose JWT + OAuth 2.1</li>
+<li>The LLM agent ecosystem is converging on OAuth-based token exchange</li>
+</ul>
+<p>UCAN's production deployment is approximately one system (Storacha/web3.storage). Building DRS on UCAN would have meant building for a standard that the target ecosystem does not use. You cannot get enterprises to adopt an accountability standard that requires them to also adopt CBOR/IPLD and a new DID infrastructure.</p>
+<p>DRS solves the same cryptographic problem as UCAN (independently verifiable delegation chains) but uses the token format (JWT) and authorisation protocol (OAuth 2.1) that the ecosystem already uses.</p>
+<h2 id="why-not-opentelemetry"><a class="header" href="#why-not-opentelemetry">Why not OpenTelemetry?</a></h2>
+<p>OpenTelemetry traces are <strong>observability data</strong>. They tell you what happened from the operator's perspective, stored in operator-controlled infrastructure (Jaeger, Grafana, Datadog).</p>
+<p>DRS receipts are <strong>authorisation proofs</strong>. They tell you what was permitted, signed by the authorising party, verifiable by anyone with the public key.</p>
+<p>The critical difference: an attacker who compromises the operator can delete or falsify OTel traces. They cannot forge DRS receipts without the private key. For regulatory compliance ("prove what happened"), cryptographic proofs are required — logs are not sufficient.</p>
+<p>Use OpenTelemetry for debugging and monitoring. Use DRS for compliance and audit.</p>
+<h2 id="why-not-server-logs"><a class="header" href="#why-not-server-logs">Why not server logs?</a></h2>
+<p>Server logs are:</p>
+<ul>
+<li>Operator-controlled — the operator can modify or delete them</li>
+<li>Not cryptographically bound to the authorising party</li>
+<li>Not independently verifiable — an auditor must trust the operator's infrastructure</li>
+</ul>
+<p>DRS receipts are:</p>
+<ul>
+<li>Signed by the authorising party — the operator cannot forge them</li>
+<li>Verifiable by anyone — no trust in the operator's infrastructure required</li>
+<li>Tamper-evident — modification breaks the Ed25519 signature</li>
+</ul>
+<p>For compliance purposes, "we have logs showing what happened" is weaker than "we have cryptographic proofs signed by the authorising parties." The EU AI Act, HIPAA, and AIUC-1 requirements are moving toward the latter.</p>
+<h2 id="when-to-use-each"><a class="header" href="#when-to-use-each">When to use each</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Your goal</th><th>Use</th></tr></thead><tbody>
+<tr><td>Track agent performance, latency, costs</td><td>OpenTelemetry + Langfuse/Arize</td></tr>
+<tr><td>Authenticate users to your service</td><td>OAuth 2.1</td></tr>
+<tr><td>Exchange tokens between agents</td><td>RFC 8693</td></tr>
+<tr><td>Prove what an agent was authorised to do</td><td>DRS</td></tr>
+<tr><td>Meet EU AI Act Article 12/13 requirements</td><td>DRS</td></tr>
+<tr><td>Meet HIPAA §164.312(b) audit controls</td><td>DRS</td></tr>
+<tr><td>Get AIUC-1 certification</td><td>DRS</td></tr>
+</tbody></table>
+</div><div style="break-before: page; page-break-before: always;"></div><h1 id="roadmap"><a class="header" href="#roadmap">Roadmap</a></h1>
+<p>DRS is a research project. The implementation roadmap has four phases.</p>
+<h2 id="phase-1--core-protocol-current"><a class="header" href="#phase-1--core-protocol-current">Phase 1 — Core protocol <em>(current)</em></a></h2>
+<p><strong>Status:</strong> In progress</p>
+<ul>
+<li>✓ DRS 4.0 specification (<code>docs/Drs_architecture_v2.md</code>)</li>
+<li>✓ <code>drs-core</code>: Rust crypto primitives, JCS canonicalisation, chain verification, WASM build target</li>
+<li>✓ <code>drs-verify</code>: Go verification server, MCP/A2A middleware, DID resolver with LRU cache, Bitstring Status List cache</li>
+<li>✓ <code>drs-sdk</code>: TypeScript SDK (issuance path), CLI tools (<code>verify</code>, <code>audit</code>, <code>policy</code>, <code>translate</code>, <code>keygen</code>)</li>
+<li>✓ Documentation site (this site)</li>
+<li>◻ <code>did:web</code> resolver production hardening (DNS pinning, certificate transparency)</li>
+<li>◻ Cross-implementation test suite (Rust ↔ Go ↔ TypeScript JWT interop)</li>
+</ul>
+<h2 id="phase-2--production-hardening-6-months"><a class="header" href="#phase-2--production-hardening-6-months">Phase 2 — Production hardening <em>(6 months)</em></a></h2>
+<p><strong>Goal:</strong> Production-ready for early adopters and AIUC-1 certification candidates.</p>
+<ul>
+<li>HSM key management integration (AWS KMS, GCP Cloud KMS) in drs-verify</li>
+<li>Tier 3 storage (WORM S3, Azure Blob Immutable Storage)</li>
+<li>AIUC-1 compliance export format and certification documentation</li>
+<li>Performance benchmarks: p50/p99 latency at 10K req/sec with 5-hop chains</li>
+<li>Security audit (external)</li>
+</ul>
+<h2 id="phase-3--ecosystem-integration-12-months"><a class="header" href="#phase-3--ecosystem-integration-12-months">Phase 3 — Ecosystem integration <em>(12 months)</em></a></h2>
+<p><strong>Goal:</strong> Plug-and-play integration with the MCP and A2A ecosystems.</p>
+<ul>
+<li>MCP server reference implementation with DRS built in (Go)</li>
+<li>A2A protocol reference implementation with DRS middleware</li>
+<li>Browser SDK: WASM-based verification for browser-hosted agents</li>
+<li>On-chain registry: Monad EVM receipt anchoring (Tier 4 storage)</li>
+<li>Policy language extensions: resource-level constraints, time-windows, rate limiting</li>
+</ul>
+<h2 id="phase-4--standards-track-1824-months"><a class="header" href="#phase-4--standards-track-1824-months">Phase 4 — Standards track <em>(18–24 months)</em></a></h2>
+<p><strong>Goal:</strong> DRS becomes an IETF standard or an officially recognised OAuth profile.</p>
+<ul>
+<li>IETF Internet-Draft submission (OAuth Working Group)</li>
+<li>W3C Community Group proposal for the consent record format</li>
+<li>FINOS AI Governance Framework alignment documentation</li>
+<li>Integration with OpenID for Verifiable Credentials (OID4VC) for human identity binding</li>
+</ul>
+<h2 id="non-goals"><a class="header" href="#non-goals">Non-goals</a></h2>
+<p>These are explicitly out of scope:</p>
+<ul>
+<li>Behavioral safety (preventing LLMs from doing bad things) — model/runtime problem</li>
+<li>LLM non-determinism — outside the authorisation layer</li>
+<li>Prompt injection prevention — DRS records injections, does not prevent them</li>
+<li>Post-compromise key recovery — operational problem</li>
+<li>Agent identity (DIDs are used but not managed by DRS)</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="glossary"><a class="header" href="#glossary">Glossary</a></h1>
+<p><strong>Attenuation</strong> — The constraint that a sub-delegation's policy must be a strict subset of its parent's policy. A sub-agent can only be granted less authority than the agent that delegated to it. See <a href="reference/glossary.html#pola">Principle of Least Authority (POLA)</a>.</p>
+<p><strong>Bundle</strong> — The unit of transport in DRS. A JSON object containing the invocation receipt and all delegation receipts in the chain, transmitted as <code>X-DRS-Bundle: base64url({bundle_json})</code>.</p>
+<p><strong>Chain splicing</strong> — An attack where an adversary substitutes an unrelated token into a delegation chain to exceed the scope they were actually granted. CVE-2025-55241 (Azure AD, 2025) is a documented instance. DRS mitigates this with <code>prev_dr_hash</code>.</p>
+<p><strong>Delegation Receipt (DR)</strong> — A signed JWT issued by each delegator recording one hop in the delegation chain. Contains issuer DID, audience DID, command, policy constraints, temporal bounds, and a hash linking to the previous DR.</p>
+<p><strong>DID (Decentralised Identifier)</strong> — A URI that identifies an actor without a central registry. Format: <code>did:method:identifier</code>. DRS uses <code>did:key</code> and <code>did:web</code>.</p>
+<p><strong>did:key</strong> — A DID where the identifier encodes the public key directly: <code>did:key:z{base58btc(multicodec_prefix + pubkey_bytes)}</code>. No registry, no DNS. Preferred for DRS because it is self-contained and requires no network resolution.</p>
+<p><strong>did:web</strong> — A DID whose identifier is a domain name. Resolved by fetching a DID document from <code>https://domain/.well-known/did.json</code>. Requires DNS and TLS security.</p>
+<p><strong>DR Store</strong> — The storage backend for delegation receipts. One of five tiers from in-memory (tier 0) to on-chain (tier 4).</p>
+<p><strong>EdDSA / Ed25519</strong> — The signature algorithm used in all DRS JWTs. Deterministic (no random nonce), constant-time, and immune to fault attacks. DRS uses <code>ed25519-dalek 2.x</code> (Rust) and <code>golang.org/x/crypto</code> (Go).</p>
+<p><strong>Invocation Receipt</strong> — A signed JWT recording an actual tool call. Contains the command, arguments, the ordered array of DR hashes (<code>dr_chain</code>), and the tool server's DID.</p>
+<p><strong>JCS (JSON Canonicalization Scheme)</strong> — RFC 8785. Defines a canonical serialisation of JSON where object keys are sorted recursively by Unicode code point with no whitespace. Used by DRS to ensure identical JWT bytes for logically equivalent objects across all implementations.</p>
+<p><strong>JTI (JWT ID)</strong> — Unique identifier for a JWT. DRS format: <code>dr:uuid-v4</code> for delegation receipts, <code>inv:uuid-v4</code> for invocation receipts.</p>
+<p><strong>MCP (Model Context Protocol)</strong> — Anthropic's protocol for connecting language models to external tools. DRS bundles are transmitted as <code>X-DRS-Bundle</code> headers on MCP requests.</p>
+<p><strong>Multicodec</strong> — A self-describing binary encoding prefix used in <code>did:key</code>. For Ed25519, the prefix is <code>[0xed, 0x01]</code>. DRS uses constant-time comparison to check this prefix.</p>
+<p><strong>POLA (Principle of Least Authority)</strong> — Each delegation grants only the authority needed for the specific task. Sub-delegations must be strictly less permissive than their parent. POLA is enforced both at issuance (SDK) and at verification (Block D).</p>
+<p><strong>prev_dr_hash</strong> — The field in each sub-DR that links it to its parent: <code>"sha256:{lowercase hex of SHA-256 of parent DR JWT bytes}"</code>. Null at the chain root. Creates a tamper-evident chain — any modification to any DR changes its hash and breaks subsequent links.</p>
+<p><strong>RFC 8693</strong> — IETF Token Exchange. Defines how one OAuth bearer token can be exchanged for another representing a different principal acting on behalf of the original user. DRS adds per-step receipts to close the chain splicing gap that RFC 8693 leaves open.</p>
+<p><strong>sub (Subject)</strong> — The JWT claim identifying the original resource owner — always the human at the root of the chain. The <code>sub</code> field must remain identical through every delegation hop. It is never the agent.</p>
+<p><strong>Verify_chain</strong> — The Go function that runs all six verification blocks (A–F) on a DRS bundle. Fail-closed: any error immediately rejects the request without continuing.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+        <script>
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+    </div>
+    </body>
+</html>

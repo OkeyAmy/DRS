@@ -1,0 +1,282 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Security Model - Delegation Receipt Standard</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon.svg">
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../highlight.css">
+        <link rel="stylesheet" href="../tomorrow-night.css">
+        <link rel="stylesheet" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../theme/css/custom.css">
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "navy";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../introduction.html">Introduction</a></li><li class="chapter-item expanded affix "><a href="../quick-start.html">Quick Start</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">Explanation</li><li class="chapter-item expanded "><a href="../explanation/what-is-drs.html"><strong aria-hidden="true">1.</strong> What is DRS?</a></li><li class="chapter-item expanded "><a href="../explanation/why-drs-exists.html"><strong aria-hidden="true">2.</strong> Why DRS Exists</a></li><li class="chapter-item expanded "><a href="../explanation/five-actors.html"><strong aria-hidden="true">3.</strong> The Five Actors</a></li><li class="chapter-item expanded "><a href="../explanation/data-model.html"><strong aria-hidden="true">4.</strong> Data Model</a></li><li class="chapter-item expanded "><a href="../explanation/verification-algorithm.html"><strong aria-hidden="true">5.</strong> Verification Algorithm</a></li><li class="chapter-item expanded "><a href="../explanation/architecture.html"><strong aria-hidden="true">6.</strong> Architecture</a></li><li class="chapter-item expanded "><a href="../explanation/security-model.html" class="active"><strong aria-hidden="true">7.</strong> Security Model</a></li><li class="chapter-item expanded "><a href="../explanation/regulatory-alignment.html"><strong aria-hidden="true">8.</strong> Regulatory Alignment</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">Tutorials</li><li class="chapter-item expanded "><a href="../tutorials/01-issue-first-delegation.html"><strong aria-hidden="true">9.</strong> Issue Your First Delegation</a></li><li class="chapter-item expanded "><a href="../tutorials/02-verify-a-bundle.html"><strong aria-hidden="true">10.</strong> Verify a Bundle</a></li><li class="chapter-item expanded "><a href="../tutorials/03-end-to-end-trace.html"><strong aria-hidden="true">11.</strong> End-to-End Trace</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">How-To Guides</li><li class="chapter-item expanded "><a href="../how-to/developers/install-sdk.html"><strong aria-hidden="true">12.</strong> Install the SDK</a></li><li class="chapter-item expanded "><a href="../how-to/developers/mcp-middleware.html"><strong aria-hidden="true">13.</strong> MCP Middleware Integration</a></li><li class="chapter-item expanded "><a href="../how-to/developers/a2a-middleware.html"><strong aria-hidden="true">14.</strong> A2A Middleware Integration</a></li><li class="chapter-item expanded "><a href="../how-to/developers/human-consent.html"><strong aria-hidden="true">15.</strong> Human Consent Records</a></li><li class="chapter-item expanded "><a href="../how-to/developers/sub-delegation.html"><strong aria-hidden="true">16.</strong> Sub-Delegation</a></li><li class="chapter-item expanded "><a href="../how-to/operators/deploy-drs-verify.html"><strong aria-hidden="true">17.</strong> Deploy drs-verify</a></li><li class="chapter-item expanded "><a href="../how-to/operators/operator-config.html"><strong aria-hidden="true">18.</strong> Operator Configuration</a></li><li class="chapter-item expanded "><a href="../how-to/operators/storage-tiers.html"><strong aria-hidden="true">19.</strong> Storage Tiers</a></li><li class="chapter-item expanded "><a href="../how-to/operators/key-management.html"><strong aria-hidden="true">20.</strong> Key Management</a></li><li class="chapter-item expanded "><a href="../how-to/operators/revocation.html"><strong aria-hidden="true">21.</strong> Revocation</a></li><li class="chapter-item expanded "><a href="../how-to/auditors/reconstruct-chain.html"><strong aria-hidden="true">22.</strong> Reconstruct a Chain</a></li><li class="chapter-item expanded "><a href="../how-to/auditors/independent-verify.html"><strong aria-hidden="true">23.</strong> Independent Verification</a></li><li class="chapter-item expanded "><a href="../how-to/auditors/export-eu-ai-act.html"><strong aria-hidden="true">24.</strong> Export for EU AI Act</a></li><li class="chapter-item expanded "><a href="../how-to/auditors/hipaa-evidence.html"><strong aria-hidden="true">25.</strong> HIPAA Audit Evidence</a></li><li class="chapter-item expanded "><a href="../how-to/contributors/dev-setup.html"><strong aria-hidden="true">26.</strong> Dev Setup</a></li><li class="chapter-item expanded "><a href="../how-to/contributors/architecture-deep-dive.html"><strong aria-hidden="true">27.</strong> Architecture Deep Dive</a></li><li class="chapter-item expanded "><a href="../how-to/contributors/testing-standards.html"><strong aria-hidden="true">28.</strong> Testing Standards</a></li><li class="chapter-item expanded "><a href="../how-to/contributors/false-positives.html"><strong aria-hidden="true">29.</strong> False Positives: What We Tried</a></li><li class="chapter-item expanded "><a href="../how-to/contributors/upstream-monitoring.html"><strong aria-hidden="true">30.</strong> Upstream Monitoring</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">Reference</li><li class="chapter-item expanded "><a href="../reference/jwt-fields.html"><strong aria-hidden="true">31.</strong> JWT Fields</a></li><li class="chapter-item expanded "><a href="../reference/policy-schema.html"><strong aria-hidden="true">32.</strong> Policy Schema</a></li><li class="chapter-item expanded "><a href="../reference/error-codes.html"><strong aria-hidden="true">33.</strong> Error Codes</a></li><li class="chapter-item expanded "><a href="../reference/cli-commands.html"><strong aria-hidden="true">34.</strong> CLI Commands</a></li><li class="chapter-item expanded "><a href="../reference/api-endpoints.html"><strong aria-hidden="true">35.</strong> API Endpoints</a></li><li class="chapter-item expanded "><a href="../reference/configuration.html"><strong aria-hidden="true">36.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="../reference/comparison.html"><strong aria-hidden="true">37.</strong> DRS vs Alternatives</a></li><li class="chapter-item expanded "><a href="../reference/roadmap.html"><strong aria-hidden="true">38.</strong> Roadmap</a></li><li class="chapter-item expanded "><a href="../reference/glossary.html"><strong aria-hidden="true">39.</strong> Glossary</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Delegation Receipt Standard</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/explanation/security-model.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="security-model"><a class="header" href="#security-model">Security Model</a></h1>
+<h2 id="threat-table"><a class="header" href="#threat-table">Threat table</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Threat</th><th>Attack vector</th><th>DRS mitigation</th><th>Residual risk</th></tr></thead><tbody>
+<tr><td><strong>Forged root DR</strong></td><td>Attacker creates a fake delegation</td><td>Ed25519 EUF-CMA: forgery requires solving the discrete log</td><td>Private key theft</td></tr>
+<tr><td><strong>Chain splicing</strong></td><td>Compromised agent substitutes unrelated token</td><td><code>prev_dr_hash</code>: any substitution changes the hash chain — fails Block B</td><td>Implementation bugs in hash computation</td></tr>
+<tr><td><strong>Policy escalation</strong></td><td>Sub-DR claims wider permissions than parent</td><td><code>check_policy_attenuation()</code> at issuance + Block D at verification</td><td>Policy schema gaps</td></tr>
+<tr><td><strong>Policy violation</strong></td><td>Agent passes arguments exceeding constraints</td><td>Block D evaluates all policies conjunctively</td><td>Unlisted policy fields are not checked</td></tr>
+<tr><td><strong>DR tampering</strong></td><td>Attacker modifies a signed DR</td><td>Ed25519 signature fails — fails Block C</td><td>None — structural</td></tr>
+<tr><td><strong>Chain injection</strong></td><td>Insert a fake intermediate DR</td><td><code>prev_dr_hash</code> changes break subsequent links — fails Block B</td><td>None — structural</td></tr>
+<tr><td><strong>Replay after revocation</strong></td><td>Agent replays a revoked DR</td><td>Block F: Bitstring Status List (5-min cache TTL)</td><td>Up to 5-minute stale cache window</td></tr>
+<tr><td><strong>JSON malleability</strong></td><td>Different canonical bytes for same logical JSON</td><td>RFC 8785 JCS enforced at both issuance and verification ends</td><td>Non-conforming JCS at one end</td></tr>
+<tr><td><strong>Signature malleability</strong></td><td><code>(R, S)</code> and <code>(R, S+L)</code> both verify under naive check</td><td><code>ed25519-dalek 2.x</code> enforces <code>S &lt; L</code> via <code>verify_strict()</code></td><td>None — library enforces</td></tr>
+<tr><td><strong>DID spoofing</strong></td><td>Attacker impersonates a legitimate issuer</td><td><code>did:key</code> DIDs are derived from the public key — impossible without the private key</td><td><code>did:web</code> requires DNS/TLS security</td></tr>
+<tr><td><strong>Prompt injection</strong></td><td>Attacker embeds instructions in tool content</td><td>DRS records every invocation chain</td><td>Out of scope — model/runtime responsibility</td></tr>
+<tr><td><strong>Model-level bypass</strong></td><td>Adversarial prompts bypass safety constraints</td><td>Model safety ≠ execution safety</td><td>Entirely outside DRS scope</td></tr>
+</tbody></table>
+</div>
+<h2 id="fail-closed-principle"><a class="header" href="#fail-closed-principle">Fail-closed principle</a></h2>
+<p>DRS verification is fail-closed. Any error in any block returns an error and rejects the request. This applies to:</p>
+<ul>
+<li>Unresolvable DIDs</li>
+<li>Malformed JWTs</li>
+<li>Network errors fetching the Bitstring Status List</li>
+<li>Policy fields the verifier does not recognise</li>
+</ul>
+<p>A partially valid chain is an invalid chain.</p>
+<h2 id="constant-time-operations"><a class="header" href="#constant-time-operations">Constant-time operations</a></h2>
+<p>All security-sensitive comparisons use constant-time equality to prevent timing side-channels:</p>
+<div class="table-wrapper"><table><thead><tr><th>Language</th><th>Safe</th><th>Unsafe</th></tr></thead><tbody>
+<tr><td>Go</td><td><code>crypto/subtle.ConstantTimeCompare</code></td><td><code>bytes.Equal</code>, <code>==</code></td></tr>
+<tr><td>Rust</td><td><code>subtle::ConstantTimeEq</code></td><td><code>==</code> on byte slices</td></tr>
+</tbody></table>
+</div>
+<p>This applies specifically to multicodec prefix checks when resolving <code>did:key</code> DIDs. The two-byte prefix <code>[0xed, 0x01]</code> identifies an Ed25519 key. Checking it with a short-circuit comparison leaks timing information about where the mismatch occurs.</p>
+<h2 id="key-management"><a class="header" href="#key-management">Key management</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Key type</th><th>Recommended storage</th><th>Rotation</th></tr></thead><tbody>
+<tr><td>Human root key</td><td>Hardware Security Module or Secure Enclave</td><td>Not rotated (DID is derived from key)</td></tr>
+<tr><td>Operator root key</td><td>HSM required for production</td><td>Annual with overlap period</td></tr>
+<tr><td>Agent session key</td><td>Ephemeral — generated per session</td><td>Per-session, never persisted</td></tr>
+</tbody></table>
+</div>
+<p><code>did:key</code> is the preferred DID method: the DID encodes the public key directly. No registry, no DNS, no trust anchor beyond the key itself. <code>did:web</code> is supported but requires DNS and TLS security.</p>
+<h2 id="what-drs-does-not-protect-against"><a class="header" href="#what-drs-does-not-protect-against">What DRS does not protect against</a></h2>
+<ul>
+<li><strong>Prompt injection:</strong> An attacker embedding instructions in tool output or environment data. This is a model-layer problem. DRS records that the invocation happened and under what authorisation — it does not prevent the model from following injected instructions.</li>
+<li><strong>Key compromise:</strong> If a private key is stolen, the attacker can forge receipts signed by that key. Mitigation: rotate keys, revoke outstanding delegations.</li>
+<li><strong>Post-compromise recovery:</strong> DRS does not define how to recover a system after key material is compromised. That is an operational problem.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../explanation/architecture.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../explanation/regulatory-alignment.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../explanation/architecture.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../explanation/regulatory-alignment.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>
