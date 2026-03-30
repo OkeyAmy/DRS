@@ -75,16 +75,18 @@ Sub-DR attenuation check:
 
 ### Block F — Revocation
 
-**What:** No receipt has been revoked via the Bitstring Status List.
+**What:** No receipt has been revoked via either the remote Bitstring Status List or the local revocation store.
 
 For each receipt with a `drs_status_list_index`:
-1. Fetch the Bitstring Status List from the issuer's DR Store (5-minute TTL cache)
-2. Check the bit at `drs_status_list_index`
-3. Bit `1` = revoked
 
-The status list cache uses `sync.Once` to prevent double-fetch under concurrent load.
+1. **Remote check** — Fetch the W3C Bitstring Status List from `STATUS_LIST_BASE_URL` (configurable TTL cache, default 5 minutes, with `sync.Once` concurrency guard). Bit `1` = revoked.
+2. **Local check** — Query the in-memory local revocation store. Entries are added immediately via `POST /admin/revoke`. This store does not survive process restart.
 
-**Fail condition:** Any receipt is revoked.
+Both checks run for every receipt. Either alone is sufficient to fail verification.
+
+**Fail condition:** Any receipt's `drs_status_list_index` is marked as revoked in either source.
+
+> The `sync.Once` guard prevents double-fetch race conditions: when the remote cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result.
 
 ---
 
@@ -130,7 +132,10 @@ verify_chain(bundle) → Result<VerifiedChain, VerifyError>:
   # Block F
   for dr in drs:
     if dr.drs_status_list_index != null:
-      if is_revoked(dr.drs_status_list_index): return Err(RECEIPT_REVOKED)
+      if remote_status_list.is_revoked(dr.drs_status_list_index):
+        return Err(RECEIPT_REVOKED)
+      if local_revocation_store.is_revoked(dr.drs_status_list_index):
+        return Err(RECEIPT_REVOKED)
 
   return Ok(VerifiedChain{root_principal, subject, chain_depth, policy_result})
 ```
