@@ -11,6 +11,8 @@ DRS is a research project. The implementation roadmap has four phases.
 - ✓ `drs-verify`: Go verification server, MCP/A2A middleware, DID resolver with LRU cache, Bitstring Status List cache
 - ✓ `drs-sdk`: TypeScript SDK (issuance path), CLI tools (`verify`, `audit`, `policy`, `translate`, `keygen`)
 - ✓ Documentation site (this site)
+- ✓ Local revocation store with `POST /admin/revoke` (in-memory, immediate effect)
+- ✓ RFC 3161 trusted timestamp anchor (`pkg/anchor/`) — Tier 3 store with TSA client
 - ◻ `did:web` resolver production hardening (DNS pinning, certificate transparency)
 - ◻ Cross-implementation test suite (Rust ↔ Go ↔ TypeScript JWT interop)
 
@@ -31,7 +33,7 @@ DRS is a research project. The implementation roadmap has four phases.
 - MCP server reference implementation with DRS built in (Go)
 - A2A protocol reference implementation with DRS middleware
 - Browser SDK: WASM-based verification for browser-hosted agents
-- On-chain registry: Monad EVM receipt anchoring (Tier 4 storage)
+- On-chain registry: Ethereum mainnet blockchain anchor (Tier 4 — explicit opt-in for blockchain-native enterprise deployments; Ethereum is the only chain with established regulatory and legal precedent)
 - Policy language extensions: resource-level constraints, time-windows, rate limiting
 
 ## Phase 4 — Standards track *(18–24 months)*
