@@ -238,15 +238,17 @@
 <p><strong>Fail condition:</strong> Any receipt is expired, not yet valid, or has invalid temporal nesting.</p>
 <hr />
 <h3 id="block-f--revocation"><a class="header" href="#block-f--revocation">Block F — Revocation</a></h3>
-<p><strong>What:</strong> No receipt has been revoked via the Bitstring Status List.</p>
-<p>For each receipt with a <code>drs_status_list_index</code>:</p>
+<p><strong>What:</strong> No receipt has been revoked via either the remote Bitstring Status List or the local revocation store.</p>
+<p>For each <strong>delegation receipt</strong> with a <code>drs_status_list_index</code> (the invocation receipt is not checked for revocation):</p>
 <ol>
-<li>Fetch the Bitstring Status List from the issuer's DR Store (5-minute TTL cache)</li>
-<li>Check the bit at <code>drs_status_list_index</code></li>
-<li>Bit <code>1</code> = revoked</li>
+<li><strong>Remote check</strong> — Fetch the W3C Bitstring Status List from <code>STATUS_LIST_BASE_URL</code> (configurable TTL cache, default 5 minutes, with <code>sync.Once</code> concurrency guard). Bit <code>1</code> = revoked.</li>
+<li><strong>Local check</strong> — Query the in-memory local revocation store. Entries are added immediately via <code>POST /admin/revoke</code>. This store does not survive process restart.</li>
 </ol>
-<p>The status list cache uses <code>sync.Once</code> to prevent double-fetch under concurrent load.</p>
-<p><strong>Fail condition:</strong> Any receipt is revoked.</p>
+<p>Both checks run for every receipt. Either alone is sufficient to fail verification.</p>
+<p><strong>Fail condition:</strong> Any receipt's <code>drs_status_list_index</code> is marked as revoked in either source, <strong>or</strong> the remote status list check returns an error (fail-closed — an unavailable status list blocks verification).</p>
+<blockquote>
+<p>The <code>sync.Once</code> guard prevents double-fetch race conditions: when the remote cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result.</p>
+</blockquote>
 <hr />
 <h2 id="algorithm-pseudocode"><a class="header" href="#algorithm-pseudocode">Algorithm pseudocode</a></h2>
 <pre><code>verify_chain(bundle) → Result&lt;VerifiedChain, VerifyError&gt;:
@@ -288,7 +290,10 @@
   # Block F
   for dr in drs:
     if dr.drs_status_list_index != null:
-      if is_revoked(dr.drs_status_list_index): return Err(RECEIPT_REVOKED)
+      if remote_status_list.is_revoked(dr.drs_status_list_index):
+        return Err(RECEIPT_REVOKED)
+      if local_revocation_store.is_revoked(dr.drs_status_list_index):
+        return Err(RECEIPT_REVOKED)
 
   return Ok(VerifiedChain{root_principal, subject, chain_depth, policy_result})
 </code></pre>

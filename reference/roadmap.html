@@ -190,6 +190,8 @@
 <li>✓ <code>drs-verify</code>: Go verification server, MCP/A2A middleware, DID resolver with LRU cache, Bitstring Status List cache</li>
 <li>✓ <code>drs-sdk</code>: TypeScript SDK (issuance path), CLI tools (<code>verify</code>, <code>audit</code>, <code>policy</code>, <code>translate</code>, <code>keygen</code>)</li>
 <li>✓ Documentation site (this site)</li>
+<li>✓ Local revocation store with <code>POST /admin/revoke</code> (in-memory, immediate effect)</li>
+<li>✓ RFC 3161 trusted timestamp anchor (<code>pkg/anchor/</code>) — Tier 3 store with TSA client</li>
 <li>◻ <code>did:web</code> resolver production hardening (DNS pinning, certificate transparency)</li>
 <li>◻ Cross-implementation test suite (Rust ↔ Go ↔ TypeScript JWT interop)</li>
 </ul>
@@ -208,7 +210,7 @@
 <li>MCP server reference implementation with DRS built in (Go)</li>
 <li>A2A protocol reference implementation with DRS middleware</li>
 <li>Browser SDK: WASM-based verification for browser-hosted agents</li>
-<li>On-chain registry: Monad EVM receipt anchoring (Tier 4 storage)</li>
+<li>On-chain registry: Ethereum mainnet blockchain anchor (Tier 4 — explicit opt-in for blockchain-native enterprise deployments; Ethereum is the only chain with established regulatory and legal precedent)</li>
 <li>Policy language extensions: resource-level constraints, time-windows, rate limiting</li>
 </ul>
 <h2 id="phase-4--standards-track-1824-months"><a class="header" href="#phase-4--standards-track-1824-months">Phase 4 — Standards track <em>(18–24 months)</em></a></h2>

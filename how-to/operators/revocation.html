@@ -181,40 +181,44 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="revocation"><a class="header" href="#revocation">Revocation</a></h1>
-<p>DRS uses the W3C Bitstring Status List specification for revocation. Revoked receipts fail Block F of <code>verify_chain</code>.</p>
-<h2 id="how-revocation-works"><a class="header" href="#how-revocation-works">How revocation works</a></h2>
+<p>DRS supports two revocation mechanisms that work together:</p>
 <ol>
-<li>When issuing a DR, optionally include a <code>drs_status_list_index</code> integer field</li>
-<li>The issuer maintains a Bitstring Status List — a bitfield where each position corresponds to a JTI</li>
-<li>To revoke a DR, set the bit at its <code>drs_status_list_index</code> to <code>1</code></li>
-<li>drs-verify fetches the status list (5-minute TTL cache) and checks the bit at the DR's index</li>
-<li>Bit <code>1</code> = revoked — verification fails with <code>RECEIPT_REVOKED</code></li>
+<li><strong>Remote Bitstring Status List</strong> — W3C standard; fetched from <code>STATUS_LIST_BASE_URL</code> with a configurable TTL cache (default 5 minutes). Revocations take effect within the cache window.</li>
+<li><strong>Local revocation store</strong> — in-memory; updated immediately via <code>POST /admin/revoke</code>. Takes effect on the next request. Does not survive process restart.</li>
 </ol>
-<h2 id="revoking-a-delegation"><a class="header" href="#revoking-a-delegation">Revoking a delegation</a></h2>
-<p>Via the drs-verify admin API:</p>
+<p>Both are checked in Block F of <code>verify_chain</code>. A DR is revoked if its <code>drs_status_list_index</code> is marked in either source.</p>
+<h2 id="revoking-a-delegation-immediate-effect"><a class="header" href="#revoking-a-delegation-immediate-effect">Revoking a delegation (immediate effect)</a></h2>
+<p>The local revocation store takes effect on the next verification request — no cache window:</p>
 <pre><code class="language-bash">curl -X POST http://localhost:8080/admin/revoke \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Authorization: Bearer $DRS_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"jti": "dr:8f3a2b1c-4d5e-4xxx-8b9c-0d1e2f3a4b5c"}'
+  -d '{"status_list_index": 42}'
 
-# Response: {"revoked": true, "jti": "dr:8f3a2b1c-..."}
+# Response: {"revoked":true,"status_list_index":42}
 </code></pre>
-<h2 id="cache-window"><a class="header" href="#cache-window">Cache window</a></h2>
-<p>Revocations take effect within 5 minutes (the default status list cache TTL). For high-security deployments that require faster revocation:</p>
-<pre><code class="language-bash">DRS_STATUS_CACHE_TTL=30s
+<p><code>DRS_ADMIN_TOKEN</code> must be set as an environment variable. If not set, the endpoint responds 503:</p>
+<pre><code class="language-json">{"error": "admin endpoint not configured — set DRS_ADMIN_TOKEN"}
 </code></pre>
-<p>Setting this too low increases load on the status list endpoint. For most deployments, 5 minutes is appropriate.</p>
-<h2 id="emergency-revocation"><a class="header" href="#emergency-revocation">Emergency revocation</a></h2>
-<p>For compromised keys, revoke all active delegations issued by the compromised key:</p>
-<pre><code class="language-bash"># Revoke all active DRs for a given issuer DID
-curl -X POST http://localhost:8080/admin/revoke-by-issuer \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"issuer_did": "did:key:z6MkCompromised..."}'
+<blockquote>
+<p><strong>Note:</strong> The local revocation store is in-memory. Revocations are lost on process restart. For durable revocation that survives restarts, update the W3C Bitstring Status List served at <code>STATUS_LIST_BASE_URL</code>.</p>
+</blockquote>
+<h2 id="revoking-via-the-remote-bitstring-status-list"><a class="header" href="#revoking-via-the-remote-bitstring-status-list">Revoking via the remote Bitstring Status List</a></h2>
+<p>To revoke durably (surviving restarts and across multiple drs-verify instances), update the W3C Bitstring Status List at the URL configured in <code>STATUS_LIST_BASE_URL</code>. drs-verify fetches and caches this list; the TTL is <code>STATUS_CACHE_TTL_SECS</code> (default 300 seconds / 5 minutes).</p>
+<h2 id="reducing-the-cache-window"><a class="header" href="#reducing-the-cache-window">Reducing the cache window</a></h2>
+<p>For deployments where faster remote revocation propagation is needed:</p>
+<pre><code class="language-bash">STATUS_CACHE_TTL_SECS=30 ./drs-verify
 </code></pre>
-<p>After revoking, rotate the compromised key and issue new root delegations from the new key.</p>
+<p>Setting this too low increases load on the status list endpoint. 300 seconds is appropriate for most deployments. For emergency revocations, use <code>POST /admin/revoke</code> for immediate effect alongside updating the remote list.</p>
+<h2 id="how-block-f-works"><a class="header" href="#how-block-f-works">How Block F works</a></h2>
+<pre><code>for each DR in bundle:
+  if DR.drs_status_list_index is set:
+    if remote_status_list.is_revoked(DR.drs_status_list_index):
+      return RECEIPT_REVOKED
+    if local_revocation_store.is_revoked(DR.drs_status_list_index):
+      return RECEIPT_REVOKED
+</code></pre>
 <h2 id="status-list-cache-concurrency"><a class="header" href="#status-list-cache-concurrency">Status list cache concurrency</a></h2>
-<p>The status list cache uses <code>sync.Once</code> internally to prevent double-fetch race conditions under concurrent load. When the cache expires and multiple requests arrive simultaneously, only one fetch is made — the others wait and use the result.</p>
+<p>The status list cache uses <code>sync.Once</code> internally to prevent double-fetch race conditions under concurrent load. When the cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result.</p>
 
                     </main>
 

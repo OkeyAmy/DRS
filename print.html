@@ -599,15 +599,17 @@ pub fn compute_chain_hash(jwt: &amp;str) -&gt; String {
 <p><strong>Fail condition:</strong> Any receipt is expired, not yet valid, or has invalid temporal nesting.</p>
 <hr />
 <h3 id="block-f--revocation"><a class="header" href="#block-f--revocation">Block F — Revocation</a></h3>
-<p><strong>What:</strong> No receipt has been revoked via the Bitstring Status List.</p>
-<p>For each receipt with a <code>drs_status_list_index</code>:</p>
+<p><strong>What:</strong> No receipt has been revoked via either the remote Bitstring Status List or the local revocation store.</p>
+<p>For each <strong>delegation receipt</strong> with a <code>drs_status_list_index</code> (the invocation receipt is not checked for revocation):</p>
 <ol>
-<li>Fetch the Bitstring Status List from the issuer's DR Store (5-minute TTL cache)</li>
-<li>Check the bit at <code>drs_status_list_index</code></li>
-<li>Bit <code>1</code> = revoked</li>
+<li><strong>Remote check</strong> — Fetch the W3C Bitstring Status List from <code>STATUS_LIST_BASE_URL</code> (configurable TTL cache, default 5 minutes, with <code>sync.Once</code> concurrency guard). Bit <code>1</code> = revoked.</li>
+<li><strong>Local check</strong> — Query the in-memory local revocation store. Entries are added immediately via <code>POST /admin/revoke</code>. This store does not survive process restart.</li>
 </ol>
-<p>The status list cache uses <code>sync.Once</code> to prevent double-fetch under concurrent load.</p>
-<p><strong>Fail condition:</strong> Any receipt is revoked.</p>
+<p>Both checks run for every receipt. Either alone is sufficient to fail verification.</p>
+<p><strong>Fail condition:</strong> Any receipt's <code>drs_status_list_index</code> is marked as revoked in either source, <strong>or</strong> the remote status list check returns an error (fail-closed — an unavailable status list blocks verification).</p>
+<blockquote>
+<p>The <code>sync.Once</code> guard prevents double-fetch race conditions: when the remote cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result.</p>
+</blockquote>
 <hr />
 <h2 id="algorithm-pseudocode"><a class="header" href="#algorithm-pseudocode">Algorithm pseudocode</a></h2>
 <pre><code>verify_chain(bundle) → Result&lt;VerifiedChain, VerifyError&gt;:
@@ -649,7 +651,10 @@ pub fn compute_chain_hash(jwt: &amp;str) -&gt; String {
   # Block F
   for dr in drs:
     if dr.drs_status_list_index != null:
-      if is_revoked(dr.drs_status_list_index): return Err(RECEIPT_REVOKED)
+      if remote_status_list.is_revoked(dr.drs_status_list_index):
+        return Err(RECEIPT_REVOKED)
+      if local_revocation_store.is_revoked(dr.drs_status_list_index):
+        return Err(RECEIPT_REVOKED)
 
   return Ok(VerifiedChain{root_principal, subject, chain_depth, policy_result})
 </code></pre>
@@ -1553,11 +1558,12 @@ inv.sub     = "did:key:z6MkHuman..."   ← same
 docker run -d \
   --name drs-verify \
   -p 8080:8080 \
-  -e DRS_LISTEN_ADDR=:8080 \
-  -e DRS_CACHE_SIZE=10000 \
-  -e DRS_CACHE_TTL=1h \
-  -e DRS_STATUS_CACHE_TTL=5m \
-  -e DRS_REQUIRE_BUNDLE=true \
+  -e LISTEN_ADDR=:8080 \
+  -e DID_CACHE_SIZE=10000 \
+  -e DID_CACHE_TTL_SECS=3600 \
+  -e STATUS_LIST_BASE_URL=https://status.example.com \
+  -e STATUS_CACHE_TTL_SECS=300 \
+  -e DRS_ADMIN_TOKEN=your-secret-token \
   ghcr.io/yourorg/drs-verify:latest
 </code></pre>
 <h2 id="build-from-source"><a class="header" href="#build-from-source">Build from source</a></h2>
@@ -1573,7 +1579,7 @@ curl http://localhost:8080/healthz
 
 # Readiness (includes cache state)
 curl http://localhost:8080/readyz
-# {"status":"ok","cache_size":0,"uptime_seconds":12}
+# {"status":"ready"}
 </code></pre>
 <p>Configure your load balancer or Kubernetes probe to use <code>/readyz</code> — it only returns <code>ok</code> when the server is fully initialised.</p>
 <h2 id="kubernetes-deployment"><a class="header" href="#kubernetes-deployment">Kubernetes deployment</a></h2>
@@ -1599,14 +1605,21 @@ spec:
         ports:
         - containerPort: 8080
         env:
-        - name: DRS_LISTEN_ADDR
+        - name: LISTEN_ADDR
           value: ":8080"
-        - name: DRS_CACHE_SIZE
+        - name: DID_CACHE_SIZE
           value: "10000"
-        - name: DRS_CACHE_TTL
-          value: "1h"
-        - name: DRS_REQUIRE_BUNDLE
-          value: "true"
+        - name: DID_CACHE_TTL_SECS
+          value: "3600"
+        - name: STATUS_LIST_BASE_URL
+          value: "https://status.example.com"
+        - name: STATUS_CACHE_TTL_SECS
+          value: "300"
+        - name: DRS_ADMIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: drs-secrets
+              key: admin-token
         livenessProbe:
           httpGet:
             path: /healthz
@@ -1628,21 +1641,7 @@ spec:
             cpu: "500m"
 </code></pre>
 <h2 id="sidecar-pattern"><a class="header" href="#sidecar-pattern">Sidecar pattern</a></h2>
-<p>To add DRS to an existing MCP server without modifying it, run drs-verify as a sidecar that proxies to the upstream server:</p>
-<pre><code class="language-yaml">containers:
-- name: drs-verify
-  image: ghcr.io/yourorg/drs-verify:latest
-  env:
-  - name: DRS_LISTEN_ADDR
-    value: ":8081"
-  - name: DRS_UPSTREAM
-    value: "http://localhost:8080"   # your MCP server
-  - name: DRS_REQUIRE_BUNDLE
-    value: "true"
-- name: your-mcp-server
-  # ... your existing container
-</code></pre>
-<p>Clients connect to port <code>8081</code>. Your server on <code>8080</code> only receives verified requests.</p>
+<p>Running drs-verify as a sidecar that proxies requests to an upstream MCP server is a planned deployment mode. It is not implemented in the current release. For now, configure your MCP server to call <code>POST /verify</code> directly before accepting tool-call requests.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="operator-configuration"><a class="header" href="#operator-configuration">Operator Configuration</a></h1>
 <p>Machine-to-machine deployments (no live human in the delegation loop) use an <code>OperatorConfig</code> loaded at startup. This governs how the operator issues root delegations, manages key material, and handles out-of-policy requests.</p>
 <h2 id="configuration-file-format"><a class="header" href="#configuration-file-format">Configuration file format</a></h2>
@@ -1720,42 +1719,61 @@ const cfg = parseOperatorConfig(
 <p><strong>Security:</strong> <code>"allow-degraded"</code> should never be the default in regulated deployments. Discuss with your security team before enabling it.</p>
 </blockquote>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="storage-tiers"><a class="header" href="#storage-tiers">Storage Tiers</a></h1>
-<p>DRS defines five storage tiers for delegation receipts, ordered by durability and compliance requirements.</p>
+<p>DRS defines four storage tiers for delegation receipts, ordered by durability and compliance requirements.</p>
 <h2 id="tier-reference"><a class="header" href="#tier-reference">Tier reference</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Tier</th><th><code>storage_tier</code></th><th>Backend</th><th>Retention</th><th>Use case</th></tr></thead><tbody>
-<tr><td>Session</td><td><code>0</code></td><td>In-memory</td><td>Process lifetime</td><td>Development, testing</td></tr>
-<tr><td>Ephemeral</td><td><code>1</code></td><td>Local filesystem</td><td>Configurable TTL</td><td>Non-regulated production</td></tr>
-<tr><td>Durable</td><td><code>2</code></td><td>S3 / GCS / Azure Blob</td><td>Configurable</td><td>Standard production</td></tr>
-<tr><td>Compliant</td><td><code>3</code></td><td>WORM-enabled object storage</td><td>7 years minimum</td><td>HIPAA, financial services, SOC 2</td></tr>
-<tr><td>On-chain</td><td><code>4</code></td><td>Monad EVM</td><td>Permanent</td><td>Highest-assurance regulatory, AIUC-1</td></tr>
+<div class="table-wrapper"><table><thead><tr><th>Tier</th><th>Name</th><th>Backend</th><th>Env vars required</th><th>Use case</th></tr></thead><tbody>
+<tr><td>0</td><td>In-memory</td><td>LRU cache (process lifetime)</td><td><em>(none — default)</em></td><td>Development, testing</td></tr>
+<tr><td>1</td><td>Filesystem</td><td>Local disk</td><td><code>STORE_DIR</code></td><td>Standard production</td></tr>
+<tr><td>3</td><td>WORM + RFC 3161</td><td>Filesystem + trusted timestamp</td><td><code>STORE_DIR</code> + <code>TSA_URL</code></td><td>Regulated deployments (HIPAA, EU AI Act, financial)</td></tr>
+<tr><td>4</td><td>Blockchain</td><td>Tier 3 + on-chain anchor (not yet implemented)</td><td><em>(not yet implemented)</em></td><td>Blockchain-native enterprise opt-in</td></tr>
 </tbody></table>
 </div>
+<blockquote>
+<p><strong>Note on Tier 2:</strong> There is no Tier 2 in the current implementation. S3 or other object storage backends are a roadmap item.</p>
+</blockquote>
 <h2 id="when-to-use-each-tier"><a class="header" href="#when-to-use-each-tier">When to use each tier</a></h2>
-<p><strong>Tier 0 (Session):</strong> Use only for local development and tests. Receipts are lost on process restart.</p>
-<p><strong>Tier 1 (Ephemeral):</strong> Non-regulated production deployments where receipts are needed for debugging and short-term audit but not long-term compliance. Configure TTL to match your operational requirements.</p>
-<p><strong>Tier 2 (Durable):</strong> Standard production. Object storage provides high durability and availability. No special compliance controls — suitable when regulatory requirements do not mandate WORM.</p>
-<p><strong>Tier 3 (Compliant):</strong> Required for HIPAA, SOC 2, financial services, and EU AI Act high-risk deployments. Uses WORM-enabled object storage (S3 Object Lock, Azure Blob Immutable Storage, GCS Bucket Lock). Minimum 7-year retention.</p>
-<p><strong>Tier 4 (On-chain):</strong> Permanent, publicly auditable. Receipts are anchored to the Monad EVM. Use when you need independent third-party auditability or when the evidence must be verifiable without any operator infrastructure.</p>
+<p><strong>Tier 0 (In-memory):</strong> Default when <code>STORE_DIR</code> is not set. Receipts are lost on process restart. Use only for local development and tests.</p>
+<p><strong>Tier 1 (Filesystem):</strong> Set <code>STORE_DIR</code> to a directory path. Receipts are written as files and survive process restart. No compliance controls — suitable for production deployments where regulatory requirements do not mandate timestamping.</p>
+<p><strong>Tier 3 (WORM + RFC 3161):</strong> Set both <code>STORE_DIR</code> and <code>TSA_URL</code>. Every stored receipt is timestamped by an RFC 3161 Trusted Signing Authority (TSA). The TSA signs a SHA-256 hash of the stored JWT string with the current time and returns a DER timestamp token. This token is stored alongside the DR.</p>
+<p>RFC 3161 (IETF 2001, updated by RFC 5816 in 2010 to add SHA-2 support) is the standard used here. Timestamp tokens are legally recognised under EU eIDAS and in US federal courts. TSA failure is best-effort — if the TSA is unreachable, the receipt is still stored (Tier 1 semantics) and the error is logged. Storage is never blocked by TSA availability.</p>
+<p><strong>Tier 4 (Blockchain):</strong> Not implemented. When built, this will be an explicit opt-in for customers who require on-chain proof and understand the gas cost implications. The default anchor mechanism is RFC 3161 (Tier 3), not blockchain.</p>
 <h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
-<pre><code class="language-bash"># Tier 2 — Durable (S3)
-DRS_STORAGE_TIER=2
-DRS_S3_BUCKET=my-drs-receipts
-DRS_S3_REGION=eu-west-1
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
+<pre><code class="language-bash"># Tier 0 — in-memory (default)
+LISTEN_ADDR=:8080 ./drs-verify
 
-# Tier 3 — Compliant (WORM S3)
-DRS_STORAGE_TIER=3
-DRS_S3_BUCKET=my-drs-receipts-compliant
-DRS_S3_WORM_POLICY=true
-DRS_RETENTION_DAYS=2555    # 7 years
+# Tier 1 — filesystem
+LISTEN_ADDR=:8080 \
+  STORE_DIR=/data/drs \
+  ./drs-verify
+
+# Tier 3 — filesystem + RFC 3161 trusted timestamp
+LISTEN_ADDR=:8080 \
+  STORE_DIR=/data/drs \
+  TSA_URL=https://freetsa.org/tsr \
+  ./drs-verify
 </code></pre>
-<h2 id="setting-it-in-operatorconfig"><a class="header" href="#setting-it-in-operatorconfig">Setting it in OperatorConfig</a></h2>
-<pre><code class="language-json">{
-  "storage_tier": 3
-}
-</code></pre>
-<p>The tier is set once in the operator configuration and applies to all receipts issued by that operator.</p>
+<blockquote>
+<p>For a complete list of environment variables including <code>STATUS_LIST_BASE_URL</code> (required for remote revocation) and <code>DRS_ADMIN_TOKEN</code> (required for <code>POST /admin/revoke</code>), see the <a href="how-to/operators/../../reference/configuration.html">Configuration Reference</a>.</p>
+</blockquote>
+<h2 id="tsa-providers"><a class="header" href="#tsa-providers">TSA providers</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Provider</th><th>URL</th><th>Cost</th><th>Notes</th></tr></thead><tbody>
+<tr><td>FreeTSA</td><td><code>https://freetsa.org/tsr</code></td><td>Free</td><td>Non-commercial use; rate-limited</td></tr>
+<tr><td>DigiCert</td><td><code>https://timestamp.digicert.com</code></td><td>Free (DigiCert customers)</td><td>Production-grade</td></tr>
+<tr><td>GlobalSign</td><td><code>http://timestamp.globalsign.com/tsa/r6advanced1</code></td><td>Commercial</td><td>AATL/WebTrust certified. HTTP is correct for TSA — the response is self-verifying (signed by the TSA certificate chain).</td></tr>
+</tbody></table>
+</div>
+<h2 id="why-not-blockchain-by-default"><a class="header" href="#why-not-blockchain-by-default">Why not blockchain by default?</a></h2>
+<p>The core DRS guarantees (tamper-evident receipts, Ed25519 signatures, hash-chained custody) require zero blockchain. The only problem blockchain was solving in the v1/v2 architecture was "immutable third-party timestamp" — and RFC 3161 solves that problem better:</p>
+<div class="table-wrapper"><table><thead><tr><th>Property</th><th>RFC 3161</th><th>Blockchain</th></tr></thead><tbody>
+<tr><td>User pays gas fees</td><td>No</td><td>Yes</td></tr>
+<tr><td>Latency</td><td>~200 ms (typical)</td><td>400 ms–12 s (typical)</td></tr>
+<tr><td>Legal recognition</td><td>EU eIDAS, US federal courts, ISO 18014</td><td>Unclear / jurisdiction-dependent</td></tr>
+<tr><td>Requires wallet / token</td><td>No</td><td>Yes</td></tr>
+<tr><td>Battle-tested</td><td>20+ years</td><td>4 months–10 years depending on chain</td></tr>
+<tr><td>Free tier</td><td>Yes (FreeTSA)</td><td>No</td></tr>
+</tbody></table>
+</div>
+<p>Blockchain anchoring is available as Tier 4 for customers who specifically require it — for example, blockchain-native enterprises whose compliance teams are already comfortable with on-chain evidence. It is never the default.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="key-management-1"><a class="header" href="#key-management-1">Key Management</a></h1>
 <h2 id="key-types-and-requirements"><a class="header" href="#key-types-and-requirements">Key types and requirements</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Key type</th><th>Recommended storage</th><th>Rotation</th></tr></thead><tbody>
@@ -1802,40 +1820,44 @@ echo "DRS_KMS_KEY_ID=&lt;key-id&gt;" &gt;&gt; .env
 <li>Never commit keys to version control</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="revocation"><a class="header" href="#revocation">Revocation</a></h1>
-<p>DRS uses the W3C Bitstring Status List specification for revocation. Revoked receipts fail Block F of <code>verify_chain</code>.</p>
-<h2 id="how-revocation-works"><a class="header" href="#how-revocation-works">How revocation works</a></h2>
+<p>DRS supports two revocation mechanisms that work together:</p>
 <ol>
-<li>When issuing a DR, optionally include a <code>drs_status_list_index</code> integer field</li>
-<li>The issuer maintains a Bitstring Status List — a bitfield where each position corresponds to a JTI</li>
-<li>To revoke a DR, set the bit at its <code>drs_status_list_index</code> to <code>1</code></li>
-<li>drs-verify fetches the status list (5-minute TTL cache) and checks the bit at the DR's index</li>
-<li>Bit <code>1</code> = revoked — verification fails with <code>RECEIPT_REVOKED</code></li>
+<li><strong>Remote Bitstring Status List</strong> — W3C standard; fetched from <code>STATUS_LIST_BASE_URL</code> with a configurable TTL cache (default 5 minutes). Revocations take effect within the cache window.</li>
+<li><strong>Local revocation store</strong> — in-memory; updated immediately via <code>POST /admin/revoke</code>. Takes effect on the next request. Does not survive process restart.</li>
 </ol>
-<h2 id="revoking-a-delegation"><a class="header" href="#revoking-a-delegation">Revoking a delegation</a></h2>
-<p>Via the drs-verify admin API:</p>
+<p>Both are checked in Block F of <code>verify_chain</code>. A DR is revoked if its <code>drs_status_list_index</code> is marked in either source.</p>
+<h2 id="revoking-a-delegation-immediate-effect"><a class="header" href="#revoking-a-delegation-immediate-effect">Revoking a delegation (immediate effect)</a></h2>
+<p>The local revocation store takes effect on the next verification request — no cache window:</p>
 <pre><code class="language-bash">curl -X POST http://localhost:8080/admin/revoke \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Authorization: Bearer $DRS_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"jti": "dr:8f3a2b1c-4d5e-4xxx-8b9c-0d1e2f3a4b5c"}'
+  -d '{"status_list_index": 42}'
 
-# Response: {"revoked": true, "jti": "dr:8f3a2b1c-..."}
+# Response: {"revoked":true,"status_list_index":42}
 </code></pre>
-<h2 id="cache-window"><a class="header" href="#cache-window">Cache window</a></h2>
-<p>Revocations take effect within 5 minutes (the default status list cache TTL). For high-security deployments that require faster revocation:</p>
-<pre><code class="language-bash">DRS_STATUS_CACHE_TTL=30s
+<p><code>DRS_ADMIN_TOKEN</code> must be set as an environment variable. If not set, the endpoint responds 503:</p>
+<pre><code class="language-json">{"error": "admin endpoint not configured — set DRS_ADMIN_TOKEN"}
 </code></pre>
-<p>Setting this too low increases load on the status list endpoint. For most deployments, 5 minutes is appropriate.</p>
-<h2 id="emergency-revocation"><a class="header" href="#emergency-revocation">Emergency revocation</a></h2>
-<p>For compromised keys, revoke all active delegations issued by the compromised key:</p>
-<pre><code class="language-bash"># Revoke all active DRs for a given issuer DID
-curl -X POST http://localhost:8080/admin/revoke-by-issuer \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"issuer_did": "did:key:z6MkCompromised..."}'
+<blockquote>
+<p><strong>Note:</strong> The local revocation store is in-memory. Revocations are lost on process restart. For durable revocation that survives restarts, update the W3C Bitstring Status List served at <code>STATUS_LIST_BASE_URL</code>.</p>
+</blockquote>
+<h2 id="revoking-via-the-remote-bitstring-status-list"><a class="header" href="#revoking-via-the-remote-bitstring-status-list">Revoking via the remote Bitstring Status List</a></h2>
+<p>To revoke durably (surviving restarts and across multiple drs-verify instances), update the W3C Bitstring Status List at the URL configured in <code>STATUS_LIST_BASE_URL</code>. drs-verify fetches and caches this list; the TTL is <code>STATUS_CACHE_TTL_SECS</code> (default 300 seconds / 5 minutes).</p>
+<h2 id="reducing-the-cache-window"><a class="header" href="#reducing-the-cache-window">Reducing the cache window</a></h2>
+<p>For deployments where faster remote revocation propagation is needed:</p>
+<pre><code class="language-bash">STATUS_CACHE_TTL_SECS=30 ./drs-verify
 </code></pre>
-<p>After revoking, rotate the compromised key and issue new root delegations from the new key.</p>
+<p>Setting this too low increases load on the status list endpoint. 300 seconds is appropriate for most deployments. For emergency revocations, use <code>POST /admin/revoke</code> for immediate effect alongside updating the remote list.</p>
+<h2 id="how-block-f-works"><a class="header" href="#how-block-f-works">How Block F works</a></h2>
+<pre><code>for each DR in bundle:
+  if DR.drs_status_list_index is set:
+    if remote_status_list.is_revoked(DR.drs_status_list_index):
+      return RECEIPT_REVOKED
+    if local_revocation_store.is_revoked(DR.drs_status_list_index):
+      return RECEIPT_REVOKED
+</code></pre>
 <h2 id="status-list-cache-concurrency"><a class="header" href="#status-list-cache-concurrency">Status list cache concurrency</a></h2>
-<p>The status list cache uses <code>sync.Once</code> internally to prevent double-fetch race conditions under concurrent load. When the cache expires and multiple requests arrive simultaneously, only one fetch is made — the others wait and use the result.</p>
+<p>The status list cache uses <code>sync.Once</code> internally to prevent double-fetch race conditions under concurrent load. When the cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="reconstruct-a-delegation-chain"><a class="header" href="#reconstruct-a-delegation-chain">Reconstruct a Delegation Chain</a></h1>
 <p>You can reconstruct and verify any delegation chain from stored receipts without operator cooperation. All you need are the JWT strings and the DIDs.</p>
 <h2 id="step-1-retrieve-the-bundle"><a class="header" href="#step-1-retrieve-the-bundle">Step 1: Retrieve the bundle</a></h2>
@@ -2635,32 +2657,41 @@ Content-Type: application/json
   "receipts": ["&lt;root-dr-jwt&gt;", "&lt;sub-dr-jwt&gt;"]
 }
 </code></pre>
-<p><strong>Response — valid (200):</strong></p>
+<p>Body is capped at <code>MAX_BODY_BYTES</code> (default 1 MiB).</p>
+<p><strong>Response — valid chain (200):</strong></p>
 <pre><code class="language-json">{
   "valid": true,
-  "chain_depth": 2,
-  "root_principal": "did:key:z6MkHuman...",
-  "subject": "did:key:z6MkHuman...",
-  "command": "/mcp/tools/call",
-  "policy_result": "pass"
+  "context": {
+    "root_principal": "did:key:z6MkHuman...",
+    "chain_depth": 2,
+    "leaf_policy": {
+      "max_cost_usd": 0.10,
+      "allowed_tools": ["web_search"]
+    }
+  }
 }
 </code></pre>
-<p><strong>Response — invalid (403):</strong></p>
+<p><strong>Response — invalid chain (200):</strong></p>
+<blockquote>
+<p><code>/verify</code> always returns HTTP 200. Check the <code>valid</code> field to determine the outcome. HTTP 403 is only returned by the MCP/A2A middleware routes, not by <code>/verify</code> directly.</p>
+</blockquote>
 <pre><code class="language-json">{
   "valid": false,
-  "error": "CHAIN_HASH_MISMATCH",
-  "block": "B",
-  "message": "prev_dr_hash mismatch at chain index 1: expected sha256:abc..., got sha256:def..."
+  "error": {
+    "code": "CHAIN_HASH_MISMATCH",
+    "message": "prev_dr_hash mismatch at chain index 1",
+    "suggestion": "Ensure receipts are in root-first order and were not modified after signing"
+  }
 }
 </code></pre>
 <p><strong>Response — malformed input (400):</strong></p>
-<pre><code class="language-json">{
-  "error": "INVALID_INPUT",
-  "message": "bundle_version must be \"4.0\""
-}
+<pre><code class="language-json">{"error": "invalid character 'x' looking for beginning of value"}
 </code></pre>
 <hr />
 <h2 id="post-mcp-middleware"><a class="header" href="#post-mcp-middleware">POST /mcp/* (middleware)</a></h2>
+<blockquote>
+<p><strong>Implementation status:</strong> The MCP and A2A middleware routes are registered but the reverse proxy mode (<code>DRS_UPSTREAM</code>) and bundle-required enforcement (<code>DRS_REQUIRE_BUNDLE</code>) are not implemented in the current release. The endpoint currently accepts requests and returns 200 after verifying the <code>X-DRS-Bundle</code> header. The proxy and enforcement features are roadmap items.</p>
+</blockquote>
 <p>When <code>DRS_UPSTREAM</code> is configured, drs-verify acts as a reverse proxy. All requests to <code>/mcp/*</code> are intercepted, the <code>X-DRS-Bundle</code> header is verified, and the request is proxied upstream if valid.</p>
 <p><strong>Request:</strong> Any MCP request with <code>X-DRS-Bundle</code> header:</p>
 <pre><code>POST /mcp/tools/call
@@ -2692,45 +2723,56 @@ Content-Type: application/json
 <p>Returns <code>503</code> only if the server cannot handle requests (e.g., during shutdown).</p>
 <hr />
 <h2 id="get-readyz"><a class="header" href="#get-readyz">GET /readyz</a></h2>
-<p>Readiness check. Returns <code>ok</code> when the server is fully initialised and ready to handle verification requests.</p>
+<p>Readiness check. Returns 200 when the server is fully initialised and ready to handle verification requests; 503 when not ready.</p>
 <pre><code>GET /readyz
 </code></pre>
-<p>Response (200):</p>
-<pre><code class="language-json">{
-  "status": "ok",
-  "cache_size": 42,
-  "uptime_seconds": 3600
-}
+<p>Response (200 — ready):</p>
+<pre><code class="language-json">{"status": "ready"}
+</code></pre>
+<p>Response (503 — not ready):</p>
+<pre><code class="language-json">{"status": "not_ready", "reason": "status_list_not_fetched"}
 </code></pre>
 <p>Use <code>/readyz</code> for Kubernetes readiness probes. Use <code>/healthz</code> for liveness probes.</p>
+<blockquote>
+<p><strong>Note:</strong> If <code>STATUS_LIST_BASE_URL</code> is not configured, the status list cache is skipped and <code>/readyz</code> always returns 200 immediately.</p>
+</blockquote>
 <hr />
 <h2 id="post-adminrevoke"><a class="header" href="#post-adminrevoke">POST /admin/revoke</a></h2>
-<p>Revoke a delegation receipt by JTI.</p>
+<p>Mark a delegation receipt as locally revoked by its status list index. Takes effect immediately — does not wait for the remote Bitstring Status List to refresh.</p>
+<p><code>DRS_ADMIN_TOKEN</code> must be set as an environment variable. If not set, the endpoint responds 503.</p>
 <pre><code>POST /admin/revoke
-Authorization: Bearer &lt;admin-token&gt;
+Authorization: Bearer &lt;DRS_ADMIN_TOKEN&gt;
 Content-Type: application/json
 </code></pre>
-<pre><code class="language-json">{"jti": "dr:8f3a2b1c-4d5e-4xxx-8b9c-0d1e2f3a4b5c"}
+<pre><code class="language-json">{"status_list_index": 42}
 </code></pre>
-<p>Response (200):</p>
-<pre><code class="language-json">{"revoked": true, "jti": "dr:8f3a2b1c-..."}
+<p>Body is capped at 1 KiB.</p>
+<p><strong>Response (200):</strong></p>
+<pre><code class="language-json">{"revoked": true, "status_list_index": 42}
 </code></pre>
+<p><strong>Response — admin not configured (503):</strong></p>
+<pre><code class="language-json">{"error": "admin endpoint not configured — set DRS_ADMIN_TOKEN"}
+</code></pre>
+<p><strong>Response — wrong or missing token (401):</strong></p>
+<pre><code class="language-json">{"error": "unauthorized"}
+</code></pre>
+<blockquote>
+<p>The local revocation store is in-memory only. Revocations do not survive process restart. For durable revocation, update the W3C Bitstring Status List at your <code>STATUS_LIST_BASE_URL</code> endpoint.</p>
+</blockquote>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="configuration-reference"><a class="header" href="#configuration-reference">Configuration Reference</a></h1>
 <p>All configuration is via environment variables. No hard-coded URLs, ports, or keys in any DRS component.</p>
 <h2 id="drs-verify-environment-variables"><a class="header" href="#drs-verify-environment-variables">drs-verify environment variables</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead><tbody>
-<tr><td><code>DRS_LISTEN_ADDR</code></td><td><code>:8080</code></td><td>HTTP listen address (e.g. <code>0.0.0.0:8080</code>, <code>:8443</code>)</td></tr>
-<tr><td><code>DRS_CACHE_SIZE</code></td><td><code>10000</code></td><td>LRU DID resolver cache maximum entries. Hard cap — entries are evicted when full.</td></tr>
-<tr><td><code>DRS_CACHE_TTL</code></td><td><code>1h</code></td><td>DID resolver cache entry TTL. Format: <code>30s</code>, <code>5m</code>, <code>1h</code>, <code>24h</code>.</td></tr>
-<tr><td><code>DRS_STATUS_CACHE_TTL</code></td><td><code>5m</code></td><td>Bitstring Status List cache TTL. Revocations take effect within this window.</td></tr>
-<tr><td><code>DRS_REQUIRE_BUNDLE</code></td><td><code>false</code></td><td>When <code>true</code>, requests to <code>/mcp/*</code> without <code>X-DRS-Bundle</code> header return <code>403</code>.</td></tr>
-<tr><td><code>DRS_UPSTREAM</code></td><td>—</td><td>When set, drs-verify acts as a reverse proxy to this URL (sidecar mode).</td></tr>
-<tr><td><code>DRS_STORAGE_TIER</code></td><td><code>0</code></td><td>Receipt storage tier: <code>0</code>=memory, <code>1</code>=filesystem, <code>2</code>=S3, <code>3</code>=WORM S3, <code>4</code>=on-chain.</td></tr>
-<tr><td><code>DRS_S3_BUCKET</code></td><td>—</td><td>S3 bucket name (required for tier 2–3).</td></tr>
-<tr><td><code>DRS_S3_REGION</code></td><td><code>us-east-1</code></td><td>AWS region for S3 bucket.</td></tr>
-<tr><td><code>DRS_S3_WORM_POLICY</code></td><td><code>false</code></td><td>Enable S3 Object Lock (WORM) — required for tier 3.</td></tr>
-<tr><td><code>DRS_RETENTION_DAYS</code></td><td><code>0</code></td><td>Receipt retention in days. <code>0</code> = indefinite. Used for tier 3 WORM policy.</td></tr>
-<tr><td><code>DRS_ADMIN_TOKEN</code></td><td>—</td><td>Bearer token required for <code>/admin/*</code> endpoints.</td></tr>
+<tr><td><code>LISTEN_ADDR</code></td><td><code>:8080</code></td><td>HTTP listen address (e.g. <code>0.0.0.0:8080</code>, <code>:443</code>)</td></tr>
+<tr><td><code>DID_CACHE_SIZE</code></td><td><code>10000</code></td><td>LRU DID resolver cache maximum entries. Hard cap — entries are evicted when full (~640 KB at 10 000 entries).</td></tr>
+<tr><td><code>DID_CACHE_TTL_SECS</code></td><td><code>3600</code></td><td>DID resolver cache entry TTL in seconds.</td></tr>
+<tr><td><code>STATUS_LIST_BASE_URL</code></td><td>—</td><td>W3C Bitstring Status List endpoint base URL. Required for remote revocation (Block F).</td></tr>
+<tr><td><code>STATUS_CACHE_TTL_SECS</code></td><td><code>300</code></td><td>Bitstring Status List cache TTL in seconds. Revocations take effect within this window.</td></tr>
+<tr><td><code>MAX_BODY_BYTES</code></td><td><code>1048576</code></td><td>Maximum request body size in bytes for <code>/verify</code> (default 1 MiB).</td></tr>
+<tr><td><code>LOG_LEVEL</code></td><td><code>info</code></td><td>Log verbosity: <code>debug</code>, <code>info</code>, <code>warn</code>, or <code>error</code>.</td></tr>
+<tr><td><code>DRS_ADMIN_TOKEN</code></td><td>—</td><td>Bearer token required for <code>POST /admin/revoke</code>. <strong>If not set, the endpoint responds 503.</strong> No default — set explicitly to enable.</td></tr>
+<tr><td><code>STORE_DIR</code></td><td>—</td><td>Base directory for the filesystem store. Empty = Tier 0 in-memory (dev/test). Set for Tier 1 or Tier 3.</td></tr>
+<tr><td><code>TSA_URL</code></td><td>—</td><td>RFC 3161 Timestamp Authority endpoint. Enables Tier 3 trusted timestamping <strong>only when <code>STORE_DIR</code> is also set</strong> — if <code>STORE_DIR</code> is empty, <code>TSA_URL</code> is silently ignored and the server falls back to Tier 0 (in-memory). Providers: <code>https://freetsa.org/tsr</code> (free), <code>https://timestamp.digicert.com</code>.</td></tr>
 </tbody></table>
 </div>
 <h2 id="drs-sdk-cli-environment-variables"><a class="header" href="#drs-sdk-cli-environment-variables">drs-sdk CLI environment variables</a></h2>
@@ -2738,30 +2780,50 @@ Content-Type: application/json
 <tr><td><code>DRS_VERIFY_URL</code></td><td>—</td><td>drs-verify base URL used by <code>drs verify</code> and <code>VerifyClient</code>.</td></tr>
 </tbody></table>
 </div>
-<h2 id="operatorconfig-fields"><a class="header" href="#operatorconfig-fields">OperatorConfig fields</a></h2>
-<p>See <a href="reference/../how-to/operators/operator-config.html">Operator Configuration</a> for the full OperatorConfig JSON schema and field descriptions.</p>
+<h2 id="example-configurations"><a class="header" href="#example-configurations">Example configurations</a></h2>
+<pre><code class="language-bash"># Tier 0 — in-memory (development default)
+LISTEN_ADDR=:8080 ./drs-verify
+
+# Tier 1 — filesystem store
+LISTEN_ADDR=:8080 \
+  STORE_DIR=/data/drs \
+  STATUS_LIST_BASE_URL=https://status.example.com \
+  ./drs-verify
+
+# Tier 3 — filesystem + RFC 3161 timestamp anchor (regulated deployments)
+LISTEN_ADDR=:8080 \
+  STORE_DIR=/data/drs \
+  TSA_URL=https://freetsa.org/tsr \
+  DRS_ADMIN_TOKEN=your-secret-token \
+  STATUS_LIST_BASE_URL=https://status.example.com \
+  ./drs-verify
+</code></pre>
 <h2 id="docker-compose-example"><a class="header" href="#docker-compose-example">Docker Compose example</a></h2>
 <pre><code class="language-yaml">version: '3.8'
 services:
   drs-verify:
-    image: ghcr.io/yourorg/drs-verify:latest
+    image: ghcr.io/okeyamy/drs-verify:latest
     ports:
       - "8080:8080"
     environment:
-      DRS_LISTEN_ADDR: ":8080"
-      DRS_CACHE_SIZE: "10000"
-      DRS_CACHE_TTL: "1h"
-      DRS_STATUS_CACHE_TTL: "5m"
-      DRS_REQUIRE_BUNDLE: "true"
-      DRS_STORAGE_TIER: "2"
-      DRS_S3_BUCKET: "my-drs-receipts"
-      DRS_S3_REGION: "eu-west-1"
-    secrets:
-      - aws_credentials
+      LISTEN_ADDR: ":8080"
+      DID_CACHE_SIZE: "10000"
+      DID_CACHE_TTL_SECS: "3600"
+      STATUS_LIST_BASE_URL: "https://status.example.com"
+      STATUS_CACHE_TTL_SECS: "300"
+      DRS_ADMIN_TOKEN: "${DRS_ADMIN_TOKEN}"
+      STORE_DIR: "/data"
+      TSA_URL: "https://freetsa.org/tsr"
+    volumes:
+      - drs-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
-secrets:
-  aws_credentials:
-    file: ./aws-credentials
+volumes:
+  drs-data:
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="drs-vs-alternatives"><a class="header" href="#drs-vs-alternatives">DRS vs Alternatives</a></h1>
 <p>DRS is a narrow standard solving a specific problem. Understanding what it is and is not helps you decide where it belongs in your stack.</p>
@@ -2824,6 +2886,8 @@ secrets:
 <li>✓ <code>drs-verify</code>: Go verification server, MCP/A2A middleware, DID resolver with LRU cache, Bitstring Status List cache</li>
 <li>✓ <code>drs-sdk</code>: TypeScript SDK (issuance path), CLI tools (<code>verify</code>, <code>audit</code>, <code>policy</code>, <code>translate</code>, <code>keygen</code>)</li>
 <li>✓ Documentation site (this site)</li>
+<li>✓ Local revocation store with <code>POST /admin/revoke</code> (in-memory, immediate effect)</li>
+<li>✓ RFC 3161 trusted timestamp anchor (<code>pkg/anchor/</code>) — Tier 3 store with TSA client</li>
 <li>◻ <code>did:web</code> resolver production hardening (DNS pinning, certificate transparency)</li>
 <li>◻ Cross-implementation test suite (Rust ↔ Go ↔ TypeScript JWT interop)</li>
 </ul>
@@ -2842,7 +2906,7 @@ secrets:
 <li>MCP server reference implementation with DRS built in (Go)</li>
 <li>A2A protocol reference implementation with DRS middleware</li>
 <li>Browser SDK: WASM-based verification for browser-hosted agents</li>
-<li>On-chain registry: Monad EVM receipt anchoring (Tier 4 storage)</li>
+<li>On-chain registry: Ethereum mainnet blockchain anchor (Tier 4 — explicit opt-in for blockchain-native enterprise deployments; Ethereum is the only chain with established regulatory and legal precedent)</li>
 <li>Policy language extensions: resource-level constraints, time-windows, rate limiting</li>
 </ul>
 <h2 id="phase-4--standards-track-1824-months"><a class="header" href="#phase-4--standards-track-1824-months">Phase 4 — Standards track <em>(18–24 months)</em></a></h2>

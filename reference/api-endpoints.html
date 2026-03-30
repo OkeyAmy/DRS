@@ -194,32 +194,41 @@ Content-Type: application/json
   "receipts": ["&lt;root-dr-jwt&gt;", "&lt;sub-dr-jwt&gt;"]
 }
 </code></pre>
-<p><strong>Response — valid (200):</strong></p>
+<p>Body is capped at <code>MAX_BODY_BYTES</code> (default 1 MiB).</p>
+<p><strong>Response — valid chain (200):</strong></p>
 <pre><code class="language-json">{
   "valid": true,
-  "chain_depth": 2,
-  "root_principal": "did:key:z6MkHuman...",
-  "subject": "did:key:z6MkHuman...",
-  "command": "/mcp/tools/call",
-  "policy_result": "pass"
+  "context": {
+    "root_principal": "did:key:z6MkHuman...",
+    "chain_depth": 2,
+    "leaf_policy": {
+      "max_cost_usd": 0.10,
+      "allowed_tools": ["web_search"]
+    }
+  }
 }
 </code></pre>
-<p><strong>Response — invalid (403):</strong></p>
+<p><strong>Response — invalid chain (200):</strong></p>
+<blockquote>
+<p><code>/verify</code> always returns HTTP 200. Check the <code>valid</code> field to determine the outcome. HTTP 403 is only returned by the MCP/A2A middleware routes, not by <code>/verify</code> directly.</p>
+</blockquote>
 <pre><code class="language-json">{
   "valid": false,
-  "error": "CHAIN_HASH_MISMATCH",
-  "block": "B",
-  "message": "prev_dr_hash mismatch at chain index 1: expected sha256:abc..., got sha256:def..."
+  "error": {
+    "code": "CHAIN_HASH_MISMATCH",
+    "message": "prev_dr_hash mismatch at chain index 1",
+    "suggestion": "Ensure receipts are in root-first order and were not modified after signing"
+  }
 }
 </code></pre>
 <p><strong>Response — malformed input (400):</strong></p>
-<pre><code class="language-json">{
-  "error": "INVALID_INPUT",
-  "message": "bundle_version must be \"4.0\""
-}
+<pre><code class="language-json">{"error": "invalid character 'x' looking for beginning of value"}
 </code></pre>
 <hr />
 <h2 id="post-mcp-middleware"><a class="header" href="#post-mcp-middleware">POST /mcp/* (middleware)</a></h2>
+<blockquote>
+<p><strong>Implementation status:</strong> The MCP and A2A middleware routes are registered but the reverse proxy mode (<code>DRS_UPSTREAM</code>) and bundle-required enforcement (<code>DRS_REQUIRE_BUNDLE</code>) are not implemented in the current release. The endpoint currently accepts requests and returns 200 after verifying the <code>X-DRS-Bundle</code> header. The proxy and enforcement features are roadmap items.</p>
+</blockquote>
 <p>When <code>DRS_UPSTREAM</code> is configured, drs-verify acts as a reverse proxy. All requests to <code>/mcp/*</code> are intercepted, the <code>X-DRS-Bundle</code> header is verified, and the request is proxied upstream if valid.</p>
 <p><strong>Request:</strong> Any MCP request with <code>X-DRS-Bundle</code> header:</p>
 <pre><code>POST /mcp/tools/call
@@ -251,29 +260,42 @@ Content-Type: application/json
 <p>Returns <code>503</code> only if the server cannot handle requests (e.g., during shutdown).</p>
 <hr />
 <h2 id="get-readyz"><a class="header" href="#get-readyz">GET /readyz</a></h2>
-<p>Readiness check. Returns <code>ok</code> when the server is fully initialised and ready to handle verification requests.</p>
+<p>Readiness check. Returns 200 when the server is fully initialised and ready to handle verification requests; 503 when not ready.</p>
 <pre><code>GET /readyz
 </code></pre>
-<p>Response (200):</p>
-<pre><code class="language-json">{
-  "status": "ok",
-  "cache_size": 42,
-  "uptime_seconds": 3600
-}
+<p>Response (200 — ready):</p>
+<pre><code class="language-json">{"status": "ready"}
+</code></pre>
+<p>Response (503 — not ready):</p>
+<pre><code class="language-json">{"status": "not_ready", "reason": "status_list_not_fetched"}
 </code></pre>
 <p>Use <code>/readyz</code> for Kubernetes readiness probes. Use <code>/healthz</code> for liveness probes.</p>
+<blockquote>
+<p><strong>Note:</strong> If <code>STATUS_LIST_BASE_URL</code> is not configured, the status list cache is skipped and <code>/readyz</code> always returns 200 immediately.</p>
+</blockquote>
 <hr />
 <h2 id="post-adminrevoke"><a class="header" href="#post-adminrevoke">POST /admin/revoke</a></h2>
-<p>Revoke a delegation receipt by JTI.</p>
+<p>Mark a delegation receipt as locally revoked by its status list index. Takes effect immediately — does not wait for the remote Bitstring Status List to refresh.</p>
+<p><code>DRS_ADMIN_TOKEN</code> must be set as an environment variable. If not set, the endpoint responds 503.</p>
 <pre><code>POST /admin/revoke
-Authorization: Bearer &lt;admin-token&gt;
+Authorization: Bearer &lt;DRS_ADMIN_TOKEN&gt;
 Content-Type: application/json
 </code></pre>
-<pre><code class="language-json">{"jti": "dr:8f3a2b1c-4d5e-4xxx-8b9c-0d1e2f3a4b5c"}
+<pre><code class="language-json">{"status_list_index": 42}
 </code></pre>
-<p>Response (200):</p>
-<pre><code class="language-json">{"revoked": true, "jti": "dr:8f3a2b1c-..."}
+<p>Body is capped at 1 KiB.</p>
+<p><strong>Response (200):</strong></p>
+<pre><code class="language-json">{"revoked": true, "status_list_index": 42}
 </code></pre>
+<p><strong>Response — admin not configured (503):</strong></p>
+<pre><code class="language-json">{"error": "admin endpoint not configured — set DRS_ADMIN_TOKEN"}
+</code></pre>
+<p><strong>Response — wrong or missing token (401):</strong></p>
+<pre><code class="language-json">{"error": "unauthorized"}
+</code></pre>
+<blockquote>
+<p>The local revocation store is in-memory only. Revocations do not survive process restart. For durable revocation, update the W3C Bitstring Status List at your <code>STATUS_LIST_BASE_URL</code> endpoint.</p>
+</blockquote>
 
                     </main>
 
