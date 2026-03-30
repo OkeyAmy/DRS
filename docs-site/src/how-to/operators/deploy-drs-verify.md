@@ -37,7 +37,7 @@ curl http://localhost:8080/healthz
 
 # Readiness (includes cache state)
 curl http://localhost:8080/readyz
-# {"status":"ok","cache_size":0,"uptime_seconds":12}
+# {"status":"ready"}
 ```
 
 Configure your load balancer or Kubernetes probe to use `/readyz` — it only returns `ok` when the server is fully initialised.

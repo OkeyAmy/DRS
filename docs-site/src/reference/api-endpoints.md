@@ -61,6 +61,8 @@ Body is capped at `MAX_BODY_BYTES` (default 1 MiB).
 
 ## POST /mcp/* (middleware)
 
+> **Implementation status:** The MCP and A2A middleware routes are registered but the reverse proxy mode (`DRS_UPSTREAM`) and bundle-required enforcement (`DRS_REQUIRE_BUNDLE`) are not implemented in the current release. The endpoint currently accepts requests and returns 200 after verifying the `X-DRS-Bundle` header. The proxy and enforcement features are roadmap items.
+
 When `DRS_UPSTREAM` is configured, drs-verify acts as a reverse proxy. All requests to `/mcp/*` are intercepted, the `X-DRS-Bundle` header is verified, and the request is proxied upstream if valid.
 
 **Request:** Any MCP request with `X-DRS-Bundle` header:
