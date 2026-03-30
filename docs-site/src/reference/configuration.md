@@ -6,18 +6,16 @@ All configuration is via environment variables. No hard-coded URLs, ports, or ke
 
 | Variable | Default | Description |
 |---|---|---|
-| `DRS_LISTEN_ADDR` | `:8080` | HTTP listen address (e.g. `0.0.0.0:8080`, `:8443`) |
-| `DRS_CACHE_SIZE` | `10000` | LRU DID resolver cache maximum entries. Hard cap — entries are evicted when full. |
-| `DRS_CACHE_TTL` | `1h` | DID resolver cache entry TTL. Format: `30s`, `5m`, `1h`, `24h`. |
-| `DRS_STATUS_CACHE_TTL` | `5m` | Bitstring Status List cache TTL. Revocations take effect within this window. |
-| `DRS_REQUIRE_BUNDLE` | `false` | When `true`, requests to `/mcp/*` without `X-DRS-Bundle` header return `403`. |
-| `DRS_UPSTREAM` | — | When set, drs-verify acts as a reverse proxy to this URL (sidecar mode). |
-| `DRS_STORAGE_TIER` | `0` | Receipt storage tier: `0`=memory, `1`=filesystem, `2`=S3, `3`=WORM S3, `4`=on-chain. |
-| `DRS_S3_BUCKET` | — | S3 bucket name (required for tier 2–3). |
-| `DRS_S3_REGION` | `us-east-1` | AWS region for S3 bucket. |
-| `DRS_S3_WORM_POLICY` | `false` | Enable S3 Object Lock (WORM) — required for tier 3. |
-| `DRS_RETENTION_DAYS` | `0` | Receipt retention in days. `0` = indefinite. Used for tier 3 WORM policy. |
-| `DRS_ADMIN_TOKEN` | — | Bearer token required for `/admin/*` endpoints. |
+| `LISTEN_ADDR` | `:8080` | HTTP listen address (e.g. `0.0.0.0:8080`, `:443`) |
+| `DID_CACHE_SIZE` | `10000` | LRU DID resolver cache maximum entries. Hard cap — entries are evicted when full (~640 KB at 10 000 entries). |
+| `DID_CACHE_TTL_SECS` | `3600` | DID resolver cache entry TTL in seconds. |
+| `STATUS_LIST_BASE_URL` | — | W3C Bitstring Status List endpoint base URL. Required for remote revocation (Block F). |
+| `STATUS_CACHE_TTL_SECS` | `300` | Bitstring Status List cache TTL in seconds. Revocations take effect within this window. |
+| `MAX_BODY_BYTES` | `1048576` | Maximum request body size in bytes for `/verify` (default 1 MiB). |
+| `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, or `error`. |
+| `DRS_ADMIN_TOKEN` | — | Bearer token required for `POST /admin/revoke`. **If not set, the endpoint responds 503.** No default — set explicitly to enable. |
+| `STORE_DIR` | — | Base directory for the filesystem store. Empty = Tier 0 in-memory (dev/test). Set for Tier 1 or Tier 3. |
+| `TSA_URL` | — | RFC 3161 Timestamp Authority endpoint. If set alongside `STORE_DIR`, enables Tier 3 trusted timestamping. Examples: `https://freetsa.org/tsr` (free), `https://timestamp.digicert.com`. |
 
 ## drs-sdk CLI environment variables
 
@@ -25,9 +23,26 @@ All configuration is via environment variables. No hard-coded URLs, ports, or ke
 |---|---|---|
 | `DRS_VERIFY_URL` | — | drs-verify base URL used by `drs verify` and `VerifyClient`. |
 
-## OperatorConfig fields
+## Example configurations
 
-See [Operator Configuration](../how-to/operators/operator-config.md) for the full OperatorConfig JSON schema and field descriptions.
+```bash
+# Tier 0 — in-memory (development default)
+LISTEN_ADDR=:8080 ./drs-verify
+
+# Tier 1 — filesystem store, 48 h TTL
+LISTEN_ADDR=:8080 \
+  STORE_DIR=/data/drs \
+  STATUS_LIST_BASE_URL=https://status.example.com \
+  ./drs-verify
+
+# Tier 3 — filesystem + RFC 3161 timestamp anchor (regulated deployments)
+LISTEN_ADDR=:8080 \
+  STORE_DIR=/data/drs \
+  TSA_URL=https://freetsa.org/tsr \
+  DRS_ADMIN_TOKEN=your-secret-token \
+  STATUS_LIST_BASE_URL=https://status.example.com \
+  ./drs-verify
+```
 
 ## Docker Compose example
 
@@ -35,22 +50,21 @@ See [Operator Configuration](../how-to/operators/operator-config.md) for the ful
 version: '3.8'
 services:
   drs-verify:
-    image: ghcr.io/yourorg/drs-verify:latest
+    image: ghcr.io/okeyamy/drs-verify:latest
     ports:
       - "8080:8080"
     environment:
-      DRS_LISTEN_ADDR: ":8080"
-      DRS_CACHE_SIZE: "10000"
-      DRS_CACHE_TTL: "1h"
-      DRS_STATUS_CACHE_TTL: "5m"
-      DRS_REQUIRE_BUNDLE: "true"
-      DRS_STORAGE_TIER: "2"
-      DRS_S3_BUCKET: "my-drs-receipts"
-      DRS_S3_REGION: "eu-west-1"
-    secrets:
-      - aws_credentials
+      LISTEN_ADDR: ":8080"
+      DID_CACHE_SIZE: "10000"
+      DID_CACHE_TTL_SECS: "3600"
+      STATUS_LIST_BASE_URL: "https://status.example.com"
+      STATUS_CACHE_TTL_SECS: "300"
+      DRS_ADMIN_TOKEN: "${DRS_ADMIN_TOKEN}"
+      STORE_DIR: "/data"
+      TSA_URL: "https://freetsa.org/tsr"
+    volumes:
+      - drs-data:/data
 
-secrets:
-  aws_credentials:
-    file: ./aws-credentials
+volumes:
+  drs-data:
 ```
