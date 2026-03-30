@@ -1,0 +1,268 @@
+package resolver
+
+import (
+	"encoding/base64"
+	"testing"
+	"time"
+)
+
+// ed25519TestKey is a known 32-byte public key used across tests.
+var ed25519TestKey = [32]byte{
+	0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+	0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+	0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+	0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
+}
+
+// encodeDIDKey mirrors the Rust encode_did_key — used to build test DIDs.
+func encodeDIDKey(pub [32]byte) string {
+	multicodec := append([]byte{multicodecEd25519Hi, multicodecEd25519Lo}, pub[:]...)
+	return didKeyPrefix + base58Encode(multicodec)
+}
+
+// base58Encode encodes bytes using the Bitcoin alphabet.
+func base58Encode(b []byte) string {
+	const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+	n := new([64]byte)
+	_ = n
+
+	// Convert bytes to a large integer, then encode in base58
+	digits := []int{0}
+	for _, by := range b {
+		carry := int(by)
+		for j := len(digits) - 1; j >= 0; j-- {
+			carry += 256 * digits[j]
+			digits[j] = carry % 58
+			carry /= 58
+		}
+		for carry > 0 {
+			digits = append([]int{carry % 58}, digits...)
+			carry /= 58
+		}
+	}
+
+	// Add leading '1' for each leading zero byte
+	result := []byte{}
+	for _, by := range b {
+		if by != 0 {
+			break
+		}
+		result = append(result, '1')
+	}
+	for _, d := range digits {
+		result = append(result, alphabet[d])
+	}
+	return string(result)
+}
+
+// ── did:key resolution ────────────────────────────────────────────────────────
+
+func TestRoundTripEncodeAndResolve(t *testing.T) {
+	did := encodeDIDKey(ed25519TestKey)
+	resolved, err := resolveDidKey(did)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resolved != ed25519TestKey {
+		t.Errorf("round-trip failed: got %x, want %x", resolved, ed25519TestKey)
+	}
+}
+
+func TestUnsupportedDidMethodReturnsError(t *testing.T) {
+	// resolveDidKey only handles did:key — must reject did:web
+	_, err := resolveDidKey("did:web:example.com")
+	if err == nil {
+		t.Fatal("expected error for unsupported DID method, got nil")
+	}
+}
+
+func TestWrongMulticodecPrefixReturnsError(t *testing.T) {
+	// Use sha2-256 multicodec (0x12 0x00) instead of ed25519
+	raw := append([]byte{0x12, 0x00}, make([]byte, 32)...)
+	did := didKeyPrefix + base58Encode(raw)
+	_, err := resolveDidKey(did)
+	if err == nil {
+		t.Fatal("expected error for wrong multicodec prefix, got nil")
+	}
+}
+
+func TestTruncatedKeyReturnsError(t *testing.T) {
+	// Only 5 bytes — far too short
+	raw := []byte{0xed, 0x01, 0x00, 0x01, 0x02}
+	did := didKeyPrefix + base58Encode(raw)
+	_, err := resolveDidKey(did)
+	if err == nil {
+		t.Fatal("expected error for truncated key, got nil")
+	}
+}
+
+// ── LRU cache behaviour ───────────────────────────────────────────────────────
+
+func TestCacheHitReturnsSameKey(t *testing.T) {
+	r, err := New(100, time.Hour)
+	if err != nil {
+		t.Fatalf("failed to create resolver: %v", err)
+	}
+	did := encodeDIDKey(ed25519TestKey)
+
+	k1, err := r.Resolve(did)
+	if err != nil {
+		t.Fatalf("first resolve failed: %v", err)
+	}
+	k2, err := r.Resolve(did)
+	if err != nil {
+		t.Fatalf("second resolve (cache hit) failed: %v", err)
+	}
+	if k1 != k2 {
+		t.Error("cache hit returned different key than initial resolution")
+	}
+}
+
+func TestExpiredCacheEntryIsEvicted(t *testing.T) {
+	// TTL of 1 nanosecond — entry is always expired
+	r, err := New(100, time.Nanosecond)
+	if err != nil {
+		t.Fatalf("failed to create resolver: %v", err)
+	}
+	did := encodeDIDKey(ed25519TestKey)
+
+	// First call populates cache
+	_, err = r.Resolve(did)
+	if err != nil {
+		t.Fatalf("first resolve failed: %v", err)
+	}
+	time.Sleep(time.Millisecond) // ensure TTL expires
+
+	// Second call must re-resolve without error
+	_, err = r.Resolve(did)
+	if err != nil {
+		t.Fatalf("resolve after TTL expiry failed: %v", err)
+	}
+}
+
+// ── did:web URL construction ──────────────────────────────────────────────────
+
+func TestDidWebDocumentURL_RootDomain(t *testing.T) {
+	got, err := didWebDocumentURL("did:web:example.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "https://example.com/.well-known/did.json"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestDidWebDocumentURL_WithPath(t *testing.T) {
+	got, err := didWebDocumentURL("did:web:example.com:users:alice")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "https://example.com/users/alice/did.json"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestDidWebDocumentURL_PercentEncodedPort(t *testing.T) {
+	// did:web spec: port is encoded as a percent-escaped colon in the domain segment
+	got, err := didWebDocumentURL("did:web:example.com%3A8443")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "https://example.com:8443/.well-known/did.json"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestDidWebDocumentURL_MissingDomainReturnsError(t *testing.T) {
+	_, err := didWebDocumentURL("did:web:")
+	if err == nil {
+		t.Fatal("expected error for missing domain, got nil")
+	}
+}
+
+// ── did:web DID document parsing ─────────────────────────────────────────────
+
+func TestExtractEd25519_PublicKeyMultibase(t *testing.T) {
+	// Build a DID document with Ed25519VerificationKey2020 + publicKeyMultibase
+	multicodec := append([]byte{multicodecEd25519Hi, multicodecEd25519Lo}, ed25519TestKey[:]...)
+	encoded := "z" + base58Encode(multicodec)
+
+	doc := []byte(`{
+		"verificationMethod": [{
+			"type": "Ed25519VerificationKey2020",
+			"publicKeyMultibase": "` + encoded + `"
+		}]
+	}`)
+
+	got, err := extractEd25519FromDIDDocument(doc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != ed25519TestKey {
+		t.Errorf("got %x, want %x", got, ed25519TestKey)
+	}
+}
+
+func TestExtractEd25519_PublicKeyJwk(t *testing.T) {
+	// Build a DID document with JsonWebKey2020 + publicKeyJwk (OKP/Ed25519)
+	xEncoded := base64.RawURLEncoding.EncodeToString(ed25519TestKey[:])
+	doc := []byte(`{
+		"verificationMethod": [{
+			"type": "JsonWebKey2020",
+			"publicKeyJwk": {
+				"kty": "OKP",
+				"crv": "Ed25519",
+				"x": "` + xEncoded + `"
+			}
+		}]
+	}`)
+
+	got, err := extractEd25519FromDIDDocument(doc)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != ed25519TestKey {
+		t.Errorf("got %x, want %x", got, ed25519TestKey)
+	}
+}
+
+func TestExtractEd25519_NoMatchingMethodReturnsError(t *testing.T) {
+	doc := []byte(`{"verificationMethod": []}`)
+	_, err := extractEd25519FromDIDDocument(doc)
+	if err == nil {
+		t.Fatal("expected error when no Ed25519 method found, got nil")
+	}
+}
+
+func TestExtractEd25519_WrongMulticodecInMultibaseReturnsError(t *testing.T) {
+	// publicKeyMultibase with wrong multicodec prefix (sha2-256 instead of ed25519)
+	wrongPrefix := append([]byte{0x12, 0x00}, make([]byte, 32)...)
+	encoded := "z" + base58Encode(wrongPrefix)
+	doc := []byte(`{
+		"verificationMethod": [{
+			"type": "Ed25519VerificationKey2020",
+			"publicKeyMultibase": "` + encoded + `"
+		}]
+	}`)
+	_, err := extractEd25519FromDIDDocument(doc)
+	if err == nil {
+		t.Fatal("expected error for wrong multicodec prefix in publicKeyMultibase, got nil")
+	}
+}
+
+// TestResolveDispatch_UnsupportedMethodReturnsError confirms that Resolve
+// rejects DID methods other than did:key and did:web.
+func TestResolveDispatch_UnsupportedMethodReturnsError(t *testing.T) {
+	r, err := New(10, time.Hour)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	_, err = r.Resolve("did:ethr:0xABCD")
+	if err == nil {
+		t.Fatal("expected error for unsupported DID method, got nil")
+	}
+}

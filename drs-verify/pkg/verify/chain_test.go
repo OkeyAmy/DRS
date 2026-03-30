@@ -1,0 +1,308 @@
+package verify
+
+import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/drs-protocol/drs-verify/pkg/resolver"
+	"github.com/drs-protocol/drs-verify/pkg/types"
+)
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+// testDeps creates a Deps with a real resolver and no revocation check.
+func testDeps(t *testing.T) Deps {
+	t.Helper()
+	res, err := resolver.New(100, time.Hour)
+	if err != nil {
+		t.Fatalf("resolver.New: %v", err)
+	}
+	return Deps{Resolver: res}
+}
+
+type testKey struct {
+	pub ed25519.PublicKey
+	prv ed25519.PrivateKey
+	did string
+}
+
+func newTestKey(t *testing.T) testKey {
+	t.Helper()
+	pub, prv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("ed25519.GenerateKey: %v", err)
+	}
+	// Encode as did:key
+	multicodec := append([]byte{0xed, 0x01}, pub...)
+	did := "did:key:z" + base58Encode(multicodec)
+	return testKey{pub: pub, prv: prv, did: did}
+}
+
+// base58Encode is copied from did_test.go to keep the test self-contained.
+func base58Encode(b []byte) string {
+	const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+	digits := []int{0}
+	for _, by := range b {
+		carry := int(by)
+		for j := len(digits) - 1; j >= 0; j-- {
+			carry += 256 * digits[j]
+			digits[j] = carry % 58
+			carry /= 58
+		}
+		for carry > 0 {
+			digits = append([]int{carry % 58}, digits...)
+			carry /= 58
+		}
+	}
+	result := []byte{}
+	for _, by := range b {
+		if by != 0 {
+			break
+		}
+		result = append(result, '1')
+	}
+	for _, d := range digits {
+		result = append(result, alphabet[d])
+	}
+	return string(result)
+}
+
+func signJWT(prv ed25519.PrivateKey, payload interface{}) string {
+	headerJSON, _ := json.Marshal(map[string]string{"alg": "EdDSA", "typ": "JWT"})
+	payloadJSON, _ := json.Marshal(payload)
+	h := base64.RawURLEncoding.EncodeToString(headerJSON)
+	p := base64.RawURLEncoding.EncodeToString(payloadJSON)
+	input := h + "." + p
+	sig := ed25519.Sign(prv, []byte(input))
+	return input + "." + base64.RawURLEncoding.EncodeToString(sig)
+}
+
+func int64Ptr(v int64) *int64 { return &v }
+
+func makeReceipt(iss, sub, aud string, now int64, prevHash *string, key testKey) (types.DelegationReceipt, string) {
+	exp := now + 3600
+	dr := types.DelegationReceipt{
+		Iss:        iss,
+		Sub:        sub,
+		Aud:        aud,
+		DrsV:       "4.0",
+		DrsType:    "delegation-receipt",
+		Cmd:        "/mcp/tools/call",
+		Policy:     types.Policy{},
+		Nbf:        now - 60,
+		Exp:        &exp,
+		Iat:        now,
+		Jti:        fmt.Sprintf("dr:%s-%d", iss, now),
+		PrevDRHash: prevHash,
+	}
+	jwt := signJWT(key.prv, dr)
+	return dr, jwt
+}
+
+func makeInvocation(iss, sub string, drChain []string, now int64, key testKey) string {
+	inv := types.InvocationReceipt{
+		Iss:        iss,
+		Sub:        sub,
+		DrsV:       "4.0",
+		DrsType:    "invocation-receipt",
+		Cmd:        "/mcp/tools/call",
+		Args:       map[string]interface{}{},
+		DrChain:    drChain,
+		ToolServer: "mcp://tools/server",
+		Iat:        now,
+		Jti:        fmt.Sprintf("inv:%s-%d", iss, now),
+	}
+	return signJWT(key.prv, inv)
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+func TestEmptyReceiptsReturnsError(t *testing.T) {
+	result := Chain(types.ChainBundle{BundleVersion: "4.0", Receipts: nil, Invocation: "x"}, testDeps(t))
+	if result.Valid {
+		t.Error("expected invalid, got valid")
+	}
+	if result.Error.Code != "EMPTY_CHAIN" {
+		t.Errorf("expected EMPTY_CHAIN, got %q", result.Error.Code)
+	}
+}
+
+func TestMissingInvocationReturnsError(t *testing.T) {
+	result := Chain(types.ChainBundle{BundleVersion: "4.0", Receipts: []string{"x"}, Invocation: ""}, testDeps(t))
+	if result.Valid {
+		t.Error("expected invalid, got valid")
+	}
+	if result.Error.Code != "MISSING_INVOCATION" {
+		t.Errorf("expected MISSING_INVOCATION, got %q", result.Error.Code)
+	}
+}
+
+func TestValidSingleReceiptChainPasses(t *testing.T) {
+	k0 := newTestKey(t)
+	k1 := newTestKey(t)
+	now := time.Now().Unix()
+
+	_, jwt0 := makeReceipt(k0.did, k0.did, k1.did, now, nil, k0)
+	hash0 := computeChainHash(jwt0)
+	invJWT := makeInvocation(k1.did, k0.did, []string{hash0}, now, k1)
+
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Receipts:      []string{jwt0},
+		Invocation:    invJWT,
+	}
+
+	result := Chain(bundle, testDeps(t))
+	if !result.Valid {
+		t.Errorf("expected valid, got error: %+v", result.Error)
+	}
+	if result.Context.ChainDepth != 1 {
+		t.Errorf("expected chain depth 1, got %d", result.Context.ChainDepth)
+	}
+}
+
+func TestValidTwoReceiptChainPasses(t *testing.T) {
+	k0 := newTestKey(t)
+	k1 := newTestKey(t)
+	k2 := newTestKey(t)
+	now := time.Now().Unix()
+
+	_, jwt0 := makeReceipt(k0.did, k0.did, k1.did, now, nil, k0)
+	hash0 := computeChainHash(jwt0)
+	prevHash := hash0
+	_, jwt1 := makeReceipt(k1.did, k0.did, k2.did, now, &prevHash, k1)
+	hash1 := computeChainHash(jwt1)
+	invJWT := makeInvocation(k2.did, k0.did, []string{hash0, hash1}, now, k2)
+
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Receipts:      []string{jwt0, jwt1},
+		Invocation:    invJWT,
+	}
+
+	result := Chain(bundle, testDeps(t))
+	if !result.Valid {
+		t.Errorf("expected valid, got error: %+v", result.Error)
+	}
+	if result.Context.ChainDepth != 2 {
+		t.Errorf("expected chain depth 2, got %d", result.Context.ChainDepth)
+	}
+}
+
+func TestForgedSignatureIsRejected(t *testing.T) {
+	k0 := newTestKey(t)
+	k1 := newTestKey(t)
+	attacker := newTestKey(t)
+	now := time.Now().Unix()
+
+	// Sign the receipt with the attacker's key, but use k0's DID as issuer
+	exp := now + 3600
+	dr := types.DelegationReceipt{
+		Iss: k0.did, Sub: k0.did, Aud: k1.did,
+		DrsV: "4.0", DrsType: "delegation-receipt",
+		Cmd: "/mcp/tools/call", Policy: types.Policy{},
+		Nbf: now - 60, Exp: &exp, Iat: now, Jti: "dr:forged",
+	}
+	forgedJWT := signJWT(attacker.prv, dr) // wrong key
+	hash0 := computeChainHash(forgedJWT)
+	invJWT := makeInvocation(k1.did, k0.did, []string{hash0}, now, k1)
+
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Receipts:      []string{forgedJWT},
+		Invocation:    invJWT,
+	}
+
+	result := Chain(bundle, testDeps(t))
+	if result.Valid {
+		t.Error("expected invalid for forged signature, got valid")
+	}
+	if result.Error.Code != "INVALID_SIGNATURE" {
+		t.Errorf("expected INVALID_SIGNATURE, got %q", result.Error.Code)
+	}
+}
+
+func TestExpiredReceiptIsRejected(t *testing.T) {
+	k0 := newTestKey(t)
+	k1 := newTestKey(t)
+	past := time.Now().Unix() - 7200 // 2 hours ago
+
+	pastExp := past
+	dr := types.DelegationReceipt{
+		Iss: k0.did, Sub: k0.did, Aud: k1.did,
+		DrsV: "4.0", DrsType: "delegation-receipt",
+		Cmd: "/mcp/tools/call", Policy: types.Policy{},
+		Nbf: past - 3600, Exp: &pastExp, // expired 2 hours ago
+		Iat: past - 3600, Jti: "dr:expired",
+	}
+	jwt0 := signJWT(k0.prv, dr)
+	hash0 := computeChainHash(jwt0)
+	now := time.Now().Unix()
+	invJWT := makeInvocation(k1.did, k0.did, []string{hash0}, now, k1)
+
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Receipts:      []string{jwt0},
+		Invocation:    invJWT,
+	}
+
+	result := Chain(bundle, testDeps(t))
+	if result.Valid {
+		t.Error("expected invalid for expired receipt, got valid")
+	}
+	if result.Error.Code != "EXPIRED" {
+		t.Errorf("expected EXPIRED, got %q", result.Error.Code)
+	}
+}
+
+func TestChainBreakIsRejected(t *testing.T) {
+	k0 := newTestKey(t)
+	k1 := newTestKey(t)
+	k2 := newTestKey(t)
+	now := time.Now().Unix()
+
+	_, jwt0 := makeReceipt(k0.did, k0.did, k1.did, now, nil, k0)
+	// Deliberately use a wrong prev_dr_hash
+	wrongHash := "sha256:000000000000000000000000000000000000000000000000000000000000dead"
+	_, jwt1 := makeReceipt(k1.did, k0.did, k2.did, now, &wrongHash, k1)
+	hash0 := computeChainHash(jwt0)
+	hash1 := computeChainHash(jwt1)
+	invJWT := makeInvocation(k2.did, k0.did, []string{hash0, hash1}, now, k2)
+
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Receipts:      []string{jwt0, jwt1},
+		Invocation:    invJWT,
+	}
+
+	result := Chain(bundle, testDeps(t))
+	if result.Valid {
+		t.Error("expected invalid for chain break, got valid")
+	}
+	if result.Error.Code != "CHAIN_BREAK" {
+		t.Errorf("expected CHAIN_BREAK, got %q", result.Error.Code)
+	}
+}
+
+func TestCmdIsSubpath(t *testing.T) {
+	if !cmdIsSubpath("/mcp/tools/call", "/mcp/tools/call") {
+		t.Error("exact match should pass")
+	}
+	if !cmdIsSubpath("/mcp/tools/call", "/mcp/tools/call/web_search") {
+		t.Error("sub-path should pass")
+	}
+	if cmdIsSubpath("/mcp/tools/call", "/mcp/tools/caller") {
+		t.Error("prefix-without-slash must not pass")
+	}
+	if cmdIsSubpath("/mcp/tools/call", "/mcp/resources/read") {
+		t.Error("different root must not pass")
+	}
+}
+
+// int64Ptr is used in other test files; kept here to avoid re-declaration.
+var _ = int64Ptr

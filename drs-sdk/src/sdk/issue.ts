@@ -1,0 +1,270 @@
+/**
+ * Issuance functions for DRS 4.0 delegation receipts.
+ *
+ * Security properties:
+ * - All Ed25519 operations use @noble/ed25519 (audited, no WebCrypto dependency)
+ * - Policy attenuation is checked at issuance to prevent invalid sub-delegations
+ *   from being created and rejected later at verification time
+ * - Signing keys are never logged or stored by this module
+ */
+
+import * as ed from "@noble/ed25519";
+import { sha256 } from "@noble/hashes/sha256";
+import { sha512 } from "@noble/hashes/sha512";
+import { base64url, base64urlBytes } from "./base64url.js";
+import { checkPolicyAttenuation } from "./policy.js";
+import type {
+  ChainBundle,
+  ConsentRecord,
+  DelegationReceiptPayload,
+  InvocationReceiptPayload,
+  Policy,
+  RegulatoryMetadata,
+} from "./types.js";
+import { DrsError } from "./types.js";
+
+// @noble/ed25519 v2 requires SHA-512 to be set explicitly
+ed.etc.sha512Sync = (...msgs) => sha512(ed.etc.concatBytes(...msgs));
+
+/** Parameters for issuing the root delegation receipt. */
+export interface RootDelegationParams {
+  /** The delegator's private key (raw 32 bytes). */
+  signingKey: Uint8Array;
+  /** The delegator's DID (did:key). */
+  issuerDid: string;
+  /** The original resource owner's DID. */
+  subjectDid: string;
+  /** The immediate recipient's DID. */
+  audienceDid: string;
+  /** The command being delegated (e.g. "/mcp/tools/call"). */
+  cmd: string;
+  /** Capability constraints. */
+  policy: Policy;
+  /** Unix timestamp: not-before. */
+  nbf: number;
+  /** Unix timestamp: expiry. Null for machine-rooted standing delegations that auto-renew. */
+  exp: number | null;
+  /** Human consent record (required when rootType is "human"). */
+  consent?: ConsentRecord;
+  /** Root trust type. Default: "automated-system". */
+  rootType?: "human" | "organisation" | "automated-system";
+  /** Optional compliance metadata. */
+  regulatory?: RegulatoryMetadata;
+}
+
+/** Parameters for issuing a sub-delegation receipt. */
+export interface SubDelegationParams {
+  /** The sub-delegator's private key. */
+  signingKey: Uint8Array;
+  /** The sub-delegator's DID. */
+  issuerDid: string;
+  /** The original resource owner's DID (must match parent). */
+  subjectDid: string;
+  /** The new audience's DID. */
+  audienceDid: string;
+  /** The command being sub-delegated. */
+  cmd: string;
+  /** Capability constraints — must not escalate beyond parent policy. */
+  policy: Policy;
+  /** Unix timestamp: not-before. */
+  nbf: number;
+  /** Unix timestamp: expiry. Null for standing delegations. */
+  exp: number | null;
+  /** The parent delegation receipt JWT (used to compute prev_dr_hash). */
+  parentJwt: string;
+  /** The parent's policy (checked for attenuation before signing). */
+  parentPolicy: Policy;
+  /** The parent's nbf — child nbf must be >= parentNbf. */
+  parentNbf: number;
+  /** The parent's exp — child exp must be <= parentExp when both are set. */
+  parentExp: number | null;
+}
+
+export interface InvocationParams {
+  signingKey: Uint8Array;
+  issuerDid: string;
+  subjectDid: string;
+  cmd: string;
+  args: Record<string, unknown>;
+  drChain: string[];
+  toolServer: string;
+}
+
+/**
+ * Issues the root delegation receipt (chain index 0).
+ * If rootType is "human", consent is required.
+ */
+export async function issueRootDelegation(params: RootDelegationParams): Promise<string> {
+  const rootType = params.rootType ?? "automated-system";
+  if (rootType === "human" && !params.consent) {
+    throw new DrsError(
+      "MISSING_CONSENT",
+      "Human-rooted delegations require a consent record.",
+    );
+  }
+
+  const now = unixNow();
+  const payload: DelegationReceiptPayload = {
+    iss: params.issuerDid,
+    sub: params.subjectDid,
+    aud: params.audienceDid,
+    drs_v: "4.0",
+    drs_type: "delegation-receipt",
+    cmd: params.cmd,
+    policy: params.policy,
+    nbf: params.nbf,
+    exp: params.exp,
+    iat: now,
+    jti: generateDrJti(),
+    drs_root_type: rootType,
+    ...(params.consent !== undefined ? { drs_consent: params.consent } : {}),
+    ...(params.regulatory !== undefined ? { drs_regulatory: params.regulatory } : {}),
+  };
+
+  return buildJwt(payload, params.signingKey);
+}
+
+/**
+ * Issues a sub-delegation receipt (chain index ≥ 1).
+ * Throws DrsError with code POLICY_ESCALATION if child policy exceeds parent.
+ */
+export async function issueSubDelegation(params: SubDelegationParams): Promise<string> {
+  const attenuationError = checkPolicyAttenuation(params.parentPolicy, params.policy);
+  if (attenuationError !== null) {
+    throw new DrsError("POLICY_ESCALATION", attenuationError);
+  }
+
+  // Temporal bounds: child nbf must be >= parent nbf
+  if (params.nbf < params.parentNbf) {
+    throw new DrsError(
+      "TEMPORAL_BOUNDS_VIOLATION",
+      `Sub-delegation nbf (${params.nbf}) must be >= parent nbf (${params.parentNbf}).`,
+    );
+  }
+  // Temporal bounds: child exp must be <= parent exp when both are set
+  if (params.exp !== null && params.parentExp !== null && params.exp > params.parentExp) {
+    throw new DrsError(
+      "TEMPORAL_BOUNDS_VIOLATION",
+      `Sub-delegation exp (${params.exp}) must be <= parent exp (${params.parentExp}).`,
+    );
+  }
+
+  const prevDrHash = computeChainHash(params.parentJwt);
+  const now = unixNow();
+
+  const payload: DelegationReceiptPayload = {
+    iss: params.issuerDid,
+    sub: params.subjectDid,
+    aud: params.audienceDid,
+    drs_v: "4.0",
+    drs_type: "delegation-receipt",
+    cmd: params.cmd,
+    policy: params.policy,
+    nbf: params.nbf,
+    exp: params.exp,
+    iat: now,
+    jti: generateDrJti(),
+    prev_dr_hash: prevDrHash,
+  };
+
+  return buildJwt(payload, params.signingKey);
+}
+
+/** Issues an invocation receipt tying together the chain and the actual tool call. */
+export async function issueInvocation(params: InvocationParams): Promise<string> {
+  const now = unixNow();
+  const payload: InvocationReceiptPayload = {
+    iss: params.issuerDid,
+    sub: params.subjectDid,
+    drs_v: "4.0",
+    drs_type: "invocation-receipt",
+    cmd: params.cmd,
+    args: params.args,
+    dr_chain: params.drChain,
+    tool_server: params.toolServer,
+    iat: now,
+    jti: generateInvJti(),
+  };
+
+  return buildJwt(payload, params.signingKey);
+}
+
+/** Builds a signed JWT with EdDSA (Ed25519) per RFC 7515.
+ *
+ * Both the header and the payload are serialised with RFC 8785 JCS
+ * (jcsSerialise) so that two logically equivalent objects always produce
+ * identical JWTs — matching the Rust encoder's jcs_canonical_bytes behaviour.
+ */
+export async function buildJwt(payload: unknown, signingKey: Uint8Array): Promise<string> {
+  const header = { alg: "EdDSA", typ: "JWT" };
+  const headerB64 = base64url(jcsSerialise(header));
+  const payloadB64 = base64url(jcsSerialise(payload));
+  const signingInput = `${headerB64}.${payloadB64}`;
+
+  const sig = await ed.signAsync(new TextEncoder().encode(signingInput), signingKey);
+  return `${signingInput}.${base64urlBytes(sig)}`;
+}
+
+/**
+ * Serialises `value` to canonical JSON per RFC 8785 (JSON Canonicalization Scheme).
+ *
+ * Guarantees:
+ * - Object keys sorted by Unicode code point at every nesting level
+ * - No whitespace
+ * - Number formatting per IEEE 754 shortest representation (same as V8 JSON.stringify)
+ * - Standard JSON string escaping
+ *
+ * This matches the Rust drs-core jcs_canonical_bytes() output. Never use
+ * JSON.stringify for signed content — it does not sort nested object keys.
+ */
+function jcsSerialise(value: unknown): string {
+  if (value === null || value === undefined) return "null";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number") {
+    if (!isFinite(value)) throw new Error("jcsSerialise: non-finite number is not valid JSON");
+    return JSON.stringify(value); // V8 JSON.stringify produces RFC 8785-compliant number representations
+  }
+  if (typeof value === "string") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map(jcsSerialise).join(",")}]`;
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const sortedKeys = Object.keys(obj).sort();
+    const entries = sortedKeys.map((k) => `${JSON.stringify(k)}:${jcsSerialise(obj[k])}`);
+    return `{${entries.join(",")}}`;
+  }
+  return "null";
+}
+
+/** Computes SHA-256 of a JWT string and returns "sha256:{hex}". */
+export function computeChainHash(jwt: string): string {
+  const bytes = new TextEncoder().encode(jwt);
+  const digest = sha256(bytes);
+  const hex = Array.from(digest)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `sha256:${hex}`;
+}
+
+/** Derives the Ed25519 public key from a raw 32-byte private key. */
+export function derivePublicKey(signingKey: Uint8Array): Uint8Array {
+  return ed.getPublicKey(signingKey);
+}
+
+function unixNow(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+/** JTI for delegation receipts — "dr:" + UUID v4 per DRS 4.0 §5. */
+function generateDrJti(): string {
+  return `dr:${globalThis.crypto.randomUUID()}`;
+}
+
+/** JTI for invocation receipts — "inv:" + UUID v4 per DRS 4.0 §5. */
+function generateInvJti(): string {
+  return `inv:${globalThis.crypto.randomUUID()}`;
+}
+
+// Re-export ChainBundle type so bundle.ts can use it without creating a circular dep
+export type { ChainBundle };
