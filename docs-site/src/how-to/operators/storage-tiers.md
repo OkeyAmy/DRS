@@ -9,7 +9,7 @@ DRS defines four storage tiers for delegation receipts, ordered by durability an
 | 0 | In-memory | LRU cache (process lifetime) | *(none — default)* | Development, testing |
 | 1 | Filesystem | Local disk | `STORE_DIR` | Standard production |
 | 3 | WORM + RFC 3161 | Filesystem + trusted timestamp | `STORE_DIR` + `TSA_URL` | Regulated deployments (HIPAA, EU AI Act, financial) |
-| 4 | Blockchain | Tier 3 + on-chain anchor | *(not yet implemented)* | Blockchain-native enterprise opt-in |
+| 4 | Blockchain | Tier 3 + on-chain anchor (not yet implemented) | *(not yet implemented)* | Blockchain-native enterprise opt-in |
 
 > **Note on Tier 2:** There is no Tier 2 in the current implementation. S3 or other object storage backends are a roadmap item.
 
@@ -19,9 +19,9 @@ DRS defines four storage tiers for delegation receipts, ordered by durability an
 
 **Tier 1 (Filesystem):** Set `STORE_DIR` to a directory path. Receipts are written as files and survive process restart. No compliance controls — suitable for production deployments where regulatory requirements do not mandate timestamping.
 
-**Tier 3 (WORM + RFC 3161):** Set both `STORE_DIR` and `TSA_URL`. Every stored receipt is timestamped by an RFC 3161 Trusted Signing Authority (TSA). The TSA signs `SHA-256(DR bytes)` with the current time and returns a DER timestamp token. This token is stored alongside the DR.
+**Tier 3 (WORM + RFC 3161):** Set both `STORE_DIR` and `TSA_URL`. Every stored receipt is timestamped by an RFC 3161 Trusted Signing Authority (TSA). The TSA signs a SHA-256 hash of the stored JWT string with the current time and returns a DER timestamp token. This token is stored alongside the DR.
 
-RFC 3161 is an IETF standard from 2001. Timestamp tokens are legally recognised under EU eIDAS and in US federal courts. TSA failure is best-effort — if the TSA is unreachable, the receipt is still stored (Tier 1 semantics) and the error is logged. Storage is never blocked by TSA availability.
+RFC 3161 (IETF 2001, updated by RFC 5816 in 2010 to add SHA-2 support) is the standard used here. Timestamp tokens are legally recognised under EU eIDAS and in US federal courts. TSA failure is best-effort — if the TSA is unreachable, the receipt is still stored (Tier 1 semantics) and the error is logged. Storage is never blocked by TSA availability.
 
 **Tier 4 (Blockchain):** Not implemented. When built, this will be an explicit opt-in for customers who require on-chain proof and understand the gas cost implications. The default anchor mechanism is RFC 3161 (Tier 3), not blockchain.
 
@@ -43,13 +43,15 @@ LISTEN_ADDR=:8080 \
   ./drs-verify
 ```
 
+> For a complete list of environment variables including `STATUS_LIST_BASE_URL` (required for remote revocation) and `DRS_ADMIN_TOKEN` (required for `POST /admin/revoke`), see the [Configuration Reference](../../reference/configuration.md).
+
 ## TSA providers
 
 | Provider | URL | Cost | Notes |
 |---|---|---|---|
 | FreeTSA | `https://freetsa.org/tsr` | Free | Non-commercial use; rate-limited |
 | DigiCert | `https://timestamp.digicert.com` | Free (DigiCert customers) | Production-grade |
-| GlobalSign | `http://timestamp.globalsign.com/tsa/r6advanced1` | Commercial | AATL/WebTrust certified |
+| GlobalSign | `http://timestamp.globalsign.com/tsa/r6advanced1` | Commercial | AATL/WebTrust certified. HTTP is correct for TSA — the response is self-verifying (signed by the TSA certificate chain). |
 
 ## Why not blockchain by default?
 
@@ -58,7 +60,7 @@ The core DRS guarantees (tamper-evident receipts, Ed25519 signatures, hash-chain
 | Property | RFC 3161 | Blockchain |
 |---|---|---|
 | User pays gas fees | No | Yes |
-| Latency | ~200 ms | 400 ms–12 s |
+| Latency | ~200 ms (typical) | 400 ms–12 s (typical) |
 | Legal recognition | EU eIDAS, US federal courts, ISO 18014 | Unclear / jurisdiction-dependent |
 | Requires wallet / token | No | Yes |
 | Battle-tested | 20+ years | 4 months–10 years depending on chain |
