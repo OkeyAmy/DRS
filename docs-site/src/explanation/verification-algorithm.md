@@ -77,14 +77,14 @@ Sub-DR attenuation check:
 
 **What:** No receipt has been revoked via either the remote Bitstring Status List or the local revocation store.
 
-For each receipt with a `drs_status_list_index`:
+For each **delegation receipt** with a `drs_status_list_index` (the invocation receipt is not checked for revocation):
 
 1. **Remote check** — Fetch the W3C Bitstring Status List from `STATUS_LIST_BASE_URL` (configurable TTL cache, default 5 minutes, with `sync.Once` concurrency guard). Bit `1` = revoked.
 2. **Local check** — Query the in-memory local revocation store. Entries are added immediately via `POST /admin/revoke`. This store does not survive process restart.
 
 Both checks run for every receipt. Either alone is sufficient to fail verification.
 
-**Fail condition:** Any receipt's `drs_status_list_index` is marked as revoked in either source.
+**Fail condition:** Any receipt's `drs_status_list_index` is marked as revoked in either source, **or** the remote status list check returns an error (fail-closed — an unavailable status list blocks verification).
 
 > The `sync.Once` guard prevents double-fetch race conditions: when the remote cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result.
 
