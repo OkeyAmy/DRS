@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/drs-protocol/drs-verify/pkg/resolver"
+	"github.com/drs-protocol/drs-verify/pkg/revocation"
 	"github.com/drs-protocol/drs-verify/pkg/types"
 )
 
@@ -301,6 +302,63 @@ func TestCmdIsSubpath(t *testing.T) {
 	}
 	if cmdIsSubpath("/mcp/tools/call", "/mcp/resources/read") {
 		t.Error("different root must not pass")
+	}
+}
+
+// TestLocalRevocationBlocksChain verifies that a delegation receipt whose
+// DrsStatusListIndex has been revoked in a LocalRevocationStore causes
+// Chain to return Valid==false with code REVOKED.
+func TestLocalRevocationBlocksChain(t *testing.T) {
+	k0 := newTestKey(t)
+	k1 := newTestKey(t)
+	now := time.Now().Unix()
+
+	const revokedIndex = uint64(77)
+
+	exp := now + 3600
+	dr0 := types.DelegationReceipt{
+		Iss:                k0.did,
+		Sub:                k0.did,
+		Aud:                k1.did,
+		DrsV:               "4.0",
+		DrsType:            "delegation-receipt",
+		Cmd:                "/mcp/tools/call",
+		Policy:             types.Policy{},
+		Nbf:                now - 60,
+		Exp:                &exp,
+		Iat:                now,
+		Jti:                fmt.Sprintf("dr:%s-%d", k0.did, now),
+		DrsStatusListIndex: func() *uint64 { v := revokedIndex; return &v }(),
+	}
+	jwt0 := signJWT(k0.prv, dr0)
+	hash0 := computeChainHash(jwt0)
+	invJWT := makeInvocation(k1.did, k0.did, []string{hash0}, now, k1)
+
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Receipts:      []string{jwt0},
+		Invocation:    invJWT,
+	}
+
+	localRev := revocation.NewLocalRevocationStore()
+	localRev.Revoke(revokedIndex)
+
+	res, err := resolver.New(100, time.Hour)
+	if err != nil {
+		t.Fatalf("resolver.New: %v", err)
+	}
+	deps := Deps{
+		Resolver:        res,
+		LocalRevocation: localRev,
+	}
+
+	result := Chain(bundle, deps)
+
+	if result.Valid {
+		t.Fatal("expected invalid result for revoked receipt, got valid")
+	}
+	if result.Error.Code != "REVOKED" {
+		t.Errorf("expected error code REVOKED, got %q", result.Error.Code)
 	}
 }
 

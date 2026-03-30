@@ -22,6 +22,7 @@ import (
 	"github.com/drs-protocol/drs-verify/pkg/policy"
 	"github.com/drs-protocol/drs-verify/pkg/resolver"
 	"github.com/drs-protocol/drs-verify/pkg/revocation"
+	"github.com/drs-protocol/drs-verify/pkg/store"
 	"github.com/drs-protocol/drs-verify/pkg/types"
 )
 
@@ -31,10 +32,12 @@ const (
 	expectedInvType    = "invocation-receipt"
 )
 
-// Deps bundles the I/O dependencies needed for Block C and Block F.
+// Deps bundles the I/O dependencies needed for Block C, Block F, and DR storage.
 type Deps struct {
-	Resolver  *resolver.Resolver
-	Revocation *revocation.StatusCache
+	Resolver        *resolver.Resolver
+	Revocation      *revocation.StatusCache
+	LocalRevocation *revocation.LocalRevocationStore
+	Store           store.Store
 }
 
 // Chain verifies a DRS chain bundle through all six blocks.
@@ -275,6 +278,9 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 
 	// ── Block F: Revocation ──────────────────────────────────────────────────
 
+	// Revocation is only checked on delegation receipts.
+	// Invocation receipts do not carry a DrsStatusListIndex per DRS spec.
+
 	if deps.Revocation != nil {
 		for i, r := range receipts {
 			if r.DrsStatusListIndex != nil {
@@ -289,6 +295,16 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 						fmt.Sprintf("receipt[%d] has been revoked (status list index %d).", i, *r.DrsStatusListIndex),
 						"The delegation has been revoked — request a new delegation from the issuer.")
 				}
+			}
+		}
+	}
+
+	if deps.LocalRevocation != nil {
+		for i, r := range receipts {
+			if r.DrsStatusListIndex != nil && deps.LocalRevocation.IsRevoked(*r.DrsStatusListIndex) {
+				return types.Invalid("REVOKED",
+					fmt.Sprintf("receipt[%d] has been locally revoked (status list index %d).", i, *r.DrsStatusListIndex),
+					"The delegation has been revoked — request a new delegation from the issuer.")
 			}
 		}
 	}

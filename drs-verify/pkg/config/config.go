@@ -26,8 +26,28 @@ type Config struct {
 	// Bitstring Status List endpoint base URL
 	StatusListBaseURL string
 
+	// Maximum request body size in bytes for the /verify endpoint (default 1 MiB)
+	MaxBodyBytes int64
+
 	// LOG_LEVEL: "debug" | "info" | "warn" | "error"
 	LogLevel string
+
+	// Bearer token required to call POST /admin/revoke.
+	// Empty means the admin endpoint is disabled (responds 503).
+	// Set via DRS_ADMIN_TOKEN — no default.
+	AdminToken string
+
+	// TSAURL is the RFC 3161 Timestamp Authority endpoint URL.
+	// If empty, Tier 3 timestamping is disabled.
+	// Example values:
+	//   FreeTSA (free):   https://freetsa.org/tsr
+	//   DigiCert:         https://timestamp.digicert.com
+	//   GlobalSign:       http://timestamp.globalsign.com/tsa/r6advanced1
+	TSAURL string
+
+	// StoreDir is the base directory for the filesystem store.
+	// Required if TSAURL is set. Default: empty (in-memory store used).
+	StoreDir string
 }
 
 // Load reads all configuration from environment variables.
@@ -52,7 +72,15 @@ func Load() (Config, error) {
 
 	statusBaseURL := os.Getenv("STATUS_LIST_BASE_URL")
 
+	maxBodyBytes, err := getEnvInt64("MAX_BODY_BYTES", 1_048_576)
+	if err != nil {
+		return Config{}, fmt.Errorf("MAX_BODY_BYTES: %w", err)
+	}
+
 	logLevel := getEnvOrDefault("LOG_LEVEL", "info")
+	adminToken := os.Getenv("DRS_ADMIN_TOKEN")
+	tsaURL := os.Getenv("TSA_URL")
+	storeDir := os.Getenv("STORE_DIR")
 
 	return Config{
 		ListenAddr:             listenAddr,
@@ -60,7 +88,11 @@ func Load() (Config, error) {
 		DidCacheTTLSecs:        didCacheTTL,
 		StatusListCacheTTLSecs: statusCacheTTL,
 		StatusListBaseURL:      statusBaseURL,
+		MaxBodyBytes:           maxBodyBytes,
 		LogLevel:               logLevel,
+		AdminToken:             adminToken,
+		TSAURL:                 tsaURL,
+		StoreDir:               storeDir,
 	}, nil
 }
 
