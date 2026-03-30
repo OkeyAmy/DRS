@@ -3,8 +3,6 @@ name: Deploy DRS Docs
 on:
   push:
     branches: [main, master]
-    paths:
-      - 'docs-site/**'
   workflow_dispatch:
 
 permissions:
