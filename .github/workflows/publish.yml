@@ -45,7 +45,7 @@ jobs:
         run: cd drs-sdk && pnpm test
 
   publish-npm:
-    name: Publish @drs/sdk to npm
+    name: Publish @okeyamy/drs-sdk to npm
     needs: test
     runs-on: ubuntu-latest
     steps:
@@ -71,7 +71,7 @@ jobs:
         run: cd drs-sdk && pnpm build
 
       - name: Publish
-        run: cd drs-sdk && pnpm publish --no-git-checks
+        run: cd drs-sdk && pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

@@ -1,5 +1,5 @@
 {
-  "name": "@drs/sdk",
+  "name": "@okeyamy/drs-sdk",
   "version": "0.1.0",
   "description": "Delegation Receipt Standard SDK — issuance path",
   "license": "Apache-2.0",
