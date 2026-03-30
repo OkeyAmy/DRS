@@ -110,22 +110,25 @@ Returns `503` only if the server cannot handle requests (e.g., during shutdown).
 
 ## GET /readyz
 
-Readiness check. Returns `ok` when the server is fully initialised and ready to handle verification requests.
+Readiness check. Returns 200 when the server is fully initialised and ready to handle verification requests; 503 when not ready.
 
 ```
 GET /readyz
 ```
 
-Response (200):
+Response (200 — ready):
 ```json
-{
-  "status": "ok",
-  "cache_size": 42,
-  "uptime_seconds": 3600
-}
+{"status": "ready"}
+```
+
+Response (503 — not ready):
+```json
+{"status": "not_ready", "reason": "status_list_not_fetched"}
 ```
 
 Use `/readyz` for Kubernetes readiness probes. Use `/healthz` for liveness probes.
+
+> **Note:** If `STATUS_LIST_BASE_URL` is not configured, the status list cache is skipped and `/readyz` always returns 200 immediately.
 
 ---
 
