@@ -70,8 +70,17 @@ jobs:
       - name: Build
         run: cd drs-sdk && pnpm build
 
-      - name: Publish
-        run: cd drs-sdk && pnpm publish --access public --no-git-checks
+      - name: Publish (skip if version exists)
+        run: |
+          cd drs-sdk
+          OUTPUT=$(pnpm publish --access public --no-git-checks 2>&1) && echo "$OUTPUT" || {
+            if echo "$OUTPUT" | grep -qE "already exists|previously published"; then
+              echo "Version already on npm — skipping"
+            else
+              echo "$OUTPUT"
+              exit 1
+            fi
+          }
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -90,5 +99,16 @@ jobs:
         with:
           workspaces: drs-core
 
-      - name: Publish to crates.io
-        run: cd drs-core && cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Publish (skip if version exists)
+        run: |
+          cd drs-core
+          OUTPUT=$(cargo publish --token "$CARGO_REGISTRY_TOKEN" 2>&1) && echo "$OUTPUT" || {
+            if echo "$OUTPUT" | grep -q "already exists"; then
+              echo "Version already on crates.io — skipping"
+            else
+              echo "$OUTPUT"
+              exit 1
+            fi
+          }
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
