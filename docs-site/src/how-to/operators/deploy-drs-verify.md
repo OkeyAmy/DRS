@@ -10,11 +10,12 @@ docker pull ghcr.io/yourorg/drs-verify:latest
 docker run -d \
   --name drs-verify \
   -p 8080:8080 \
-  -e DRS_LISTEN_ADDR=:8080 \
-  -e DRS_CACHE_SIZE=10000 \
-  -e DRS_CACHE_TTL=1h \
-  -e DRS_STATUS_CACHE_TTL=5m \
-  -e DRS_REQUIRE_BUNDLE=true \
+  -e LISTEN_ADDR=:8080 \
+  -e DID_CACHE_SIZE=10000 \
+  -e DID_CACHE_TTL_SECS=3600 \
+  -e STATUS_LIST_BASE_URL=https://status.example.com \
+  -e STATUS_CACHE_TTL_SECS=300 \
+  -e DRS_ADMIN_TOKEN=your-secret-token \
   ghcr.io/yourorg/drs-verify:latest
 ```
 
@@ -66,14 +67,21 @@ spec:
         ports:
         - containerPort: 8080
         env:
-        - name: DRS_LISTEN_ADDR
+        - name: LISTEN_ADDR
           value: ":8080"
-        - name: DRS_CACHE_SIZE
+        - name: DID_CACHE_SIZE
           value: "10000"
-        - name: DRS_CACHE_TTL
-          value: "1h"
-        - name: DRS_REQUIRE_BUNDLE
-          value: "true"
+        - name: DID_CACHE_TTL_SECS
+          value: "3600"
+        - name: STATUS_LIST_BASE_URL
+          value: "https://status.example.com"
+        - name: STATUS_CACHE_TTL_SECS
+          value: "300"
+        - name: DRS_ADMIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: drs-secrets
+              key: admin-token
         livenessProbe:
           httpGet:
             path: /healthz
@@ -97,21 +105,4 @@ spec:
 
 ## Sidecar pattern
 
-To add DRS to an existing MCP server without modifying it, run drs-verify as a sidecar that proxies to the upstream server:
-
-```yaml
-containers:
-- name: drs-verify
-  image: ghcr.io/yourorg/drs-verify:latest
-  env:
-  - name: DRS_LISTEN_ADDR
-    value: ":8081"
-  - name: DRS_UPSTREAM
-    value: "http://localhost:8080"   # your MCP server
-  - name: DRS_REQUIRE_BUNDLE
-    value: "true"
-- name: your-mcp-server
-  # ... your existing container
-```
-
-Clients connect to port `8081`. Your server on `8080` only receives verified requests.
+Running drs-verify as a sidecar that proxies requests to an upstream MCP server is a planned deployment mode. It is not implemented in the current release. For now, configure your MCP server to call `POST /verify` directly before accepting tool-call requests.
