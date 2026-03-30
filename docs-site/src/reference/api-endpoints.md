@@ -20,34 +20,41 @@ Content-Type: application/json
 }
 ```
 
-**Response — valid (200):**
+Body is capped at `MAX_BODY_BYTES` (default 1 MiB).
+
+**Response — valid chain (200):**
 ```json
 {
   "valid": true,
-  "chain_depth": 2,
-  "root_principal": "did:key:z6MkHuman...",
-  "subject": "did:key:z6MkHuman...",
-  "command": "/mcp/tools/call",
-  "policy_result": "pass"
+  "context": {
+    "root_principal": "did:key:z6MkHuman...",
+    "chain_depth": 2,
+    "leaf_policy": {
+      "max_cost_usd": 0.10,
+      "allowed_tools": ["web_search"]
+    }
+  }
 }
 ```
 
-**Response — invalid (403):**
+**Response — invalid chain (200):**
+
+> `/verify` always returns HTTP 200. Check the `valid` field to determine the outcome. HTTP 403 is only returned by the MCP/A2A middleware routes, not by `/verify` directly.
+
 ```json
 {
   "valid": false,
-  "error": "CHAIN_HASH_MISMATCH",
-  "block": "B",
-  "message": "prev_dr_hash mismatch at chain index 1: expected sha256:abc..., got sha256:def..."
+  "error": {
+    "code": "CHAIN_HASH_MISMATCH",
+    "message": "prev_dr_hash mismatch at chain index 1",
+    "suggestion": "Ensure receipts are in root-first order and were not modified after signing"
+  }
 }
 ```
 
 **Response — malformed input (400):**
 ```json
-{
-  "error": "INVALID_INPUT",
-  "message": "bundle_version must be \"4.0\""
-}
+{"error": "invalid character 'x' looking for beginning of value"}
 ```
 
 ---
@@ -124,19 +131,35 @@ Use `/readyz` for Kubernetes readiness probes. Use `/healthz` for liveness probe
 
 ## POST /admin/revoke
 
-Revoke a delegation receipt by JTI.
+Mark a delegation receipt as locally revoked by its status list index. Takes effect immediately — does not wait for the remote Bitstring Status List to refresh.
+
+`DRS_ADMIN_TOKEN` must be set as an environment variable. If not set, the endpoint responds 503.
 
 ```
 POST /admin/revoke
-Authorization: Bearer <admin-token>
+Authorization: Bearer <DRS_ADMIN_TOKEN>
 Content-Type: application/json
 ```
 
 ```json
-{"jti": "dr:8f3a2b1c-4d5e-4xxx-8b9c-0d1e2f3a4b5c"}
+{"status_list_index": 42}
 ```
 
-Response (200):
+Body is capped at 1 KiB.
+
+**Response (200):**
 ```json
-{"revoked": true, "jti": "dr:8f3a2b1c-..."}
+{"revoked": true, "status_list_index": 42}
 ```
+
+**Response — admin not configured (503):**
+```json
+{"error": "admin endpoint not configured — set DRS_ADMIN_TOKEN"}
+```
+
+**Response — wrong or missing token (401):**
+```json
+{"error": "unauthorized"}
+```
+
+> The local revocation store is in-memory only. Revocations do not survive process restart. For durable revocation, update the W3C Bitstring Status List at your `STATUS_LIST_BASE_URL` endpoint.
