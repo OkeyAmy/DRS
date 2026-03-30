@@ -1,0 +1,21 @@
+[book]
+title = "Delegation Receipt Standard"
+authors = ["Okey"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/okey/drs"
+edit-url-template = "https://github.com/okey/drs/edit/main/docs-site/src/{path}"
+additional-css = ["theme/css/custom.css"]
+no-section-label = false
+
+[output.html.search]
+enable = true
+limit-results = 20
+use-boolean-and = true
