@@ -15,7 +15,7 @@ All configuration is via environment variables. No hard-coded URLs, ports, or ke
 | `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, or `error`. |
 | `DRS_ADMIN_TOKEN` | — | Bearer token required for `POST /admin/revoke`. **If not set, the endpoint responds 503.** No default — set explicitly to enable. |
 | `STORE_DIR` | — | Base directory for the filesystem store. Empty = Tier 0 in-memory (dev/test). Set for Tier 1 or Tier 3. |
-| `TSA_URL` | — | RFC 3161 Timestamp Authority endpoint. If set alongside `STORE_DIR`, enables Tier 3 trusted timestamping. Examples: `https://freetsa.org/tsr` (free), `https://timestamp.digicert.com`. |
+| `TSA_URL` | — | RFC 3161 Timestamp Authority endpoint. Enables Tier 3 trusted timestamping **only when `STORE_DIR` is also set** — if `STORE_DIR` is empty, `TSA_URL` is silently ignored and the server falls back to Tier 0 (in-memory). Providers: `https://freetsa.org/tsr` (free), `https://timestamp.digicert.com`. |
 
 ## drs-sdk CLI environment variables
 
@@ -29,7 +29,7 @@ All configuration is via environment variables. No hard-coded URLs, ports, or ke
 # Tier 0 — in-memory (development default)
 LISTEN_ADDR=:8080 ./drs-verify
 
-# Tier 1 — filesystem store, 48 h TTL
+# Tier 1 — filesystem store
 LISTEN_ADDR=:8080 \
   STORE_DIR=/data/drs \
   STATUS_LIST_BASE_URL=https://status.example.com \
@@ -64,6 +64,11 @@ services:
       TSA_URL: "https://freetsa.org/tsr"
     volumes:
       - drs-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 volumes:
   drs-data:
