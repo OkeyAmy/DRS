@@ -24,3 +24,5 @@ target
 reddit_post.md
 CLAUDE.md
 
+drs-verify/coverage.out
+drs-core/pkg/
