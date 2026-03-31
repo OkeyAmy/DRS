@@ -30,7 +30,15 @@
     "type": "git",
     "url": "https://github.com/OkeyAmy/DRS"
   },
-  "keywords": ["ucan", "delegation", "agent", "accountability", "mcp", "a2a"],
+  "keywords": [
+    "oauth",
+    "jwt",
+    "delegation",
+    "agent",
+    "accountability",
+    "mcp",
+    "a2a"
+  ],
   "homepage": "https://okeyamy.github.io/DRS/",
   "bugs": {
     "url": "https://github.com/OkeyAmy/DRS/issues"

@@ -2,7 +2,7 @@
 
 > **Research Project** — Infrastructure-grade accountability layer for agentic AI systems.
 
-DRS is a [UCAN Profile](https://ucan.xyz) that issues cryptographically signed receipts at every step of an agentic delegation chain — so humans, auditors, and regulators can prove *who authorized what, to whom, and when*.
+DRS is a per-step delegation receipt standard built on top of OAuth 2.1 + RFC 8693 + MCP that issues cryptographically signed receipts at every step of an agentic delegation chain — so humans, auditors, and regulators can prove *who authorized what, to whom, and when*.
 
 **Full documentation → [okeyamy.github.io/DRS](https://okeyamy.github.io/DRS/)**
 
@@ -63,9 +63,11 @@ curl -X POST http://localhost:8080/verify \
 ## HTTP API
 
 ### `POST /verify`
+
 Verifies a DRS chain bundle. Accepts a `ChainBundle` JSON body. Returns `VerificationResult` JSON. HTTP 200 on all responses (check `result.valid` in the body).
 
 ### `POST /admin/revoke`
+
 Marks a delegation receipt as locally revoked by its status list index. Requires `Authorization: Bearer <DRS_ADMIN_TOKEN>` header.
 
 ```bash
@@ -76,9 +78,11 @@ curl -X POST http://localhost:8080/admin/revoke \
 ```
 
 ### `GET /healthz` / `GET /readyz`
+
 Health and readiness probes for Kubernetes/Docker.
 
 ### `POST /mcp/*` / `POST /a2a/*`
+
 MCP and A2A middleware routes — extract the `X-DRS-Bundle` header, verify, and forward verified requests.
 
 ## Storage Tiers
@@ -147,6 +151,7 @@ The docs cover four audiences:
 ## Implementation Status
 
 **Fully implemented:**
+
 - Six-block chain verification algorithm (Blocks A–F: completeness, structural integrity, Ed25519 signatures, policy attenuation, temporal validity, revocation)
 - MCP and A2A protocol middleware
 - LRU DID resolver cache with TTL
@@ -157,6 +162,7 @@ The docs cover four audiences:
 - Docker deployment (distroless, static binary)
 
 **Roadmap:**
+
 - EU AI Act / HIPAA / SOX audit export formats
 - Ethereum mainnet blockchain anchor (Tier 4 — opt-in only, for blockchain-native enterprise deployments)
 - Automated system root renewal logic
@@ -165,7 +171,7 @@ The docs cover four audiences:
 
 This is a research project. APIs are not stable. Do not deploy to production without a full security audit.
 
-Version history: v1 (scrapped — wrong threat model), v2 (scrapped — wrong UCAN version + O(n·m) capability check), v3 (current).
+Version history: v1 (scrapped — wrong threat model), v2 (scrapped — wrong UCAN version + O(n·m) capability check), v3 (migrated to OAuth 2.1), v4 (current).
 
 ## License
 
