@@ -1,0 +1,47 @@
+[
+  {
+    "id": "TXN-001",
+    "vendor": "AWS",
+    "amount": 120,
+    "category": "infrastructure",
+    "date": "2026-04-01",
+    "description": "Monthly EC2 compute bill",
+    "status": "pending"
+  },
+  {
+    "id": "TXN-002",
+    "vendor": "OpenAI",
+    "amount": 350,
+    "category": "api-services",
+    "date": "2026-04-01",
+    "description": "GPT-4 API usage charges",
+    "status": "pending"
+  },
+  {
+    "id": "TXN-003",
+    "vendor": "Anthropic",
+    "amount": 250,
+    "category": "api-services",
+    "date": "2026-04-02",
+    "description": "Claude API usage",
+    "status": "pending"
+  },
+  {
+    "id": "TXN-004",
+    "vendor": "Acme Consulting",
+    "amount": 750,
+    "category": "consulting",
+    "date": "2026-04-02",
+    "description": "Q1 consulting services invoice",
+    "status": "pending"
+  },
+  {
+    "id": "TXN-005",
+    "vendor": "GitHub",
+    "amount": 48,
+    "category": "development",
+    "date": "2026-04-02",
+    "description": "GitHub Enterprise subscription",
+    "status": "pending"
+  }
+]

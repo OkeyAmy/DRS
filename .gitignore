@@ -42,3 +42,58 @@ drs-verify/coverage.out
 drs-core/pkg/
 .claude
 docs/superpowers/
+docs/technical_v2.md
+
+
+drs-verify/drs-verify-bin
+
+# ── Additional TypeScript / Node / tooling ignores ────────────────────────────
+# Node modules (root and any workspace packages)
+node_modules/
+**/node_modules/
+
+# Build / output folders
+dist/
+build/
+out/
+lib/
+
+# TypeScript buildinfo
+**/*.tsbuildinfo
+
+# Common caches
+.cache/
+.parcel-cache/
+.turbo/
+.next/
+.vercel/
+
+# Coverage and test output
+coverage/
+.nyc_output/
+coverage/lcov.info
+
+# Logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Debug and lock files (ignore package-lock if using pnpm, keep pnpm-lock.yaml if you commit it)
+package-lock.json
+
+# Editor and tooling caches
+.eslintcache
+.idea/
+.vscode/
+
+# Environment locals (next.js and other frameworks)
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Misc
+.serverless/
+*.log
+
