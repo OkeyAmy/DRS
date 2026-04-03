@@ -237,15 +237,11 @@ services:
       TSA_URL: "https://freetsa.org/tsr"
     volumes:
       - drs-data:/data
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
 
 volumes:
   drs-data:
 </code></pre>
+<p>The published image is distroless, so container-internal shell healthcheck commands such as <code>wget</code> or <code>curl</code> are not available. Probe <code>/healthz</code> and <code>/readyz</code> from Docker, Kubernetes, or your external load balancer instead.</p>
 
                     </main>
 

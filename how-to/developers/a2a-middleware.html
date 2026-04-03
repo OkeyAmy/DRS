@@ -204,7 +204,7 @@ mux.Handle("/a2a/", a2a.Wrap(yourA2AHandler))
   -e DRS_LISTEN_ADDR=:8082 \
   -e DRS_UPSTREAM=http://localhost:8080 \
   -e DRS_REQUIRE_BUNDLE=true \
-  ghcr.io/yourorg/drs-verify:latest
+  ghcr.io/okeyamy/drs-verify:latest
 </code></pre>
 <h2 id="chain-depth-in-multi-agent-a2a-topologies"><a class="header" href="#chain-depth-in-multi-agent-a2a-topologies">Chain depth in multi-agent A2A topologies</a></h2>
 <p>In A2A deployments, an orchestrator agent may dispatch to multiple worker agents. Each worker must carry the full chain from the human root to itself:</p>

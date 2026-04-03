@@ -1324,7 +1324,7 @@ func main() {
   -e DRS_LISTEN_ADDR=:8081 \
   -e DRS_UPSTREAM=http://localhost:8080 \
   -e DRS_REQUIRE_BUNDLE=true \
-  ghcr.io/yourorg/drs-verify:latest
+  ghcr.io/okeyamy/drs-verify:latest
 </code></pre>
 <p>Point your MCP client at <code>:8081</code>. Your server on <code>:8080</code> only receives requests that have passed full verification.</p>
 <h2 id="option-c-typescript-verifyclient"><a class="header" href="#option-c-typescript-verifyclient">Option C: TypeScript VerifyClient</a></h2>
@@ -1395,7 +1395,7 @@ mux.Handle("/a2a/", a2a.Wrap(yourA2AHandler))
   -e DRS_LISTEN_ADDR=:8082 \
   -e DRS_UPSTREAM=http://localhost:8080 \
   -e DRS_REQUIRE_BUNDLE=true \
-  ghcr.io/yourorg/drs-verify:latest
+  ghcr.io/okeyamy/drs-verify:latest
 </code></pre>
 <h2 id="chain-depth-in-multi-agent-a2a-topologies"><a class="header" href="#chain-depth-in-multi-agent-a2a-topologies">Chain depth in multi-agent A2A topologies</a></h2>
 <p>In A2A deployments, an orchestrator agent may dispatch to multiple worker agents. Each worker must carry the full chain from the human root to itself:</p>
@@ -1553,7 +1553,7 @@ inv.sub     = "did:key:z6MkHuman..."   ← same
 <div style="break-before: page; page-break-before: always;"></div><h1 id="deploy-drs-verify"><a class="header" href="#deploy-drs-verify">Deploy drs-verify</a></h1>
 <p>drs-verify is a single static Go binary with no runtime dependencies. It compiles with <code>CGO_ENABLED=0</code> and runs in a distroless container.</p>
 <h2 id="docker-recommended-for-production"><a class="header" href="#docker-recommended-for-production">Docker (recommended for production)</a></h2>
-<pre><code class="language-bash">docker pull ghcr.io/yourorg/drs-verify:latest
+<pre><code class="language-bash">docker pull ghcr.io/okeyamy/drs-verify:latest
 
 docker run -d \
   --name drs-verify \
@@ -1564,7 +1564,16 @@ docker run -d \
   -e STATUS_LIST_BASE_URL=https://status.example.com \
   -e STATUS_CACHE_TTL_SECS=300 \
   -e DRS_ADMIN_TOKEN=your-secret-token \
-  ghcr.io/yourorg/drs-verify:latest
+  ghcr.io/okeyamy/drs-verify:latest
+</code></pre>
+<p>For persistent receipt storage, mount a host or named volume and point <code>STORE_DIR</code> at it:</p>
+<pre><code class="language-bash">docker run -d \
+  --name drs-verify \
+  -p 8080:8080 \
+  -e LISTEN_ADDR=:8080 \
+  -e STORE_DIR=/var/lib/drs \
+  -v drs-verify-data:/var/lib/drs \
+  ghcr.io/okeyamy/drs-verify:latest
 </code></pre>
 <h2 id="build-from-source"><a class="header" href="#build-from-source">Build from source</a></h2>
 <pre><code class="language-bash">cd drs-verify
@@ -1601,7 +1610,7 @@ spec:
     spec:
       containers:
       - name: drs-verify
-        image: ghcr.io/yourorg/drs-verify:latest
+        image: ghcr.io/okeyamy/drs-verify:latest
         ports:
         - containerPort: 8080
         env:
@@ -2816,15 +2825,11 @@ services:
       TSA_URL: "https://freetsa.org/tsr"
     volumes:
       - drs-data:/data
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
 
 volumes:
   drs-data:
 </code></pre>
+<p>The published image is distroless, so container-internal shell healthcheck commands such as <code>wget</code> or <code>curl</code> are not available. Probe <code>/healthz</code> and <code>/readyz</code> from Docker, Kubernetes, or your external load balancer instead.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="drs-vs-alternatives"><a class="header" href="#drs-vs-alternatives">DRS vs Alternatives</a></h1>
 <p>DRS is a narrow standard solving a specific problem. Understanding what it is and is not helps you decide where it belongs in your stack.</p>
 <h2 id="comparison-table"><a class="header" href="#comparison-table">Comparison table</a></h2>

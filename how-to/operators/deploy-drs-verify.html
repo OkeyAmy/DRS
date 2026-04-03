@@ -183,7 +183,7 @@
                         <h1 id="deploy-drs-verify"><a class="header" href="#deploy-drs-verify">Deploy drs-verify</a></h1>
 <p>drs-verify is a single static Go binary with no runtime dependencies. It compiles with <code>CGO_ENABLED=0</code> and runs in a distroless container.</p>
 <h2 id="docker-recommended-for-production"><a class="header" href="#docker-recommended-for-production">Docker (recommended for production)</a></h2>
-<pre><code class="language-bash">docker pull ghcr.io/yourorg/drs-verify:latest
+<pre><code class="language-bash">docker pull ghcr.io/okeyamy/drs-verify:latest
 
 docker run -d \
   --name drs-verify \
@@ -194,7 +194,16 @@ docker run -d \
   -e STATUS_LIST_BASE_URL=https://status.example.com \
   -e STATUS_CACHE_TTL_SECS=300 \
   -e DRS_ADMIN_TOKEN=your-secret-token \
-  ghcr.io/yourorg/drs-verify:latest
+  ghcr.io/okeyamy/drs-verify:latest
+</code></pre>
+<p>For persistent receipt storage, mount a host or named volume and point <code>STORE_DIR</code> at it:</p>
+<pre><code class="language-bash">docker run -d \
+  --name drs-verify \
+  -p 8080:8080 \
+  -e LISTEN_ADDR=:8080 \
+  -e STORE_DIR=/var/lib/drs \
+  -v drs-verify-data:/var/lib/drs \
+  ghcr.io/okeyamy/drs-verify:latest
 </code></pre>
 <h2 id="build-from-source"><a class="header" href="#build-from-source">Build from source</a></h2>
 <pre><code class="language-bash">cd drs-verify
@@ -231,7 +240,7 @@ spec:
     spec:
       containers:
       - name: drs-verify
-        image: ghcr.io/yourorg/drs-verify:latest
+        image: ghcr.io/okeyamy/drs-verify:latest
         ports:
         - containerPort: 8080
         env:
