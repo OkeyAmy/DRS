@@ -62,7 +62,7 @@ docker run -d \
   -e DRS_LISTEN_ADDR=:8081 \
   -e DRS_UPSTREAM=http://localhost:8080 \
   -e DRS_REQUIRE_BUNDLE=true \
-  ghcr.io/yourorg/drs-verify:latest
+  ghcr.io/okeyamy/drs-verify:latest
 ```
 
 Point your MCP client at `:8081`. Your server on `:8080` only receives requests that have passed full verification.

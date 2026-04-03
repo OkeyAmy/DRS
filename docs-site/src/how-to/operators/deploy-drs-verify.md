@@ -5,7 +5,7 @@ drs-verify is a single static Go binary with no runtime dependencies. It compile
 ## Docker (recommended for production)
 
 ```bash
-docker pull ghcr.io/yourorg/drs-verify:latest
+docker pull ghcr.io/okeyamy/drs-verify:latest
 
 docker run -d \
   --name drs-verify \
@@ -16,7 +16,19 @@ docker run -d \
   -e STATUS_LIST_BASE_URL=https://status.example.com \
   -e STATUS_CACHE_TTL_SECS=300 \
   -e DRS_ADMIN_TOKEN=your-secret-token \
-  ghcr.io/yourorg/drs-verify:latest
+  ghcr.io/okeyamy/drs-verify:latest
+```
+
+For persistent receipt storage, mount a host or named volume and point `STORE_DIR` at it:
+
+```bash
+docker run -d \
+  --name drs-verify \
+  -p 8080:8080 \
+  -e LISTEN_ADDR=:8080 \
+  -e STORE_DIR=/var/lib/drs \
+  -v drs-verify-data:/var/lib/drs \
+  ghcr.io/okeyamy/drs-verify:latest
 ```
 
 ## Build from source
@@ -63,7 +75,7 @@ spec:
     spec:
       containers:
       - name: drs-verify
-        image: ghcr.io/yourorg/drs-verify:latest
+        image: ghcr.io/okeyamy/drs-verify:latest
         ports:
         - containerPort: 8080
         env:

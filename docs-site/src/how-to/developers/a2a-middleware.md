@@ -34,7 +34,7 @@ docker run -d \
   -e DRS_LISTEN_ADDR=:8082 \
   -e DRS_UPSTREAM=http://localhost:8080 \
   -e DRS_REQUIRE_BUNDLE=true \
-  ghcr.io/yourorg/drs-verify:latest
+  ghcr.io/okeyamy/drs-verify:latest
 ```
 
 ## Chain depth in multi-agent A2A topologies
