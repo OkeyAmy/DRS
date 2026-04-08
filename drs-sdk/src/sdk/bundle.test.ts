@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { buildBundle, parseBundle, serialiseBundle } from "./bundle.js";
+import {
+  buildBundle,
+  parseBundle,
+  parseBundleJSON,
+  parseBundleAuto,
+  serialiseBundle,
+} from "./bundle.js";
 import { base64url } from "./base64url.js";
 import { DrsError } from "./types.js";
 
@@ -41,15 +47,60 @@ describe("serialiseBundle / parseBundle", () => {
   });
 
   it("parseBundle throws MALFORMED_BUNDLE for invalid base64url JSON", () => {
-    // "not-json" decodes as valid base64url bytes but produces non-JSON content
     const err = catchDrsError(() => parseBundle("not-json"));
     expect(err.code).toBe("MALFORMED_BUNDLE");
   });
 
   it("parseBundle throws MALFORMED_BUNDLE for missing required fields", () => {
-    // Valid base64url JSON but missing bundle_version and invocation
     const encoded = base64url(JSON.stringify({ receipts: [] }));
     const err = catchDrsError(() => parseBundle(encoded));
+    expect(err.code).toBe("MALFORMED_BUNDLE");
+  });
+});
+
+describe("parseBundleJSON", () => {
+  it("parses raw JSON bundle string", () => {
+    const original = buildBundle(["r1.p.s"], "inv.p.s");
+    const json = JSON.stringify(original);
+    const parsed = parseBundleJSON(json);
+    expect(parsed).toEqual(original);
+  });
+
+  it("throws MALFORMED_BUNDLE for invalid JSON", () => {
+    const err = catchDrsError(() => parseBundleJSON("{bad json"));
+    expect(err.code).toBe("MALFORMED_BUNDLE");
+  });
+
+  it("throws MALFORMED_BUNDLE for missing required fields", () => {
+    const err = catchDrsError(() => parseBundleJSON(JSON.stringify({ receipts: [] })));
+    expect(err.code).toBe("MALFORMED_BUNDLE");
+  });
+});
+
+describe("parseBundleAuto", () => {
+  it("auto-detects raw JSON (starts with '{')", () => {
+    const original = buildBundle(["r1.p.s"], "inv.p.s");
+    const json = JSON.stringify(original);
+    const parsed = parseBundleAuto(json);
+    expect(parsed).toEqual(original);
+  });
+
+  it("auto-detects raw JSON with leading whitespace", () => {
+    const original = buildBundle(["r1.p.s"], "inv.p.s");
+    const json = "  \n" + JSON.stringify(original);
+    const parsed = parseBundleAuto(json);
+    expect(parsed).toEqual(original);
+  });
+
+  it("auto-detects base64url-encoded bundle", () => {
+    const original = buildBundle(["r1.p.s"], "inv.p.s");
+    const encoded = serialiseBundle(original);
+    const parsed = parseBundleAuto(encoded);
+    expect(parsed).toEqual(original);
+  });
+
+  it("throws MALFORMED_BUNDLE for garbage input", () => {
+    const err = catchDrsError(() => parseBundleAuto("!!!not-valid!!!"));
     expect(err.code).toBe("MALFORMED_BUNDLE");
   });
 });

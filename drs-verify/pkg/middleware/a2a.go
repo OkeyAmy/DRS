@@ -9,13 +9,31 @@ import (
 
 // A2AMiddleware extracts the X-DRS-Bundle header from A2A agent-to-agent calls,
 // verifies it, and attaches the VerificationContext to the request context.
-// The header name and behaviour are identical to MCPMiddleware; this adapter
-// exists as a named entrypoint so A2A route groups can be configured separately.
+// Requests with no X-DRS-Bundle header receive 401 Unauthorized (fail-closed).
+// For optional enforcement, use OptionalA2AMiddleware instead.
 func A2AMiddleware(deps verify.Deps, next http.Handler) http.Handler {
+	return a2aMiddleware(deps, next, false)
+}
+
+// OptionalA2AMiddleware behaves like A2AMiddleware but passes through requests
+// that do not include the X-DRS-Bundle header.
+func OptionalA2AMiddleware(deps verify.Deps, next http.Handler) http.Handler {
+	return a2aMiddleware(deps, next, true)
+}
+
+func a2aMiddleware(deps verify.Deps, next http.Handler, allowMissing bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bundleHeader := r.Header.Get("X-DRS-Bundle")
 		if bundleHeader == "" {
-			next.ServeHTTP(w, r)
+			if allowMissing {
+				next.ServeHTTP(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"error": "Missing X-DRS-Bundle header — DRS verification is required on this route.",
+			})
 			return
 		}
 
@@ -33,7 +51,6 @@ func A2AMiddleware(deps verify.Deps, next http.Handler) http.Handler {
 			return
 		}
 
-		// Reuse the context key from mcp.go — both middlewares share the same context slot
 		ctx := withVerificationContext(r.Context(), result.Context)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

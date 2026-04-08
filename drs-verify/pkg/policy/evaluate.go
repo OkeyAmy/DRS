@@ -12,6 +12,12 @@ import (
 // Evaluate checks whether args from an invocation satisfy policy.
 // Returns nil on success, an error describing the violation otherwise.
 // Capability checks are fail-closed: any error means the capability is denied.
+//
+// max_calls is intentionally NOT evaluated here. It is informational-only in
+// the stateless verifier because enforcement requires session-aware call
+// counting with durable state and race-safe decrements. Integrators who need
+// call-count enforcement must implement it in their session layer using the
+// max_calls value from the leaf policy returned in VerificationContext.
 func Evaluate(pol types.Policy, args map[string]interface{}) error {
 	// max_cost_usd: args["estimated_cost_usd"] must not exceed the limit
 	if pol.MaxCostUSD != nil {
@@ -93,8 +99,11 @@ func Evaluate(pol types.Policy, args map[string]interface{}) error {
 // Implements §6.4 of the technical audit.
 // Fail-closed: any attenuation violation denies the capability.
 func CheckAttenuation(parent, child types.Policy) error {
-	// max_cost_usd: child cannot raise the cost limit
-	if parent.MaxCostUSD != nil && child.MaxCostUSD != nil {
+	// max_cost_usd: child cannot raise the cost limit; cannot omit if parent defines it
+	if parent.MaxCostUSD != nil {
+		if child.MaxCostUSD == nil {
+			return fmt.Errorf("child omits max_cost_usd but parent restricts it to $%.2f; child must explicitly inherit or tighten this limit", *parent.MaxCostUSD)
+		}
 		if *child.MaxCostUSD > *parent.MaxCostUSD {
 			return fmt.Errorf("child loosens max_cost_usd: parent $%.2f, child $%.2f",
 				*parent.MaxCostUSD, *child.MaxCostUSD)
@@ -115,49 +124,58 @@ func CheckAttenuation(parent, child types.Policy) error {
 		}
 	}
 
-	// max_calls: child cannot raise the call limit
-	if parent.MaxCalls != nil && child.MaxCalls != nil {
+	// max_calls: child cannot raise the call limit; cannot omit if parent defines it
+	if parent.MaxCalls != nil {
+		if child.MaxCalls == nil {
+			return fmt.Errorf("child omits max_calls but parent restricts it to %d; child must explicitly inherit or tighten this limit", *parent.MaxCalls)
+		}
 		if *child.MaxCalls > *parent.MaxCalls {
 			return fmt.Errorf("child loosens max_calls: parent %d, child %d",
 				*parent.MaxCalls, *child.MaxCalls)
 		}
 	}
 
-	// allowed_tools: child's list must be a subset of parent's list
-	if len(parent.AllowedTools) > 0 && len(child.AllowedTools) > 0 {
-		if !hasWildcard(parent.AllowedTools) {
-			for _, tool := range child.AllowedTools {
-				if tool == "*" {
-					return fmt.Errorf("child adds wildcard '*' to allowed_tools but parent does not allow all tools")
-				}
-				if !contains(parent.AllowedTools, tool) {
-					return fmt.Errorf("child adds %q to allowed_tools not permitted by parent", tool)
-				}
+	// allowed_tools: child's list must be a subset of parent's list;
+	// cannot omit if parent restricts (omitting implies all tools, which escalates)
+	if len(parent.AllowedTools) > 0 && !hasWildcard(parent.AllowedTools) {
+		if len(child.AllowedTools) == 0 {
+			return fmt.Errorf("child omits allowed_tools but parent restricts it; child must explicitly list permitted tools")
+		}
+		for _, tool := range child.AllowedTools {
+			if tool == "*" {
+				return fmt.Errorf("child adds wildcard '*' to allowed_tools but parent does not allow all tools")
+			}
+			if !contains(parent.AllowedTools, tool) {
+				return fmt.Errorf("child adds %q to allowed_tools not permitted by parent", tool)
 			}
 		}
 	}
 
-	// allowed_resources: child's list must be a subset of parent's list
-	if len(parent.AllowedResources) > 0 && len(child.AllowedResources) > 0 {
-		if !hasWildcard(parent.AllowedResources) {
-			for _, res := range child.AllowedResources {
-				if res == "*" {
-					return fmt.Errorf("child adds wildcard '*' to allowed_resources but parent does not allow all")
-				}
-				if !contains(parent.AllowedResources, res) {
-					return fmt.Errorf("child adds %q to allowed_resources not permitted by parent", res)
-				}
+	// allowed_resources: child's list must be a subset of parent's list;
+	// cannot omit if parent restricts
+	if len(parent.AllowedResources) > 0 && !hasWildcard(parent.AllowedResources) {
+		if len(child.AllowedResources) == 0 {
+			return fmt.Errorf("child omits allowed_resources but parent restricts it; child must explicitly list permitted resources")
+		}
+		for _, res := range child.AllowedResources {
+			if res == "*" {
+				return fmt.Errorf("child adds wildcard '*' to allowed_resources but parent does not allow all")
+			}
+			if !contains(parent.AllowedResources, res) {
+				return fmt.Errorf("child adds %q to allowed_resources not permitted by parent", res)
 			}
 		}
 	}
 
-	// allowed_data_classes: child's list must be a subset of parent's list
-	if len(parent.AllowedDataClasses) > 0 && len(child.AllowedDataClasses) > 0 {
-		if !hasWildcard(parent.AllowedDataClasses) {
-			for _, cls := range child.AllowedDataClasses {
-				if cls == "*" || !contains(parent.AllowedDataClasses, cls) {
-					return fmt.Errorf("child adds %q to allowed_data_classes not permitted by parent", cls)
-				}
+	// allowed_data_classes: child's list must be a subset of parent's list;
+	// cannot omit if parent restricts
+	if len(parent.AllowedDataClasses) > 0 && !hasWildcard(parent.AllowedDataClasses) {
+		if len(child.AllowedDataClasses) == 0 {
+			return fmt.Errorf("child omits allowed_data_classes but parent restricts it; child must explicitly list permitted data classes")
+		}
+		for _, cls := range child.AllowedDataClasses {
+			if cls == "*" || !contains(parent.AllowedDataClasses, cls) {
+				return fmt.Errorf("child adds %q to allowed_data_classes not permitted by parent", cls)
 			}
 		}
 	}

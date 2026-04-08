@@ -172,3 +172,53 @@ func TestChildAddingExtraRestrictionPasses(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+// ── Omission-as-escalation ────────────────────────────────────────────────────
+// A child that silently drops a parent-defined constraint is broadening scope,
+// which is an escalation. Each test below confirms that omitting a field the
+// parent set is rejected — not silently permitted.
+
+func TestCostOmissionIsEscalation(t *testing.T) {
+	// Parent restricts cost; child provides no max_cost_usd → escalation.
+	parent := pol(f64Ptr(10.0), nil, nil, nil)
+	child := pol(nil, nil, nil, nil)
+	if err := CheckAttenuation(parent, child); err == nil {
+		t.Error("expected error when child omits max_cost_usd that parent restricts, got nil")
+	}
+}
+
+func TestMaxCallsOmissionIsEscalation(t *testing.T) {
+	// Parent restricts call count; child provides no max_calls → escalation.
+	parent := types.Policy{MaxCalls: u64Ptr(5)}
+	child := types.Policy{}
+	if err := CheckAttenuation(parent, child); err == nil {
+		t.Error("expected error when child omits max_calls that parent restricts, got nil")
+	}
+}
+
+func TestAllowedToolsOmissionIsEscalation(t *testing.T) {
+	// Parent permits only [web_search]; child with no allowed_tools implies all tools → escalation.
+	parent := pol(nil, nil, nil, []string{"web_search"})
+	child := pol(nil, nil, nil, nil)
+	if err := CheckAttenuation(parent, child); err == nil {
+		t.Error("expected error when child omits allowed_tools that parent restricts, got nil")
+	}
+}
+
+func TestAllowedResourcesOmissionIsEscalation(t *testing.T) {
+	// Parent restricts resources; child with no list implies all resources → escalation.
+	parent := types.Policy{AllowedResources: []string{"mcp://tools/web_search"}}
+	child := types.Policy{}
+	if err := CheckAttenuation(parent, child); err == nil {
+		t.Error("expected error when child omits allowed_resources that parent restricts, got nil")
+	}
+}
+
+func TestAllowedDataClassesOmissionIsEscalation(t *testing.T) {
+	// Parent restricts data classes; child with no list implies all classes → escalation.
+	parent := types.Policy{AllowedDataClasses: []string{"public"}}
+	child := types.Policy{}
+	if err := CheckAttenuation(parent, child); err == nil {
+		t.Error("expected error when child omits allowed_data_classes that parent restricts, got nil")
+	}
+}

@@ -278,6 +278,8 @@ pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
     }
 
     // ── Block D: Semantic/Policy Validity ──────────────────────────────────────
+    // D1–D4 are spec section numbers from §6.2, not execution order.
+    // Execution order is D3 → D4 → D2 → D1 (structural checks before semantic).
 
     // D3: All DRs must share the same cmd (or be a sub-path of DR₀.cmd)
     // Sub-path: "/mcp/tools/call/web_search" is a sub-path of "/mcp/tools/call"
@@ -318,6 +320,18 @@ pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
                 "All delegation receipts must carry the same sub (the original resource owner).",
             );
         }
+    }
+
+    // D4b: invocation.sub must equal root sub (binding invocation to chain subject)
+    if invocation.sub != *root_sub {
+        return VerificationResult::invalid(
+            "INVOCATION_SUBJECT_MISMATCH",
+            format!(
+                "invocation.sub '{}' ≠ chain root sub '{root_sub}'.",
+                invocation.sub
+            ),
+            "The invocation must reference the same subject as the delegation chain.",
+        );
     }
 
     // D2: Policy attenuation — child policy must be a subset of parent policy

@@ -22,7 +22,6 @@ func testDeps(t *testing.T) verify.Deps {
 	return verify.Deps{Resolver: res}
 }
 
-// encodeBundle serialises a ChainBundle as base64url(JSON) for use in X-DRS-Bundle.
 func encodeBundle(t *testing.T, bundle types.ChainBundle) string {
 	t.Helper()
 	b, err := json.Marshal(bundle)
@@ -32,19 +31,33 @@ func encodeBundle(t *testing.T, bundle types.ChainBundle) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-func TestMCPMiddlewarePassesThroughWhenNoBundleHeader(t *testing.T) {
-	called := false
+func TestMCPMiddlewareRejects401WhenNoBundleHeader(t *testing.T) {
 	handler := MCPMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("next handler must not be called when X-DRS-Bundle is missing")
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp/tools/call", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 when X-DRS-Bundle is missing, got %d", rr.Code)
+	}
+}
+
+func TestOptionalMCPMiddlewarePassesThroughWhenNoBundleHeader(t *testing.T) {
+	called := false
+	handler := OptionalMCPMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/tool", nil)
+	req := httptest.NewRequest(http.MethodPost, "/mcp/tools/call", nil)
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
 	if !called {
-		t.Error("next handler should be called when no X-DRS-Bundle header is present")
+		t.Error("next handler should be called when using OptionalMCPMiddleware with no bundle")
 	}
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
@@ -56,7 +69,7 @@ func TestMCPMiddlewareReturnsBadRequestForInvalidBase64(t *testing.T) {
 		t.Error("next handler must not be called for invalid bundle")
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/tool", nil)
+	req := httptest.NewRequest(http.MethodPost, "/mcp/tools/call", nil)
 	req.Header.Set("X-DRS-Bundle", "not-valid-base64url!!!")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -67,7 +80,6 @@ func TestMCPMiddlewareReturnsBadRequestForInvalidBase64(t *testing.T) {
 }
 
 func TestMCPMiddlewareReturnsForbiddenForInvalidBundle(t *testing.T) {
-	// Bundle with empty receipts — will fail Block A
 	bundle := types.ChainBundle{
 		BundleVersion: "4.0",
 		Receipts:      nil,
@@ -78,7 +90,7 @@ func TestMCPMiddlewareReturnsForbiddenForInvalidBundle(t *testing.T) {
 		t.Error("next handler must not be called for invalid bundle")
 	}))
 
-	req := httptest.NewRequest(http.MethodPost, "/tool", nil)
+	req := httptest.NewRequest(http.MethodPost, "/mcp/tools/call", nil)
 	req.Header.Set("X-DRS-Bundle", encodeBundle(t, bundle))
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -104,5 +116,32 @@ func TestGetVerificationContextReturnsNilWhenAbsent(t *testing.T) {
 	ctx := GetVerificationContext(req.Context())
 	if ctx != nil {
 		t.Error("expected nil when middleware was not applied")
+	}
+}
+
+func TestMCPMiddleware401ResponseIsJSON(t *testing.T) {
+	handler := MCPMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("next handler must not be called")
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp/tools/call", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+
+	ct := rr.Header().Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("expected Content-Type application/json, got %q", ct)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatalf("response body is not valid JSON: %v", err)
+	}
+	if body["error"] == "" {
+		t.Error("response should include an error message")
 	}
 }

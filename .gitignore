@@ -97,3 +97,6 @@ package-lock.json
 .serverless/
 *.log
 
+
+.remember/
+docs/security_audit_report_2026-04-08.md

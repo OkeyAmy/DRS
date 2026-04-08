@@ -152,16 +152,29 @@ describe("issueRootDelegation", () => {
 
 describe("issueSubDelegation", () => {
   it("throws POLICY_ESCALATION when child raises cost limit", async () => {
-    const key = generateKey();
-    const did = didFromKey(key);
-    const parentJwt = await buildJwt({ dummy: true }, key);
+    // Use a properly issued root DR so chain linkage validation passes.
+    const parentKey = generateKey();
+    const parentDid = didFromKey(parentKey);
+    const childKey = generateKey();
+    const childDid = didFromKey(childKey);
+
+    const parentJwt = await issueRootDelegation({
+      signingKey: parentKey,
+      issuerDid: parentDid,
+      subjectDid: parentDid,
+      audienceDid: childDid,
+      cmd: "/mcp/tools/call",
+      policy: { max_cost_usd: 10.0 },
+      nbf: now - 60,
+      exp: now + 7200,
+    });
 
     await expect(
       issueSubDelegation({
-        signingKey: key,
-        issuerDid: did,
-        subjectDid: did,
-        audienceDid: did,
+        signingKey: childKey,
+        issuerDid: childDid,
+        subjectDid: parentDid,
+        audienceDid: childDid,
         cmd: "/mcp/tools/call",
         policy: { max_cost_usd: 100.0 },
         parentPolicy: { max_cost_usd: 10.0 },
@@ -174,17 +187,102 @@ describe("issueSubDelegation", () => {
     ).rejects.toMatchObject({ code: "POLICY_ESCALATION" });
   });
 
+  it("throws CHAIN_LINKAGE_ERROR when parent aud does not match issuerDid", async () => {
+    const parentKey = generateKey();
+    const parentDid = didFromKey(parentKey);
+    const childKey = generateKey();
+    const childDid = didFromKey(childKey);
+    const unrelatedKey = generateKey();
+    const unrelatedDid = didFromKey(unrelatedKey);
+
+    // Parent was issued to unrelatedDid, not childDid
+    const parentJwt = await issueRootDelegation({
+      signingKey: parentKey,
+      issuerDid: parentDid,
+      subjectDid: parentDid,
+      audienceDid: unrelatedDid,
+      cmd: "/mcp/tools/call",
+      policy: {},
+      nbf: now - 60,
+      exp: now + 7200,
+    });
+
+    await expect(
+      issueSubDelegation({
+        signingKey: childKey,
+        issuerDid: childDid,
+        subjectDid: parentDid,
+        audienceDid: childDid,
+        cmd: "/mcp/tools/call",
+        policy: {},
+        parentPolicy: {},
+        nbf: now,
+        exp: now + 3600,
+        parentNbf: now - 60,
+        parentExp: now + 7200,
+        parentJwt,
+      }),
+    ).rejects.toMatchObject({ code: "CHAIN_LINKAGE_ERROR" });
+  });
+
+  it("throws CMD_ESCALATION when child cmd is not a sub-path of parent cmd", async () => {
+    const parentKey = generateKey();
+    const parentDid = didFromKey(parentKey);
+    const childKey = generateKey();
+    const childDid = didFromKey(childKey);
+
+    const parentJwt = await issueRootDelegation({
+      signingKey: parentKey,
+      issuerDid: parentDid,
+      subjectDid: parentDid,
+      audienceDid: childDid,
+      cmd: "/mcp/tools/read",
+      policy: {},
+      nbf: now - 60,
+      exp: now + 7200,
+    });
+
+    await expect(
+      issueSubDelegation({
+        signingKey: childKey,
+        issuerDid: childDid,
+        subjectDid: parentDid,
+        audienceDid: childDid,
+        cmd: "/mcp/tools/write",
+        policy: {},
+        parentPolicy: {},
+        nbf: now,
+        exp: now + 3600,
+        parentNbf: now - 60,
+        parentExp: now + 7200,
+        parentJwt,
+      }),
+    ).rejects.toMatchObject({ code: "CMD_ESCALATION" });
+  });
+
   it("includes prev_dr_hash in the payload", async () => {
-    const key = generateKey();
-    const did = didFromKey(key);
-    const parentJwt = await buildJwt({ dummy: true }, key);
+    const parentKey = generateKey();
+    const parentDid = didFromKey(parentKey);
+    const childKey = generateKey();
+    const childDid = didFromKey(childKey);
+
+    const parentJwt = await issueRootDelegation({
+      signingKey: parentKey,
+      issuerDid: parentDid,
+      subjectDid: parentDid,
+      audienceDid: childDid,
+      cmd: "/mcp/tools/call",
+      policy: {},
+      nbf: now - 60,
+      exp: now + 7200,
+    });
     const expectedHash = computeChainHash(parentJwt);
 
     const jwt = await issueSubDelegation({
-      signingKey: key,
-      issuerDid: did,
-      subjectDid: did,
-      audienceDid: did,
+      signingKey: childKey,
+      issuerDid: childDid,
+      subjectDid: parentDid,
+      audienceDid: childDid,
       cmd: "/mcp/tools/call",
       policy: {},
       parentPolicy: {},

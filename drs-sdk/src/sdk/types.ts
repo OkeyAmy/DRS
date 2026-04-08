@@ -5,10 +5,21 @@
  * do not rename them.
  */
 
+/**
+ * Capability constraints attached to a delegation receipt.
+ *
+ * `max_calls` is INFORMATIONAL ONLY — it is carried in the policy and validated
+ * during attenuation checks (child ≤ parent), but is NOT enforced at runtime by
+ * the stateless verifier. Enforcement requires session-aware call counting with
+ * durable state and race-safe updates. Integrators who need call-count
+ * enforcement must implement it in their own session layer and use `max_calls`
+ * as the authoritative limit.
+ */
 export interface Policy {
   max_cost_usd?: number;
   pii_access?: boolean;
   write_access?: boolean;
+  /** Informational only — not enforced at runtime. See Policy JSDoc. */
   max_calls?: number;
   allowed_tools?: string[];
   allowed_resources?: string[];
@@ -85,10 +96,21 @@ export interface VerificationError {
   suggestion: string;
 }
 
+export interface TimestampResult {
+  index: number;
+  valid: boolean;
+  /** RFC 3339 time from the TSA token; present on success. */
+  time?: string;
+  /** Error detail; present on failure. */
+  error?: string;
+}
+
 export interface VerificationResult {
   valid: boolean;
   context?: VerificationContext;
   error?: VerificationError;
+  /** Per-receipt RFC 3161 timestamp verification results; present when include_timestamps was requested. */
+  timestamps?: TimestampResult[];
 }
 
 /** Typed error class for DRS SDK operations. */

@@ -40,12 +40,36 @@ type cacheEntry struct {
 	expiry time.Time
 }
 
+// resolveResult is the return value carried by singleflight.
+type resolveResult struct {
+	key [ed25519PublicKeyBytes]byte
+	err error
+}
+
 // Resolver resolves did:key and did:web DIDs to Ed25519 public key bytes.
+//
+// Concurrency design:
+//   - cacheMu guards the LRU cache. It is held only during brief cache reads
+//     and writes — never during network I/O. This means did:key lookups and
+//     cache hits complete without waiting on did:web HTTP fetches.
+//   - Per-key singleflight deduplication ensures that concurrent cache misses
+//     for the same DID result in a single resolution (and a single HTTP fetch
+//     for did:web), not N parallel ones.
 type Resolver struct {
-	mu         sync.Mutex
+	cacheMu    sync.Mutex
 	cache      *lru.Cache[string, cacheEntry]
 	ttl        time.Duration
 	httpClient *http.Client
+
+	// inflight deduplicates concurrent cache misses for the same DID.
+	inflightMu sync.Mutex
+	inflight   map[string]*inflightEntry
+}
+
+// inflightEntry tracks a single in-progress resolution.
+type inflightEntry struct {
+	done chan struct{}
+	res  resolveResult
 }
 
 // New creates a Resolver with an LRU cache of the given size and TTL.
@@ -59,6 +83,7 @@ func New(cacheSize int, ttl time.Duration) (*Resolver, error) {
 		cache:      c,
 		ttl:        ttl,
 		httpClient: &http.Client{Timeout: didWebFetchTimeout},
+		inflight:   make(map[string]*inflightEntry),
 	}, nil
 }
 
@@ -69,27 +94,58 @@ func New(cacheSize int, ttl time.Duration) (*Resolver, error) {
 //   - did:web — DID document fetched from https://{domain}/.well-known/did.json
 //     (or https://{domain}/{path}/did.json); cached with TTL
 //
-// Returns a cached result if present and not expired.
+// Cache hits are served under a brief lock (constant-time).
+// Cache misses are resolved outside the lock and deduplicated per-DID
+// via singleflight to prevent N parallel fetches for the same DID.
 func (r *Resolver) Resolve(did string) ([ed25519PublicKeyBytes]byte, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
+	// Fast path: brief lock for cache lookup only
+	r.cacheMu.Lock()
 	if entry, ok := r.cache.Get(did); ok {
 		if time.Now().Before(entry.expiry) {
+			r.cacheMu.Unlock()
 			return entry.key, nil
 		}
-		// Expired — evict and re-resolve
 		r.cache.Remove(did)
 	}
+	r.cacheMu.Unlock()
 
-	var key [ed25519PublicKeyBytes]byte
-	var err error
+	// Slow path: singleflight deduplication for cache miss.
+	// The inflightMu is held only to check/insert the inflight map entry,
+	// never during actual resolution or network I/O.
+	r.inflightMu.Lock()
+	if e, ok := r.inflight[did]; ok {
+		r.inflightMu.Unlock()
+		<-e.done
+		return e.res.key, e.res.err
+	}
+	e := &inflightEntry{done: make(chan struct{})}
+	r.inflight[did] = e
+	r.inflightMu.Unlock()
 
+	key, err := r.resolveUncached(did)
+	e.res = resolveResult{key: key, err: err}
+	close(e.done)
+
+	r.inflightMu.Lock()
+	delete(r.inflight, did)
+	r.inflightMu.Unlock()
+
+	if err == nil {
+		r.cacheMu.Lock()
+		r.cache.Add(did, cacheEntry{key: key, expiry: time.Now().Add(r.ttl)})
+		r.cacheMu.Unlock()
+	}
+
+	return key, err
+}
+
+// resolveUncached performs the actual resolution without holding any lock.
+func (r *Resolver) resolveUncached(did string) ([ed25519PublicKeyBytes]byte, error) {
 	switch {
 	case strings.HasPrefix(did, didKeyPrefix):
-		key, err = resolveDidKey(did)
+		return resolveDidKey(did)
 	case strings.HasPrefix(did, didWebPrefix):
-		key, err = r.resolveDidWeb(did)
+		return r.resolveDidWeb(did)
 	default:
 		method := "unknown"
 		if parts := strings.SplitN(did, ":", 3); len(parts) >= 2 {
@@ -97,13 +153,6 @@ func (r *Resolver) Resolve(did string) ([ed25519PublicKeyBytes]byte, error) {
 		}
 		return [ed25519PublicKeyBytes]byte{}, fmt.Errorf("unsupported DID method: %q", method)
 	}
-
-	if err != nil {
-		return [ed25519PublicKeyBytes]byte{}, err
-	}
-
-	r.cache.Add(did, cacheEntry{key: key, expiry: time.Now().Add(r.ttl)})
-	return key, nil
 }
 
 // resolveDidKey decodes a did:key DID to its raw 32-byte Ed25519 public key.

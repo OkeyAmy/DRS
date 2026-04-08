@@ -129,6 +129,28 @@ export async function issueRootDelegation(params: RootDelegationParams): Promise
  * Throws DrsError with code POLICY_ESCALATION if child policy exceeds parent.
  */
 export async function issueSubDelegation(params: SubDelegationParams): Promise<string> {
+  // Parse the parent JWT to extract and validate chain linkage.
+  // This prevents callers from constructing sub-delegations that would fail
+  // verification, catching linkage errors at issuance time.
+  const parentPayload = decodeJwtPayload<DelegationReceiptPayload>(params.parentJwt);
+
+  // The parent's aud must equal our issuerDid — we must be the intended recipient.
+  if (parentPayload.aud !== params.issuerDid) {
+    throw new DrsError(
+      "CHAIN_LINKAGE_ERROR",
+      `Parent DR was issued to "${parentPayload.aud}" but issuerDid is "${params.issuerDid}". ` +
+        `The sub-delegator must be the audience of the parent delegation.`,
+    );
+  }
+
+  // Our cmd must equal or be a sub-path of the parent's cmd (POLA).
+  if (!isCmdSubPath(params.cmd, parentPayload.cmd)) {
+    throw new DrsError(
+      "CMD_ESCALATION",
+      `Sub-delegation cmd "${params.cmd}" is not equal to or a sub-path of parent cmd "${parentPayload.cmd}".`,
+    );
+  }
+
   const attenuationError = checkPolicyAttenuation(params.parentPolicy, params.policy);
   if (attenuationError !== null) {
     throw new DrsError("POLICY_ESCALATION", attenuationError);
@@ -250,6 +272,37 @@ export function computeChainHash(jwt: string): string {
 /** Derives the Ed25519 public key from a raw 32-byte private key. */
 export function derivePublicKey(signingKey: Uint8Array): Uint8Array {
   return ed.getPublicKey(signingKey);
+}
+
+/**
+ * Decodes the payload of a JWT without verifying the signature.
+ * Used at issuance time to validate chain linkage before signing.
+ * Never use this for verification — the Go verifier validates signatures.
+ */
+function decodeJwtPayload<T>(jwt: string): T {
+  const parts = jwt.split(".");
+  if (parts.length !== 3) {
+    throw new DrsError("MALFORMED_JWT", `JWT must have exactly three parts, got ${parts.length}.`);
+  }
+  const b64 = parts[1]!.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+  let json: string;
+  try {
+    json = atob(padded);
+  } catch {
+    throw new DrsError("MALFORMED_JWT", "JWT payload is not valid base64url.");
+  }
+  try {
+    return JSON.parse(json) as T;
+  } catch {
+    throw new DrsError("MALFORMED_JWT", "JWT payload is not valid JSON.");
+  }
+}
+
+/** Returns true if cmd equals parentCmd or is a direct sub-path (parentCmd + "/..."). */
+function isCmdSubPath(cmd: string, parentCmd: string): boolean {
+  if (cmd === parentCmd) return true;
+  return cmd.startsWith(parentCmd + "/");
 }
 
 function unixNow(): number {

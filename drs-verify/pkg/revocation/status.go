@@ -11,6 +11,7 @@ package revocation
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"sync"
@@ -21,6 +22,7 @@ import (
 type StatusCache struct {
 	mu          sync.RWMutex
 	once        sync.Once
+	refreshMu   sync.Mutex  // serialises TTL-triggered refreshes; prevents cache stampede
 	bitstring   []byte
 	fetchedAt   time.Time
 	ttl         time.Duration
@@ -57,11 +59,22 @@ func (s *StatusCache) IsRevoked(statusListIndex uint64) (bool, error) {
 	s.mu.RUnlock()
 
 	if expired {
-		if err := s.refresh(); err != nil {
-			// Log the error but serve stale data rather than blocking verification.
-			// A monitoring alert should fire on persistent fetch failures.
-			log.Printf("revocation: status list refresh failed (serving stale data): %v", err)
+		// Acquire refreshMu so that at most one goroutine calls refresh() per TTL
+		// expiry, preventing a cache stampede under concurrent load.
+		s.refreshMu.Lock()
+		// Re-check expiry after acquiring the lock: a concurrent goroutine may have
+		// already refreshed while we were waiting, making another fetch unnecessary.
+		s.mu.RLock()
+		stillExpired := time.Since(s.fetchedAt) > s.ttl
+		s.mu.RUnlock()
+		if stillExpired {
+			if err := s.refresh(); err != nil {
+				// Log the error but serve stale data rather than blocking verification.
+				// A monitoring alert should fire on persistent fetch failures.
+				log.Printf("revocation: status list refresh failed (serving stale data): %v", err)
+			}
 		}
+		s.refreshMu.Unlock()
 	}
 
 	s.mu.RLock()
@@ -78,10 +91,22 @@ func (s *StatusCache) Ready() bool {
 	return len(s.bitstring) > 0
 }
 
+// WarmUp performs the initial status list fetch eagerly on startup.
+// Call this during server initialization to prevent readiness deadlock
+// in orchestrators that gate traffic on /readyz.
+func (s *StatusCache) WarmUp() error {
+	var err error
+	s.once.Do(func() {
+		err = s.refresh()
+	})
+	return err
+}
+
 // refresh fetches the current status list from the remote endpoint.
+// Only publishes the new bitstring if the entire body was read successfully.
+// On failure, the previous known-good snapshot (if any) is preserved.
 func (s *StatusCache) refresh() error {
 	if s.baseURL == "" {
-		// No status list configured — revocation checking is disabled
 		s.mu.Lock()
 		s.bitstring = []byte{}
 		s.fetchedAt = time.Now()
@@ -99,17 +124,13 @@ func (s *StatusCache) refresh() error {
 		return fmt.Errorf("HTTP GET %s returned %d", s.baseURL, resp.StatusCode)
 	}
 
-	// Read the raw bitstring bytes (compressed or raw — caller's responsibility)
-	buf := make([]byte, 0, 16384)
-	tmp := make([]byte, 4096)
-	for {
-		n, readErr := resp.Body.Read(tmp)
-		if n > 0 {
-			buf = append(buf, tmp[:n]...)
-		}
-		if readErr != nil {
-			break
-		}
+	buf, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("reading status list body from %s: %w", s.baseURL, err)
+	}
+
+	if len(buf) == 0 {
+		return fmt.Errorf("status list from %s is empty", s.baseURL)
 	}
 
 	s.mu.Lock()

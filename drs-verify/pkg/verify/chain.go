@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/drs-protocol/drs-verify/pkg/anchor"
 	"github.com/drs-protocol/drs-verify/pkg/policy"
 	"github.com/drs-protocol/drs-verify/pkg/resolver"
 	"github.com/drs-protocol/drs-verify/pkg/revocation"
@@ -34,10 +35,19 @@ const (
 
 // Deps bundles the I/O dependencies needed for Block C, Block F, and DR storage.
 type Deps struct {
-	Resolver        *resolver.Resolver
-	Revocation      *revocation.StatusCache
-	LocalRevocation *revocation.LocalRevocationStore
-	Store           store.Store
+	Resolver          *resolver.Resolver
+	Revocation        *revocation.StatusCache
+	LocalRevocation   *revocation.LocalRevocationStore
+	Store             store.Store
+	// ServerIdentity is this server's DID or identifier. When set, the verifier
+	// enforces that invocation.tool_server matches this value, binding the
+	// invocation to the intended destination. Empty disables the check.
+	ServerIdentity string
+	// IncludeTimestamps enables RFC 3161 timestamp verification after Block F.
+	// For each receipt, retrieves the stored .tst token (if any) and verifies it.
+	// Timestamp failures are reported in VerificationResult.Timestamps but do not
+	// fail the overall chain verification.
+	IncludeTimestamps bool
 }
 
 // Chain verifies a DRS chain bundle through all six blocks.
@@ -199,6 +209,8 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 	}
 
 	// ── Block D: Semantic/Policy Validity ────────────────────────────────────
+	// D1–D4 are spec section numbers from §6.2, not execution order.
+	// Execution order is D3 → D4 → D2 → D1 (structural checks before semantic).
 
 	// D3: command must be equal or a sub-path of root cmd
 	rootCmd := receipts[0].Cmd
@@ -223,6 +235,20 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 				fmt.Sprintf("receipt[%d].sub %q ≠ root sub %q.", i, receipts[i].Sub, rootSub),
 				"All delegation receipts must carry the same sub (the original resource owner).")
 		}
+	}
+
+	// D4b: invocation.sub must equal root sub (binding invocation to chain subject)
+	if invocation.Sub != rootSub {
+		return types.Invalid("INVOCATION_SUBJECT_MISMATCH",
+			fmt.Sprintf("invocation.sub %q ≠ chain root sub %q.", invocation.Sub, rootSub),
+			"The invocation must reference the same subject as the delegation chain.")
+	}
+
+	// D4c: invocation.tool_server must match the server's configured identity
+	if deps.ServerIdentity != "" && invocation.ToolServer != deps.ServerIdentity {
+		return types.Invalid("TOOL_SERVER_MISMATCH",
+			fmt.Sprintf("invocation.tool_server %q ≠ expected server identity %q.", invocation.ToolServer, deps.ServerIdentity),
+			"The invocation targets a different tool server than this verifier.")
 	}
 
 	// D2: policy attenuation — child policy must be a subset of parent policy
@@ -309,6 +335,60 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 		}
 	}
 
+	// ── Store verified receipts ──────────────────────────────────────────────
+	// Persist each verified receipt in the store for audit retention and
+	// Tier 3 timestamping. Non-fatal: store failures are logged but do not
+	// invalidate the verification. Must run before timestamp verification so
+	// that Tier3Store can create .tst tokens that are then immediately verifiable.
+	if deps.Store != nil {
+		for _, jwt := range bundle.Receipts {
+			hash := computeChainHash(jwt)
+			if err := deps.Store.Put(hash, jwt); err != nil {
+				_ = err
+			}
+		}
+	}
+
+	// ── Timestamp Verification (optional) ───────────────────────────────────
+	// Enabled when deps.IncludeTimestamps is true and a store is configured.
+	// For each receipt, retrieves the associated RFC 3161 token (stored under
+	// hash+".tst" by Tier3Store) and calls VerifyTimestamp.
+	// Failures are reported per-receipt in VerificationResult.Timestamps;
+	// they do not invalidate the chain (the chain blocks A–F are authoritative).
+
+	var timestamps []types.TimestampResult
+	if deps.IncludeTimestamps && deps.Store != nil {
+		timestamps = make([]types.TimestampResult, 0, len(bundle.Receipts))
+		for i, jwt := range bundle.Receipts {
+			hash := computeChainHash(jwt)
+			tokenKey := hash + ".tst"
+			tokenStr, err := deps.Store.Get(tokenKey)
+			if err != nil {
+				timestamps = append(timestamps, types.TimestampResult{
+					Index: i,
+					Valid: false,
+					Error: "no timestamp token stored for this receipt",
+				})
+				continue
+			}
+			jwtHash := sha256.Sum256([]byte(jwt))
+			genTime, err := anchor.VerifyTimestamp([]byte(tokenStr), jwtHash[:])
+			if err != nil {
+				timestamps = append(timestamps, types.TimestampResult{
+					Index: i,
+					Valid: false,
+					Error: err.Error(),
+				})
+			} else {
+				timestamps = append(timestamps, types.TimestampResult{
+					Index: i,
+					Valid: true,
+					Time:  genTime.UTC().Format(time.RFC3339),
+				})
+			}
+		}
+	}
+
 	// ── Success ──────────────────────────────────────────────────────────────
 
 	root := receipts[0]
@@ -318,7 +398,7 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 		sessionID = &id
 	}
 
-	return types.Valid(types.VerificationContext{
+	result := types.Valid(types.VerificationContext{
 		RootPrincipal: root.Iss,
 		RootType:      root.DrsRootType,
 		ConsentRecord: root.DrsConsent,
@@ -327,6 +407,8 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 		ChainDepth:    len(receipts),
 		SessionID:     sessionID,
 	})
+	result.Timestamps = timestamps
+	return result
 }
 
 // computeChainHash returns "sha256:{hex}" of the raw JWT bytes.

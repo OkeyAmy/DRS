@@ -15,8 +15,11 @@ import type { Policy } from "./types.js";
  * Fail-closed: any violation denies the capability.
  */
 export function checkPolicyAttenuation(parent: Policy, child: Policy): string | null {
-  // max_cost_usd: child cannot raise the cost limit
-  if (parent.max_cost_usd !== undefined && child.max_cost_usd !== undefined) {
+  // max_cost_usd: child cannot raise the cost limit; cannot omit if parent defines it
+  if (parent.max_cost_usd !== undefined) {
+    if (child.max_cost_usd === undefined) {
+      return `Child omits max_cost_usd but parent restricts it to $${parent.max_cost_usd.toFixed(2)}; child must explicitly inherit or tighten this limit.`;
+    }
     if (child.max_cost_usd > parent.max_cost_usd) {
       return `Child loosens max_cost_usd: parent $${parent.max_cost_usd.toFixed(2)}, child $${child.max_cost_usd.toFixed(2)}.`;
     }
@@ -32,48 +35,57 @@ export function checkPolicyAttenuation(parent: Policy, child: Policy): string | 
     return "Child relaxes write_access restriction: parent false, child true.";
   }
 
-  // max_calls: child cannot raise the call limit
-  if (parent.max_calls !== undefined && child.max_calls !== undefined) {
+  // max_calls: child cannot raise the call limit; cannot omit if parent defines it
+  if (parent.max_calls !== undefined) {
+    if (child.max_calls === undefined) {
+      return `Child omits max_calls but parent restricts it to ${parent.max_calls}; child must explicitly inherit or tighten this limit.`;
+    }
     if (child.max_calls > parent.max_calls) {
       return `Child loosens max_calls: parent ${parent.max_calls}, child ${child.max_calls}.`;
     }
   }
 
-  // allowed_tools: child's list must be a subset of parent's list
-  if (parent.allowed_tools !== undefined && child.allowed_tools !== undefined) {
-    if (!parent.allowed_tools.includes("*")) {
-      for (const tool of child.allowed_tools) {
-        if (tool === "*") {
-          return "Child adds wildcard '*' to allowed_tools but parent does not allow all tools.";
-        }
-        if (!parent.allowed_tools.includes(tool)) {
-          return `Child adds "${tool}" to allowed_tools not permitted by parent.`;
-        }
+  // allowed_tools: child's list must be a subset of parent's list;
+  // cannot omit if parent restricts (omitting implies all tools, which escalates)
+  if (parent.allowed_tools !== undefined && !parent.allowed_tools.includes("*")) {
+    if (child.allowed_tools === undefined) {
+      return "Child omits allowed_tools but parent restricts it; child must explicitly list permitted tools.";
+    }
+    for (const tool of child.allowed_tools) {
+      if (tool === "*") {
+        return "Child adds wildcard '*' to allowed_tools but parent does not allow all tools.";
+      }
+      if (!parent.allowed_tools.includes(tool)) {
+        return `Child adds "${tool}" to allowed_tools not permitted by parent.`;
       }
     }
   }
 
-  // allowed_resources: child's list must be a subset of parent's list
-  if (parent.allowed_resources !== undefined && child.allowed_resources !== undefined) {
-    if (!parent.allowed_resources.includes("*")) {
-      for (const res of child.allowed_resources) {
-        if (res === "*") {
-          return "Child adds wildcard '*' to allowed_resources but parent does not allow all.";
-        }
-        if (!parent.allowed_resources.includes(res)) {
-          return `Child adds "${res}" to allowed_resources not permitted by parent.`;
-        }
+  // allowed_resources: child's list must be a subset of parent's list;
+  // cannot omit if parent restricts
+  if (parent.allowed_resources !== undefined && !parent.allowed_resources.includes("*")) {
+    if (child.allowed_resources === undefined) {
+      return "Child omits allowed_resources but parent restricts it; child must explicitly list permitted resources.";
+    }
+    for (const res of child.allowed_resources) {
+      if (res === "*") {
+        return "Child adds wildcard '*' to allowed_resources but parent does not allow all.";
+      }
+      if (!parent.allowed_resources.includes(res)) {
+        return `Child adds "${res}" to allowed_resources not permitted by parent.`;
       }
     }
   }
 
-  // allowed_data_classes: child's list must be a subset of parent's list
-  if (parent.allowed_data_classes !== undefined && child.allowed_data_classes !== undefined) {
-    if (!parent.allowed_data_classes.includes("*")) {
-      for (const cls of child.allowed_data_classes) {
-        if (cls === "*" || !parent.allowed_data_classes.includes(cls)) {
-          return `Child adds "${cls}" to allowed_data_classes not permitted by parent.`;
-        }
+  // allowed_data_classes: child's list must be a subset of parent's list;
+  // cannot omit if parent restricts
+  if (parent.allowed_data_classes !== undefined && !parent.allowed_data_classes.includes("*")) {
+    if (child.allowed_data_classes === undefined) {
+      return "Child omits allowed_data_classes but parent restricts it; child must explicitly list permitted data classes.";
+    }
+    for (const cls of child.allowed_data_classes) {
+      if (cls === "*" || !parent.allowed_data_classes.includes(cls)) {
+        return `Child adds "${cls}" to allowed_data_classes not permitted by parent.`;
       }
     }
   }

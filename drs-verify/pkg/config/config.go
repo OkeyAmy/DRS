@@ -48,6 +48,12 @@ type Config struct {
 	// StoreDir is the base directory for the filesystem store.
 	// Required if TSAURL is set. Default: empty (in-memory store used).
 	StoreDir string
+
+	// ServerIdentity is this server's identity string (e.g. a DID or URL).
+	// When set, the verifier enforces that invocation.tool_server matches this
+	// value, binding invocations to the intended target server.
+	// Set via SERVER_IDENTITY — empty disables the check.
+	ServerIdentity string
 }
 
 // Load reads all configuration from environment variables.
@@ -81,6 +87,7 @@ func Load() (Config, error) {
 	adminToken := os.Getenv("DRS_ADMIN_TOKEN")
 	tsaURL := os.Getenv("TSA_URL")
 	storeDir := os.Getenv("STORE_DIR")
+	serverIdentity := os.Getenv("SERVER_IDENTITY")
 
 	return Config{
 		ListenAddr:             listenAddr,
@@ -93,6 +100,7 @@ func Load() (Config, error) {
 		AdminToken:             adminToken,
 		TSAURL:                 tsaURL,
 		StoreDir:               storeDir,
+		ServerIdentity:         serverIdentity,
 	}, nil
 }
 

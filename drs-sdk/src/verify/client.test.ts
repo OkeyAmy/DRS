@@ -32,7 +32,7 @@ describe("VerifyClient", () => {
 
     const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
     const result = await client.verify({
-      bundle_version: "1.0",
+      bundle_version: "4.0",
       receipts: ["r.p.s"],
       invocation: "i.p.s",
     });
@@ -51,7 +51,7 @@ describe("VerifyClient", () => {
 
     const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
     const result = await client.verify({
-      bundle_version: "1.0",
+      bundle_version: "4.0",
       receipts: ["r.p.s"],
       invocation: "i.p.s",
     });
@@ -67,7 +67,7 @@ describe("VerifyClient", () => {
 
     const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
     await expect(
-      client.verify({ bundle_version: "1.0", receipts: ["r.p.s"], invocation: "i.p.s" }),
+      client.verify({ bundle_version: "4.0", receipts: ["r.p.s"], invocation: "i.p.s" }),
     ).rejects.toMatchObject({ code: "NETWORK_ERROR" });
     vi.unstubAllGlobals();
   });
@@ -82,7 +82,7 @@ describe("VerifyClient", () => {
 
     const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
     await expect(
-      client.verify({ bundle_version: "1.0", receipts: ["r.p.s"], invocation: "i.p.s" }),
+      client.verify({ bundle_version: "4.0", receipts: ["r.p.s"], invocation: "i.p.s" }),
     ).rejects.toMatchObject({ code: "VERIFY_SERVICE_ERROR" });
     vi.unstubAllGlobals();
   });
@@ -97,8 +97,47 @@ describe("VerifyClient", () => {
 
     const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
     await expect(
-      client.verify({ bundle_version: "1.0", receipts: ["r.p.s"], invocation: "i.p.s" }),
+      client.verify({ bundle_version: "4.0", receipts: ["r.p.s"], invocation: "i.p.s" }),
     ).rejects.toMatchObject({ code: "VERIFY_RESPONSE_INVALID" });
+    vi.unstubAllGlobals();
+  });
+
+  it("sends include_timestamps:true in the request body when the option is set", async () => {
+    let capturedBody: Record<string, unknown> | null = null;
+    const mockFetch = vi
+      .fn()
+      .mockImplementation(async (_url: unknown, init?: RequestInit) => {
+        capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+        return { ok: true, status: 200, json: async () => validResult };
+      });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
+    await client.verify(
+      { bundle_version: "4.0", receipts: ["r.p.s"], invocation: "i.p.s" },
+      { includeTimestamps: true },
+    );
+
+    expect(capturedBody).not.toBeNull();
+    expect(capturedBody!["include_timestamps"]).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it("does not include include_timestamps in the request body by default", async () => {
+    let capturedBody: Record<string, unknown> | null = null;
+    const mockFetch = vi
+      .fn()
+      .mockImplementation(async (_url: unknown, init?: RequestInit) => {
+        capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+        return { ok: true, status: 200, json: async () => validResult };
+      });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
+    await client.verify({ bundle_version: "4.0", receipts: ["r.p.s"], invocation: "i.p.s" });
+
+    expect(capturedBody).not.toBeNull();
+    expect(capturedBody!["include_timestamps"]).toBeUndefined();
     vi.unstubAllGlobals();
   });
 });

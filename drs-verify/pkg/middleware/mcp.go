@@ -20,14 +20,33 @@ const verificationContextKey contextKey = "drs_verification_context"
 
 // MCPMiddleware extracts the X-DRS-Bundle header, verifies it, and attaches
 // the VerificationContext to the request context.
-// Requests with no X-DRS-Bundle header pass through unmodified (optional enforcement).
+// Requests with no X-DRS-Bundle header receive 401 Unauthorized (fail-closed).
 // Requests with an invalid bundle receive 403 Forbidden.
+// For optional enforcement, use OptionalMCPMiddleware instead.
 func MCPMiddleware(deps verify.Deps, next http.Handler) http.Handler {
+	return mcpMiddleware(deps, next, false)
+}
+
+// OptionalMCPMiddleware behaves like MCPMiddleware but passes through requests
+// that do not include the X-DRS-Bundle header. Use this only when downstream
+// handlers perform their own authorization or when DRS verification is advisory.
+func OptionalMCPMiddleware(deps verify.Deps, next http.Handler) http.Handler {
+	return mcpMiddleware(deps, next, true)
+}
+
+func mcpMiddleware(deps verify.Deps, next http.Handler, allowMissing bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bundleHeader := r.Header.Get("X-DRS-Bundle")
 		if bundleHeader == "" {
-			// No DRS bundle — pass through; enforcement is the caller's responsibility
-			next.ServeHTTP(w, r)
+			if allowMissing {
+				next.ServeHTTP(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"error": "Missing X-DRS-Bundle header — DRS verification is required on this route.",
+			})
 			return
 		}
 

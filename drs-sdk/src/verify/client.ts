@@ -30,10 +30,21 @@ export class VerifyClient {
    * Verifies a ChainBundle against the remote drs-verify service.
    * Returns a VerificationResult — never throws for verification failures
    * (only throws for network errors or invalid server responses).
+   *
+   * When options.includeTimestamps is true, the server retrieves and verifies
+   * the RFC 3161 timestamp token for each receipt and includes the results
+   * in VerificationResult.timestamps.
    */
-  async verify(bundle: ChainBundle): Promise<VerificationResult> {
+  async verify(
+    bundle: ChainBundle,
+    options?: { includeTimestamps?: boolean },
+  ): Promise<VerificationResult> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    const body = options?.includeTimestamps
+      ? JSON.stringify({ ...bundle, include_timestamps: true })
+      : JSON.stringify(bundle);
 
     let response: Response;
     try {
@@ -43,7 +54,7 @@ export class VerifyClient {
           "Content-Type": "application/json",
           "X-DRS-Bundle": serialiseBundle(bundle),
         },
-        body: JSON.stringify(bundle),
+        body,
         signal: controller.signal,
       });
     } catch (error: unknown) {

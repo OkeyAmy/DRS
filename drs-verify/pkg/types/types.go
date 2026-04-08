@@ -3,6 +3,13 @@
 package types
 
 // Policy represents capability constraints attached to a delegation receipt.
+//
+// max_calls is INFORMATIONAL ONLY — it is carried in the policy and validated
+// during attenuation checks (child ≤ parent), but is NOT enforced at runtime
+// because enforcement requires session-aware call counting with durable state
+// and race-safe updates, which is outside the scope of the stateless verifier.
+// Integrators who need call-count enforcement must implement it in their own
+// session layer and use max_calls as the authoritative limit to enforce.
 type Policy struct {
 	MaxCostUSD       *float64 `json:"max_cost_usd,omitempty"`
 	PIIAccess        *bool    `json:"pii_access,omitempty"`
@@ -92,11 +99,20 @@ type VerificationError struct {
 	Suggestion string `json:"suggestion"`
 }
 
+// TimestampResult reports the RFC 3161 timestamp verification outcome for one receipt.
+type TimestampResult struct {
+	Index int    `json:"index"`
+	Valid bool   `json:"valid"`
+	Time  string `json:"time,omitempty"`  // RFC 3339 time from the TSA token; set on success
+	Error string `json:"error,omitempty"` // error detail; set on failure
+}
+
 // VerificationResult is always returned by verifyChain — never panics.
 type VerificationResult struct {
-	Valid    bool                 `json:"valid"`
-	Context  *VerificationContext `json:"context,omitempty"`
-	Error    *VerificationError   `json:"error,omitempty"`
+	Valid      bool                 `json:"valid"`
+	Context    *VerificationContext `json:"context,omitempty"`
+	Error      *VerificationError   `json:"error,omitempty"`
+	Timestamps []TimestampResult    `json:"timestamps,omitempty"`
 }
 
 // Valid constructs a successful VerificationResult.

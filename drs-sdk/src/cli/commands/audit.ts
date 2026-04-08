@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { parseBundle } from "../../sdk/bundle.js";
+import { parseBundleAuto } from "../../sdk/bundle.js";
 
 export async function audit(args: string[]): Promise<void> {
   const bundlePath = args[0];
@@ -8,15 +8,15 @@ export async function audit(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  let json: string;
+  let content: string;
   try {
-    json = readFileSync(bundlePath, "utf8");
+    content = readFileSync(bundlePath, "utf8");
   } catch (error: unknown) {
     console.error(`Cannot read ${bundlePath}: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
 
-  const bundle = parseBundle(json);
+  const bundle = parseBundleAuto(content);
 
   console.log("=== DRS Chain Audit Trail ===");
   console.log(`Bundle version : ${bundle.bundle_version}`);

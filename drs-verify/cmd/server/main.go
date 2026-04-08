@@ -40,6 +40,11 @@ func main() {
 	if cfg.StatusListBaseURL != "" {
 		statusCache = revocation.New(cfg.StatusListBaseURL,
 			time.Duration(cfg.StatusListCacheTTLSecs)*time.Second)
+		if err := statusCache.WarmUp(); err != nil {
+			log.Printf("drs-verify: status list warm-up failed (will retry on first request): %v", err)
+		} else {
+			log.Printf("drs-verify: status list warm-up successful")
+		}
 	}
 
 	localRev := revocation.NewLocalRevocationStore()
@@ -71,6 +76,7 @@ func main() {
 		Revocation:      statusCache,
 		LocalRevocation: localRev,
 		Store:           drStore,
+		ServerIdentity:  cfg.ServerIdentity,
 	}
 
 	mux := http.NewServeMux()
@@ -82,6 +88,10 @@ func main() {
 
 	// Verification endpoint — accepts a ChainBundle JSON body and returns VerificationResult.
 	// Used directly by the SDK and tests; MCP/A2A routes use header-based extraction instead.
+	//
+	// Optional field: "include_timestamps" (bool) — when true, retrieves and verifies
+	// the RFC 3161 timestamp token stored alongside each receipt and includes results
+	// in VerificationResult.Timestamps.
 	mux.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -90,8 +100,11 @@ func main() {
 
 		r.Body = http.MaxBytesReader(w, r.Body, cfg.MaxBodyBytes)
 
-		var bundle types.ChainBundle
-		if err := json.NewDecoder(r.Body).Decode(&bundle); err != nil {
+		var req struct {
+			types.ChainBundle
+			IncludeTimestamps bool `json:"include_timestamps"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
@@ -100,7 +113,10 @@ func main() {
 			return
 		}
 
-		result := verify.Chain(bundle, deps)
+		reqDeps := deps
+		reqDeps.IncludeTimestamps = req.IncludeTimestamps
+
+		result := verify.Chain(req.ChainBundle, reqDeps)
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(result); err != nil {
@@ -124,8 +140,16 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 		})))
 
+	srv := &http.Server{
+		Addr:              cfg.ListenAddr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 	log.Printf("drs-verify listening on %s", cfg.ListenAddr)
-	if err := http.ListenAndServe(cfg.ListenAddr, mux); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("server: %v", err)
 	}
 }

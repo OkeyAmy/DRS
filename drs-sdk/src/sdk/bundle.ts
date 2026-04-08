@@ -67,6 +67,40 @@ export function parseBundle(encoded: string): ChainBundle {
     );
   }
 
+  return validateBundleObject(parsed);
+}
+
+/**
+ * Parses a raw JSON string into a ChainBundle.
+ * Use this when reading bundle files from disk (e.g. `drs verify bundle.json`).
+ */
+export function parseBundleJSON(json: string): ChainBundle {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch (error: unknown) {
+    throw new DrsError(
+      "MALFORMED_BUNDLE",
+      `Bundle JSON parse failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  return validateBundleObject(parsed);
+}
+
+/**
+ * Auto-detects the bundle format (raw JSON or base64url-encoded) and parses it.
+ * Tries JSON first (if input starts with '{' after trimming), falls back to base64url.
+ */
+export function parseBundleAuto(input: string): ChainBundle {
+  const trimmed = input.trim();
+  if (trimmed.startsWith("{")) {
+    return parseBundleJSON(trimmed);
+  }
+  return parseBundle(trimmed);
+}
+
+function validateBundleObject(parsed: unknown): ChainBundle {
   if (
     typeof parsed !== "object" ||
     parsed === null ||

@@ -266,3 +266,62 @@ func TestResolveDispatch_UnsupportedMethodReturnsError(t *testing.T) {
 		t.Fatal("expected error for unsupported DID method, got nil")
 	}
 }
+
+// ── Concurrency tests ────────────────────────────────────────────────────────
+
+func TestConcurrentDidKeyResolutionsDoNotBlock(t *testing.T) {
+	r, err := New(100, time.Hour)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	const goroutines = 50
+	errs := make(chan error, goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			did := encodeDIDKey(ed25519TestKey)
+			_, resolveErr := r.Resolve(did)
+			errs <- resolveErr
+		}()
+	}
+
+	for i := 0; i < goroutines; i++ {
+		if e := <-errs; e != nil {
+			t.Errorf("concurrent did:key resolve failed: %v", e)
+		}
+	}
+}
+
+func TestSingleflightDeduplicatesConcurrentMisses(t *testing.T) {
+	r, err := New(100, time.Nanosecond)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	did := encodeDIDKey(ed25519TestKey)
+
+	const goroutines = 20
+	type result struct {
+		key [ed25519PublicKeyBytes]byte
+		err error
+	}
+	ch := make(chan result, goroutines)
+
+	time.Sleep(time.Millisecond)
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			key, resolveErr := r.Resolve(did)
+			ch <- result{key: key, err: resolveErr}
+		}()
+	}
+
+	for i := 0; i < goroutines; i++ {
+		res := <-ch
+		if res.err != nil {
+			t.Errorf("concurrent resolve failed: %v", res.err)
+		} else if res.key != ed25519TestKey {
+			t.Errorf("unexpected key: got %x, want %x", res.key, ed25519TestKey)
+		}
+	}
+}

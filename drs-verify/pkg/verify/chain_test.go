@@ -11,6 +11,7 @@ import (
 
 	"github.com/drs-protocol/drs-verify/pkg/resolver"
 	"github.com/drs-protocol/drs-verify/pkg/revocation"
+	"github.com/drs-protocol/drs-verify/pkg/store"
 	"github.com/drs-protocol/drs-verify/pkg/types"
 )
 
@@ -359,6 +360,89 @@ func TestLocalRevocationBlocksChain(t *testing.T) {
 	}
 	if result.Error.Code != "REVOKED" {
 		t.Errorf("expected error code REVOKED, got %q", result.Error.Code)
+	}
+}
+
+// TestVerifiedReceiptsAreStoredOnSuccess proves that when deps.Store is set,
+// successfully verified receipts are persisted under their chain hash key.
+func TestVerifiedReceiptsAreStoredOnSuccess(t *testing.T) {
+	k0 := newTestKey(t)
+	k1 := newTestKey(t)
+	now := time.Now().Unix()
+
+	_, jwt0 := makeReceipt(k0.did, k0.did, k1.did, now, nil, k0)
+	hash0 := computeChainHash(jwt0)
+	invJWT := makeInvocation(k1.did, k0.did, []string{hash0}, now, k1)
+
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Receipts:      []string{jwt0},
+		Invocation:    invJWT,
+	}
+
+	mem, err := store.NewMemoryStore(0)
+	if err != nil {
+		t.Fatalf("NewMemoryStore: %v", err)
+	}
+
+	deps := testDeps(t)
+	deps.Store = mem
+
+	result := Chain(bundle, deps)
+	if !result.Valid {
+		t.Fatalf("expected valid chain, got error: %+v", result.Error)
+	}
+
+	stored, err := mem.Get(hash0)
+	if err != nil {
+		t.Fatalf("receipt not found in store after verification: %v", err)
+	}
+	if stored != jwt0 {
+		t.Error("stored JWT does not match the verified receipt")
+	}
+}
+
+// TestStoreNotCalledOnFailedVerification ensures receipts are NOT stored when
+// verification fails (e.g., forged signature).
+func TestStoreNotCalledOnFailedVerification(t *testing.T) {
+	k0 := newTestKey(t)
+	k1 := newTestKey(t)
+	attacker := newTestKey(t)
+	now := time.Now().Unix()
+
+	exp := now + 3600
+	dr := types.DelegationReceipt{
+		Iss: k0.did, Sub: k0.did, Aud: k1.did,
+		DrsV: "4.0", DrsType: "delegation-receipt",
+		Cmd: "/mcp/tools/call", Policy: types.Policy{},
+		Nbf: now - 60, Exp: &exp, Iat: now, Jti: "dr:forged",
+	}
+	forgedJWT := signJWT(attacker.prv, dr)
+	hash0 := computeChainHash(forgedJWT)
+	invJWT := makeInvocation(k1.did, k0.did, []string{hash0}, now, k1)
+
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Receipts:      []string{forgedJWT},
+		Invocation:    invJWT,
+	}
+
+	mem, err := store.NewMemoryStore(0)
+	if err != nil {
+		t.Fatalf("NewMemoryStore: %v", err)
+	}
+
+	deps := testDeps(t)
+	deps.Store = mem
+
+	result := Chain(bundle, deps)
+	if result.Valid {
+		t.Fatal("expected invalid for forged signature")
+	}
+
+	_, err = mem.Get(hash0)
+	if err == nil {
+		t.Error("receipt should NOT be stored after failed verification")
 	}
 }
 

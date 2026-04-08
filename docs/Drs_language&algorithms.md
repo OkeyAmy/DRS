@@ -224,8 +224,12 @@ to assign each layer to the language that is correct for that layer's job.
 | Crypto primitives | Rust | No GC, stack allocation, constant-time ops, compiles to WASM |
 | Verification server | Go | Goroutines, predictable GC, standard library, single binary |
 | Developer SDK | TypeScript | Low-frequency path, developer familiarity, npm ecosystem |
-| Browser / edge runtime | Rust → WASM | Same source as native, zero dependencies, 80KB bundle |
-| Solidity (Monad) | Solidity ^0.8.20 | EVM requirement, no alternative |
+| Browser / edge runtime | Rust → WASM | Same source as native, zero dependencies, ~80KB bundle |
+
+> **Note on blockchain:** Monad was removed from the architecture. Blockchain anchoring
+> (Ethereum) is available as an explicit opt-in Tier 5 for customers with contractual
+> requirements. It is never the default. No DRS deployment below Tier 5 requires a
+> wallet, token, or gas payment. See `technical_v2.md` for the updated storage tier model.
 
 ---
 
@@ -340,187 +344,191 @@ fn ability_covered(child_ability: &str, parent_abilities: &[String]) -> bool {
 
 ---
 
-### Correction 2 — `verify_chain()` Creates Redundant Intermediate Objects
+### Correction 2 — `verify_chain()` Uses JWT-Native Signing, Not Raw Canonical Bytes
 
-The v2 algorithm in Python created a new object at every step for canonical encoding.
-In Rust, we work with byte slices directly:
+The v2 algorithm re-canonicalised each delegation at verification time and signed over
+raw JSON bytes. The v3 implementation uses standard JWT format (RFC 7515), which means
+the signing input is `base64url(header) || "." || base64url(payload)` — the same byte
+string as the JWT's `header.payload` portion. The payload is JCS-canonical at issuance;
+at verification we read it directly from the JWT without re-canonicalising.
 
 ```rust
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-use serde_json::Value;
-use sha2::{Digest, Sha256};
+use crate::capability::policy::{check_policy_attenuation, evaluate_policy};
+use crate::chain::hash::compute_chain_hash;
+use crate::crypto::ed25519::verify_strict;
+use crate::did::key::resolve_did_key;
+use crate::jwt::decode::{decode_jwt_payload, extract_signature, extract_signing_input};
+use ed25519_dalek::VerifyingKey;
 
-/// verify_chain verifies a DRS chain bundle.
-/// 
+/// verify_chain verifies a DRS 4.0 chain bundle (Blocks A–E).
+///
 /// Memory model:
 /// - No heap allocation for signature bytes (stack-allocated [u8; 64])
-/// - No heap allocation for public keys (stack-allocated [u8; 32])  
-/// - One heap allocation per delegation for canonical JSON (unavoidable)
-/// - Canonical JSON string is dropped immediately after hash computation
-/// 
-/// This eliminates the 35-object-per-call allocation pattern from v2.
+/// - No heap allocation for public keys (stack-allocated [u8; 32])
+/// - Signing input is a slice of the JWT string — no copy, no allocation
+/// - One heap allocation per receipt for JSON payload deserialisation (unavoidable)
+///
+/// Block F (revocation) requires network I/O and is handled by the Go
+/// middleware before this function is called — Rust core performs no I/O.
 pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
-    let delegations = &bundle.delegations;
-
-    if delegations.is_empty() {
-        return VerificationResult::invalid("EMPTY_BUNDLE", "No delegations in bundle");
+    // ── Block A: Completeness ─────────────────────────────────────────────────
+    if bundle.receipts.is_empty() {
+        return VerificationResult::invalid("EMPTY_CHAIN", "bundle.receipts is empty", "...");
     }
 
-    // --- Step 1: Hash chain structural integrity ---
-    // We compute CIDs bottom-up, comparing to claimed prf[] values.
-    for i in 1..delegations.len() {
-        let computed_cid = compute_cid(&delegations[i - 1]);
-        let claimed_cid  = &delegations[i].prf[0];
-        
-        if &computed_cid != claimed_cid {
-            return VerificationResult::invalid(
-                "CHAIN_BREAK",
-                &format!("Index {i}: computed CID {computed_cid} ≠ claimed {claimed_cid}")
-            );
+    // Decode all JWT payloads upfront
+    let receipts: Vec<DelegationReceipt> = /* decode each bundle.receipts[i] */;
+    let invocation: InvocationReceipt    = /* decode bundle.invocation */;
+
+    // ── Block B: Structural Integrity ─────────────────────────────────────────
+    // B3: hash chain linkage
+    //     DRᵢ.prev_dr_hash must equal SHA-256(raw JWT bytes of DRᵢ₋₁).
+    //     The hash covers the FULL JWT string including the signature component —
+    //     any modification to payload or signature changes the hash and breaks
+    //     every subsequent receipt's prev_dr_hash.
+    for i in 1..bundle.receipts.len() {
+        let expected = compute_chain_hash(&bundle.receipts[i - 1]); // "sha256:{hex}"
+        match &receipts[i].prev_dr_hash {
+            None          => return VerificationResult::invalid("CHAIN_BREAK", ...),
+            Some(claimed) if claimed != &expected
+                          => return VerificationResult::invalid("CHAIN_BREAK", ...),
+            _             => {}
+        }
+    }
+    // B4: DRᵢ.iss must equal DRᵢ₋₁.aud
+    // B5: invocation.iss must equal last receipt's aud
+    // B6: invocation.dr_chain hashes must match all receipts
+
+    // ── Block C: Cryptographic Validity ──────────────────────────────────────
+    // The Ed25519 signature covers the JWT signing input per RFC 7515 §7.2.1:
+    //   signing_input = ASCII(base64url(header)) || "." || base64url(payload)
+    //
+    // NOT raw canonical JSON bytes. The payload was JCS-serialised at issuance
+    // (producing base64url-encoded deterministic bytes). At verification we use
+    // the same base64url bytes that were signed — no re-canonicalisation needed.
+    //
+    // verify_strict enforces S < L (the cofactor check — RUSTSEC-2022-0093 fix).
+    for (i, jwt) in bundle.receipts.iter().enumerate() {
+        let signing_input = extract_signing_input(jwt); // "header.payload" slice — no alloc
+        let key_bytes     = resolve_did_key(&receipts[i].iss)?;
+        let verifying_key = VerifyingKey::from_bytes(&key_bytes)?; // stack [u8; 32]
+        let signature     = extract_signature(jwt)?;               // stack [u8; 64]
+        verify_strict(&verifying_key, &signing_input, &signature)?;
+        // signing_input and signature are dropped here — immediate dealloc, no GC
+    }
+
+    // ── Block D: Semantic/Policy Validity ─────────────────────────────────────
+    // D1–D4 are spec section numbers, not execution order.
+    // Execution order: D3 → D4 → D2 → D1 (structural before semantic).
+
+    // D3: invocation.cmd must equal or be a sub-path of root cmd
+    // D4: all receipts must share the same sub (the resource owner's DID)
+
+    // D2: policy attenuation — child policy must not escalate beyond parent.
+    //     This is POLA (Principle of Least Authority) applied at each hop.
+    for i in 1..receipts.len() {
+        check_policy_attenuation(&receipts[i - 1].policy, &receipts[i].policy)?;
+    }
+
+    // D1: every receipt's policy must be satisfied by the invocation args.
+    //     Checked conjunctively — ALL policies in the chain must allow the call.
+    //     Because D2 ensures the leaf policy is the most restrictive, checking all
+    //     receipts is conservative but safe; it catches any mid-chain restrictions
+    //     that apply to the invocation regardless of the leaf policy.
+    for receipt in &receipts {
+        evaluate_policy(&receipt.policy, &invocation.args)?;
+    }
+
+    // ── Block E: Temporal Validity ────────────────────────────────────────────
+    let now = unix_now();
+    for (i, receipt) in receipts.iter().enumerate() {
+        if now < receipt.nbf { return NOT_YET_VALID; }
+        if let Some(exp) = receipt.exp {
+            if now > exp { return EXPIRED; }
         }
     }
 
-    // --- Step 2: Signature verification ---
-    for (i, delegation) in delegations.iter().enumerate() {
-        // Resolve DID to public key — O(1) for did:key (pure computation, no heap)
-        let verifying_key: VerifyingKey = match resolve_did_key(&delegation.iss) {
-            Ok(k)  => k,
-            Err(e) => return VerificationResult::invalid("UNRESOLVABLE_DID", &e),
-        };
+    // ── Block F: Revocation ───────────────────────────────────────────────────
+    // Handled by the Go middleware (requires I/O). Rust core performs no network calls.
 
-        // Build canonical bytes — one allocation, immediately dropped after use
-        let canonical: Vec<u8> = jcs_canonical_bytes(delegation);
-
-        // Decode signature — stack allocated [u8; 64]
-        let sig_bytes: [u8; 64] = match base64url_decode_fixed(&delegation.sig) {
-            Ok(b)  => b,
-            Err(_) => return VerificationResult::invalid("BAD_SIG_ENCODING", ""),
-        };
-        let signature = Signature::from_bytes(&sig_bytes);
-
-        // Ed25519 verify — ed25519-dalek enforces S < q (SUF-CMA)
-        // Reference: RUSTSEC-2022-0093 was the vulnerability in OLDER dalek versions
-        // where verify() did not check the cofactor. This was patched in ed25519-dalek 2.x.
-        // We use 2.x. The patch is: https://github.com/dalek-cryptography/ed25519-dalek/pull/306
-        if verifying_key.verify(&canonical, &signature).is_err() {
-            return VerificationResult::invalid(
-                "INVALID_SIGNATURE",
-                &format!("Ed25519 verification failed at index {i}, issuer: {}", delegation.iss)
-            );
-        }
-
-        // canonical is dropped here — memory freed immediately, no GC involvement
-    }
-
-    // --- Step 3: Capability attenuation (using pre-built index) ---
-    // The index was built at issuance and stored in the delegation. No rebuild needed.
-    for i in 1..delegations.len() {
-        let parent_index = &delegations[i - 1].capability_index; // pre-built at issuance
-        
-        for child_cap in &delegations[i].att {
-            if !parent_index.covers(&child_cap.with, &child_cap.can) {
-                return VerificationResult::invalid(
-                    "CAPABILITY_ESCALATION",
-                    &format!("Index {i}: {} on {} not covered by parent", 
-                             child_cap.can, child_cap.with)
-                );
-            }
-            // Check narrowing-by constraints
-            if let Some(nb) = &child_cap.nb {
-                if let Err(e) = check_nb_constraints(nb, &delegations[i-1].att, &child_cap.with) {
-                    return VerificationResult::invalid("NB_VIOLATION", &e);
-                }
-            }
-        }
-    }
-
-    // --- Step 4: Temporal validity ---
-    let now = unix_timestamp_now();
-    for (i, d) in delegations.iter().enumerate() {
-        if let Some(nbf) = d.nbf {
-            if now < nbf {
-                return VerificationResult::invalid(
-                    "NOT_YET_VALID",
-                    &format!("Index {i} not valid until {nbf}")
-                );
-            }
-        }
-        if let Some(exp) = d.exp {
-            if now > exp {
-                return VerificationResult::expired(
-                    &format!("Index {i} expired at {exp}")
-                );
-            }
-        }
-    }
-
-    // --- Step 5: Revocation (delegated to cache layer — not Rust's job) ---
-    // The Go layer calls the status list cache before invoking this function.
-    // Rust core does not perform I/O.
-
-    VerificationResult::valid(
-        root_principal:    &delegations[0].iss,
-        root_type:         delegations[0].drs_root_type.as_deref(),
-        leaf_capabilities: &delegations.last().unwrap().att,
-        leaf_constraints:  delegations.last().unwrap().drs_constraints.as_ref(),
-        consent_record:    delegations[0].drs_consent.as_ref(),
-        chain_depth:       delegations.len(),
-    )
+    VerificationResult::valid(VerificationContext {
+        root_principal: receipts[0].iss.clone(),
+        root_type:      receipts[0].drs_root_type.clone(),
+        consent_record: receipts[0].drs_consent.clone(),
+        regulatory:     receipts[0].drs_regulatory.clone(),
+        leaf_policy:    receipts.last().unwrap().policy.clone(),
+        chain_depth:    receipts.len(),
+        session_id:     receipts[0].drs_consent.as_ref().map(|c| c.session_id.clone()),
+    })
 }
 ```
+
+**Key differences from v2:**
+
+| Aspect | v2 (wrong) | v3 (correct) |
+|---|---|---|
+| Data model | UCAN-style `att`, `prf`, `can`, `with`, `nb` | DRS JWT: `policy`, `prev_dr_hash`, `cmd`, `sub` |
+| Signing input | Raw JCS-canonical JSON bytes | JWT `header.payload` string (RFC 7515) |
+| Chain linking | `prf[]` CID array | `prev_dr_hash: "sha256:{hex}"` |
+| Capability check | `capability_index.covers(with, can)` | `evaluate_policy(policy, args)` + `check_policy_attenuation` |
+| Revocation | In Rust core | Delegated to Go middleware (correct — requires I/O) |
 
 ---
 
-### Correction 3 — CID Computation Must Use Stable Canonicalisation
+### Correction 3 — Chain Hash Format: SHA-256 Hex, Not CIDv1
 
 The v2 algorithm used `JSON.stringify(obj, Object.keys(obj).sort())` for canonicalisation.
-This has a subtle bug: `Object.keys()` returns keys in insertion order in modern JS engines,
-and `.sort()` sorts lexicographically. For nested objects, the sort is only applied to the
-top level — nested keys are not sorted.
+This has a concrete bug: `.sort()` only sorts top-level keys — nested object keys are NOT
+sorted. The correct algorithm is RFC 8785 JCS (JSON Canonicalization Scheme) which
+recursively sorts all keys at every nesting depth. DRS uses `serde-json-canonicalizer`
+(Rust) and a hand-rolled recursive `jcsSerialise` (TypeScript) both of which are RFC 8785
+compliant at all nesting levels.
 
-The correct algorithm is RFC 8785 JCS (JSON Canonicalization Scheme) which specifies
-deterministic serialisation of ALL nested keys recursively.
+**Chain hash format — "sha256:{hex}":**
+
+The implementation uses `compute_chain_hash` (not `compute_cid`) producing a plain
+`sha256:{hex}` string rather than a CIDv1 `bafyabc...` identifier.
 
 ```rust
-// Rust — correct RFC 8785 JCS implementation
-// Crate: serde-json-canonicalizer (implements RFC 8785)
-
-use serde_json_canonicalizer::to_vec;
 use sha2::{Digest, Sha256};
-use multibase::Base;
-use cid::{Cid, multihash::{Code, MultihashDigest}};
 
-/// compute_cid produces the CIDv1 of a delegation object.
-/// 
-/// Algorithm:
-///   1. Serialise to canonical JSON per RFC 8785 (all keys sorted, recursively)
-///   2. SHA-256 the canonical bytes
-///   3. Wrap in multihash (0x12, 0x20 prefix)
-///   4. Wrap in CIDv1 (version=1, codec=dag-json=0x0129)
-///   5. Base32-encode with 'b' prefix
+/// compute_chain_hash produces a tamper-evident fingerprint of a DRS JWT.
 ///
-/// This is stable: same delegation always produces same CID, regardless of
-/// key insertion order, numeric precision, or unicode normalisation.
-pub fn compute_cid(delegation: &DRSDelegation) -> String {
-    // 1. JCS canonical JSON — RFC 8785 compliant, all nested keys sorted
-    // Note: we exclude the 'sig' field (the CID is of the unsigned content)
-    let unsigned = delegation.without_signature();
-    let canonical: Vec<u8> = to_vec(&unsigned)
-        .expect("serialisation of valid delegation should not fail");
-
-    // 2. SHA-256
-    let digest = Sha256::digest(&canonical);  // [u8; 32] — stack allocated
-
-    // 3. Multihash: sha2-256 (0x12) || length 32 (0x20) || digest
-    let mh = Code::Sha2_256.digest(&canonical);
-
-    // 4. CIDv1 with dag-json codec
-    let cid = Cid::new_v1(0x0129, mh);  // 0x0129 = dag-json
-
-    // 5. Base32 lower-case, 'b' multibase prefix
-    cid.to_string()  // produces "bafyabc..."
+/// Algorithm:
+///   1. Take the raw JWT bytes — the FULL "header.payload.signature" string
+///   2. SHA-256 hash of those bytes
+///   3. Return "sha256:{lowercase_hex}"
+///
+/// Outstanding property: the hash covers the FULL JWT including the signature.
+/// This means:
+///   - Modifying the payload changes the hash → breaks chain (CHAIN_BREAK)
+///   - Modifying the signature changes the hash → breaks chain AND fails sig check
+///   - Forging a hash requires either a SHA-256 preimage or a valid signing key
+///   - The chain link is as strong as the signature it covers
+///
+/// Format "sha256:{hex}" is consistent across all DRS implementations:
+/// Rust (drs-core), Go (drs-verify), TypeScript (drs-sdk). All produce
+/// identical output for identical JWT input.
+pub fn compute_chain_hash(jwt: &str) -> String {
+    let digest = Sha256::digest(jwt.as_bytes()); // [u8; 32] — stack allocated
+    let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+    format!("sha256:{hex}")
 }
 ```
+
+**Why SHA-256 hex instead of CIDv1:**
+
+| Aspect | CIDv1 (`bafyabc...`) | SHA-256 hex (`sha256:{hex}`) |
+|---|---|---|
+| Human readability | Opaque base32 string | Recognisable format, debuggable |
+| Crate requirements | `cid` + `multibase` + `multihash` | `sha2` only (already required) |
+| Cross-language consistency | Requires CID libraries in Go/TS | `crypto/sha256` (Go stdlib) + `@noble/hashes` (TS) |
+| Spec compatibility | IPLD-native | JWT/OAuth-native (matches our ecosystem) |
+| Security equivalence | SHA-256 inside | SHA-256 directly |
+
+CIDv1 would have added two crates (`cid`, `multibase`) for no security benefit.
+The `sha256:{hex}` prefix makes the hash algorithm explicit and the value human-readable
+in logs, debug output, and audit reports.
 
 **Why `serde-json-canonicalizer` and not a hand-rolled sort:**
 The RFC 8785 test vectors include edge cases that hand-rolled solutions miss:
@@ -529,7 +537,7 @@ The RFC 8785 test vectors include edge cases that hand-rolled solutions miss:
 - Empty objects and arrays
 - Nested objects at arbitrary depth
 
-Using a crate that has been tested against the RFC's official test vectors eliminates
+Using a crate tested against the RFC's official test vectors eliminates
 an entire class of canonicalisation divergence bugs between implementations.
 
 ---
@@ -812,15 +820,22 @@ This means:
 
 | Component | Crate / Package | Version | Why |
 |---|---|---|---|
-| Ed25519 (Rust) | `ed25519-dalek` | 2.1.x | RFC 8032, SUF-CMA, RUSTSEC-2022-0093 patched |
+| Ed25519 (Rust) | `ed25519-dalek` | 2.2.x | RFC 8032, SUF-CMA, RUSTSEC-2022-0093 patched |
 | SHA-256 (Rust) | `sha2` (RustCrypto) | 0.10.x | AES-NI acceleration, formally audited |
 | JCS (Rust) | `serde-json-canonicalizer` | 0.2.x | RFC 8785 test-vector compliant |
-| CID (Rust) | `cid` | 1.x | IPLD-compatible, multihash-compatible |
-| Constant-time ops | `subtle` | 2.x | Safe constant-time comparisons |
-| WASM build | `wasm-pack` | 0.12.x | Rust → WASM compilation |
-| LRU cache (Go) | `golang-lru/v2` | 2.x | Hashicorp, production-proven |
-| Ed25519 (Go) | `crypto/ed25519` | stdlib | No external dependency needed |
-| WASM wrapper (TS) | `@drs/wasm` | internal | Generated by wasm-pack |
+| Constant-time ops | `subtle` | 2.x | Safe constant-time multicodec prefix check |
+| Base58 decoding | `bs58` | 0.5.x | did:key base58btc multibase decoding |
+| JWT encoding | `base64` | 0.22.x | base64url encode/decode for JWT format |
+| WASM build | `wasm-pack` | 0.13.x | Build tool (not a crate dep): Rust → WASM |
+| LRU cache (Go) | `golang-lru/v2` | 2.0.x | Hashicorp, production-proven, hard-bounded |
+| Ed25519 (Go) | `crypto/ed25519` | stdlib | No external dep: Go stdlib is RFC 8032 compliant |
+| Ed25519 (TS) | `@noble/ed25519` | 2.x | Audited, no WebCrypto dep, SUF-CMA compliant |
+| Hashing (TS) | `@noble/hashes` | 1.x | SHA-256 + SHA-512 (required by @noble/ed25519 v2) |
+| WASM output | `@drs/wasm` | artifact | `wasm-pack build` output from drs-core — not a separately published package; bundled into `@drs/sdk` |
+
+> **Note on `cid` crate:** An earlier architecture described CIDv1 content addressing
+> (`bafyabc...` format). The implementation uses `sha256:{hex}` via `compute_chain_hash`
+> instead. The `cid` crate is not a dependency of drs-core. See Correction 3 above.
 
 ---
 
