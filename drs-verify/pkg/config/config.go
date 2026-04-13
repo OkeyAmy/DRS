@@ -54,6 +54,14 @@ type Config struct {
 	// value, binding invocations to the intended target server.
 	// Set via SERVER_IDENTITY — empty disables the check.
 	ServerIdentity string
+
+	// NonceStoreMaxEntries is the maximum number of JTIs held in the replay
+	// protection store. Default: 100000.
+	NonceStoreMaxEntries int
+
+	// NonceStoreTTLSecs is the TTL in seconds for nonce store entries.
+	// Should match or exceed the maximum expected exp window. Default: 3600 (1 hour).
+	NonceStoreTTLSecs int64
 }
 
 // Load reads all configuration from environment variables.
@@ -89,6 +97,16 @@ func Load() (Config, error) {
 	storeDir := os.Getenv("STORE_DIR")
 	serverIdentity := os.Getenv("SERVER_IDENTITY")
 
+	nonceMax, err := getEnvInt("NONCE_STORE_MAX_ENTRIES", 100_000)
+	if err != nil {
+		return Config{}, fmt.Errorf("NONCE_STORE_MAX_ENTRIES: %w", err)
+	}
+
+	nonceTTL, err := getEnvInt64("NONCE_STORE_TTL_SECS", 3600)
+	if err != nil {
+		return Config{}, fmt.Errorf("NONCE_STORE_TTL_SECS: %w", err)
+	}
+
 	return Config{
 		ListenAddr:             listenAddr,
 		DidCacheSize:           didCacheSize,
@@ -101,6 +119,8 @@ func Load() (Config, error) {
 		TSAURL:                 tsaURL,
 		StoreDir:               storeDir,
 		ServerIdentity:         serverIdentity,
+		NonceStoreMaxEntries:   nonceMax,
+		NonceStoreTTLSecs:      nonceTTL,
 	}, nil
 }
 

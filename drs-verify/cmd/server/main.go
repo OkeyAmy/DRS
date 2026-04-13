@@ -18,6 +18,7 @@ import (
 	"github.com/drs-protocol/drs-verify/pkg/config"
 	"github.com/drs-protocol/drs-verify/pkg/health"
 	"github.com/drs-protocol/drs-verify/pkg/middleware"
+	"github.com/drs-protocol/drs-verify/pkg/nonce"
 	"github.com/drs-protocol/drs-verify/pkg/resolver"
 	"github.com/drs-protocol/drs-verify/pkg/revocation"
 	"github.com/drs-protocol/drs-verify/pkg/store"
@@ -79,6 +80,10 @@ func main() {
 		ServerIdentity:  cfg.ServerIdentity,
 	}
 
+	nonceStore := nonce.New(cfg.NonceStoreMaxEntries, time.Duration(cfg.NonceStoreTTLSecs)*time.Second)
+	log.Printf("drs-verify: nonce replay protection enabled (max_entries=%d, ttl=%ds)",
+		cfg.NonceStoreMaxEntries, cfg.NonceStoreTTLSecs)
+
 	mux := http.NewServeMux()
 
 	// Health endpoints (no auth required)
@@ -129,13 +134,13 @@ func main() {
 	mux.Handle("/admin/revoke", revocation.AdminRevokeHandler(localRev, cfg.AdminToken))
 
 	// MCP tool-call route group
-	mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nil,
+	mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nonceStore,
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})))
 
 	// A2A task route group
-	mux.Handle("/a2a/", middleware.A2AMiddleware(deps, nil,
+	mux.Handle("/a2a/", middleware.A2AMiddleware(deps, nonceStore,
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})))
