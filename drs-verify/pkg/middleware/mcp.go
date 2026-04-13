@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 
+	"github.com/drs-protocol/drs-verify/pkg/nonce"
 	"github.com/drs-protocol/drs-verify/pkg/types"
 	"github.com/drs-protocol/drs-verify/pkg/verify"
 )
@@ -23,18 +25,18 @@ const verificationContextKey contextKey = "drs_verification_context"
 // Requests with no X-DRS-Bundle header receive 401 Unauthorized (fail-closed).
 // Requests with an invalid bundle receive 403 Forbidden.
 // For optional enforcement, use OptionalMCPMiddleware instead.
-func MCPMiddleware(deps verify.Deps, next http.Handler) http.Handler {
-	return mcpMiddleware(deps, next, false)
+func MCPMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler) http.Handler {
+	return mcpMiddleware(deps, nonceStore, next, false)
 }
 
 // OptionalMCPMiddleware behaves like MCPMiddleware but passes through requests
 // that do not include the X-DRS-Bundle header. Use this only when downstream
 // handlers perform their own authorization or when DRS verification is advisory.
-func OptionalMCPMiddleware(deps verify.Deps, next http.Handler) http.Handler {
-	return mcpMiddleware(deps, next, true)
+func OptionalMCPMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler) http.Handler {
+	return mcpMiddleware(deps, nonceStore, next, true)
 }
 
-func mcpMiddleware(deps verify.Deps, next http.Handler, allowMissing bool) http.Handler {
+func mcpMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler, allowMissing bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bundleHeader := r.Header.Get("X-DRS-Bundle")
 		if bundleHeader == "" {
@@ -54,6 +56,29 @@ func mcpMiddleware(deps verify.Deps, next http.Handler, allowMissing bool) http.
 		if err != nil {
 			http.Error(w, `{"error":"X-DRS-Bundle header is not valid base64url JSON"}`, http.StatusBadRequest)
 			return
+		}
+
+		// Nonce replay check — before expensive chain verification.
+		if nonceStore != nil {
+			jti, err := decodeInvocationJTI(bundle.Invocation)
+			if err != nil {
+				http.Error(w, `{"error":"cannot decode invocation JTI"}`, http.StatusBadRequest)
+				return
+			}
+			if err := nonceStore.Check(jti); err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				if errors.Is(err, nonce.ErrReplayDetected) {
+					w.WriteHeader(http.StatusConflict)
+				} else {
+					w.WriteHeader(http.StatusServiceUnavailable)
+				}
+				_ = json.NewEncoder(w).Encode(map[string]string{
+					"error":      "REPLAY_DETECTED",
+					"detail":     err.Error(),
+					"suggestion": "Generate a new invocation with a unique jti.",
+				})
+				return
+			}
 		}
 
 		result := verify.Chain(bundle, deps)

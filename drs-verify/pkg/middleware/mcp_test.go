@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/drs-protocol/drs-verify/pkg/nonce"
 	"github.com/drs-protocol/drs-verify/pkg/resolver"
 	"github.com/drs-protocol/drs-verify/pkg/types"
 	"github.com/drs-protocol/drs-verify/pkg/verify"
@@ -32,7 +33,7 @@ func encodeBundle(t *testing.T, bundle types.ChainBundle) string {
 }
 
 func TestMCPMiddlewareRejects401WhenNoBundleHeader(t *testing.T) {
-	handler := MCPMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MCPMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler must not be called when X-DRS-Bundle is missing")
 	}))
 
@@ -47,7 +48,7 @@ func TestMCPMiddlewareRejects401WhenNoBundleHeader(t *testing.T) {
 
 func TestOptionalMCPMiddlewarePassesThroughWhenNoBundleHeader(t *testing.T) {
 	called := false
-	handler := OptionalMCPMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := OptionalMCPMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -65,7 +66,7 @@ func TestOptionalMCPMiddlewarePassesThroughWhenNoBundleHeader(t *testing.T) {
 }
 
 func TestMCPMiddlewareReturnsBadRequestForInvalidBase64(t *testing.T) {
-	handler := MCPMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MCPMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler must not be called for invalid bundle")
 	}))
 
@@ -86,7 +87,7 @@ func TestMCPMiddlewareReturnsForbiddenForInvalidBundle(t *testing.T) {
 		Invocation:    "x",
 	}
 
-	handler := MCPMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MCPMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler must not be called for invalid bundle")
 	}))
 
@@ -120,7 +121,7 @@ func TestGetVerificationContextReturnsNilWhenAbsent(t *testing.T) {
 }
 
 func TestMCPMiddleware401ResponseIsJSON(t *testing.T) {
-	handler := MCPMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MCPMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler must not be called")
 	}))
 
@@ -143,5 +144,65 @@ func TestMCPMiddleware401ResponseIsJSON(t *testing.T) {
 	}
 	if body["error"] == "" {
 		t.Error("response should include an error message")
+	}
+}
+
+func fakeJWTWithJTI(t *testing.T, jti string) string {
+	t.Helper()
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"EdDSA"}`))
+	payload, _ := json.Marshal(map[string]string{"jti": jti})
+	payloadB64 := base64.RawURLEncoding.EncodeToString(payload)
+	sig := base64.RawURLEncoding.EncodeToString([]byte("fakesig"))
+	return header + "." + payloadB64 + "." + sig
+}
+
+func TestMCPMiddlewareReplayReturns409(t *testing.T) {
+	ns := nonce.New(100, time.Hour)
+
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Receipts:      []string{fakeJWTWithJTI(t, "dr:r1")},
+		Invocation:    fakeJWTWithJTI(t, "inv:replay-test"),
+	}
+
+	handler := MCPMiddleware(testDeps(t), ns, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// First request — nonce recorded, will likely fail at verify.Chain (bad sigs).
+	req1 := httptest.NewRequest(http.MethodPost, "/mcp/tools/call", nil)
+	req1.Header.Set("X-DRS-Bundle", encodeBundle(t, bundle))
+	rr1 := httptest.NewRecorder()
+	handler.ServeHTTP(rr1, req1)
+
+	// Second request — same bundle, should be caught by nonce store.
+	req2 := httptest.NewRequest(http.MethodPost, "/mcp/tools/call", nil)
+	req2.Header.Set("X-DRS-Bundle", encodeBundle(t, bundle))
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusConflict {
+		t.Errorf("expected 409 Conflict on replay, got %d", rr2.Code)
+	}
+}
+
+func TestMCPMiddlewareNilNonceStoreSkipsCheck(t *testing.T) {
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Receipts:      nil,
+		Invocation:    "x",
+	}
+
+	handler := MCPMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("next handler must not be called for invalid bundle")
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp/tools/call", nil)
+	req.Header.Set("X-DRS-Bundle", encodeBundle(t, bundle))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", rr.Code)
 	}
 }

@@ -129,7 +129,7 @@ func main() {
 	mux.Handle("/admin/revoke", revocation.AdminRevokeHandler(localRev, cfg.AdminToken))
 
 	// MCP tool-call route group
-	mux.Handle("/mcp/", middleware.MCPMiddleware(deps,
+	mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nil,
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})))
