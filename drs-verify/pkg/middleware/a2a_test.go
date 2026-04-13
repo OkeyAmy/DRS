@@ -5,12 +5,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/drs-protocol/drs-verify/pkg/nonce"
 	"github.com/drs-protocol/drs-verify/pkg/types"
 )
 
 func TestA2AMiddlewareRejects401WhenNoBundleHeader(t *testing.T) {
-	handler := A2AMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := A2AMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler must not be called when X-DRS-Bundle is missing")
 	}))
 
@@ -25,7 +27,7 @@ func TestA2AMiddlewareRejects401WhenNoBundleHeader(t *testing.T) {
 
 func TestOptionalA2AMiddlewarePassesThroughWhenNoBundleHeader(t *testing.T) {
 	called := false
-	handler := OptionalA2AMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := OptionalA2AMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -43,7 +45,7 @@ func TestOptionalA2AMiddlewarePassesThroughWhenNoBundleHeader(t *testing.T) {
 }
 
 func TestA2AMiddlewareReturnsBadRequestForInvalidBase64(t *testing.T) {
-	handler := A2AMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := A2AMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler must not be called")
 	}))
 
@@ -64,7 +66,7 @@ func TestA2AMiddlewareReturnsForbiddenForInvalidBundle(t *testing.T) {
 		Invocation:    "x",
 	}
 
-	handler := A2AMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := A2AMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler must not be called for an invalid bundle")
 	}))
 
@@ -90,7 +92,7 @@ func TestA2AMiddlewareReturnsForbiddenForInvalidBundle(t *testing.T) {
 }
 
 func TestA2AMiddleware401ResponseIsJSON(t *testing.T) {
-	handler := A2AMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := A2AMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler must not be called")
 	}))
 
@@ -117,7 +119,7 @@ func TestA2AMiddleware401ResponseIsJSON(t *testing.T) {
 }
 
 func TestOptionalA2AMiddlewareReturnsNilContextWhenNoBundleHeader(t *testing.T) {
-	handler := OptionalA2AMiddleware(testDeps(t), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := OptionalA2AMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if ctx := GetVerificationContext(r.Context()); ctx != nil {
 			t.Errorf("expected nil verification context when no bundle is present, got %+v", ctx)
 		}
@@ -130,5 +132,33 @@ func TestOptionalA2AMiddlewareReturnsNilContextWhenNoBundleHeader(t *testing.T) 
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestA2AMiddlewareReplayReturns409(t *testing.T) {
+	ns := nonce.New(100, time.Hour)
+
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Receipts:      []string{fakeJWTWithJTI(t, "dr:r1")},
+		Invocation:    fakeJWTWithJTI(t, "inv:a2a-replay"),
+	}
+
+	handler := A2AMiddleware(testDeps(t), ns, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req1 := httptest.NewRequest(http.MethodPost, "/a2a/task", nil)
+	req1.Header.Set("X-DRS-Bundle", encodeBundle(t, bundle))
+	rr1 := httptest.NewRecorder()
+	handler.ServeHTTP(rr1, req1)
+
+	req2 := httptest.NewRequest(http.MethodPost, "/a2a/task", nil)
+	req2.Header.Set("X-DRS-Bundle", encodeBundle(t, bundle))
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+
+	if rr2.Code != http.StatusConflict {
+		t.Errorf("expected 409 Conflict on replay, got %d", rr2.Code)
 	}
 }

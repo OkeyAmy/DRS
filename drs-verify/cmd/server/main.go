@@ -135,7 +135,7 @@ func main() {
 		})))
 
 	// A2A task route group
-	mux.Handle("/a2a/", middleware.A2AMiddleware(deps,
+	mux.Handle("/a2a/", middleware.A2AMiddleware(deps, nil,
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})))

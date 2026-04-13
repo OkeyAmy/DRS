@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
+	"github.com/drs-protocol/drs-verify/pkg/nonce"
 	"github.com/drs-protocol/drs-verify/pkg/verify"
 )
 
@@ -11,17 +13,17 @@ import (
 // verifies it, and attaches the VerificationContext to the request context.
 // Requests with no X-DRS-Bundle header receive 401 Unauthorized (fail-closed).
 // For optional enforcement, use OptionalA2AMiddleware instead.
-func A2AMiddleware(deps verify.Deps, next http.Handler) http.Handler {
-	return a2aMiddleware(deps, next, false)
+func A2AMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler) http.Handler {
+	return a2aMiddleware(deps, nonceStore, next, false)
 }
 
 // OptionalA2AMiddleware behaves like A2AMiddleware but passes through requests
 // that do not include the X-DRS-Bundle header.
-func OptionalA2AMiddleware(deps verify.Deps, next http.Handler) http.Handler {
-	return a2aMiddleware(deps, next, true)
+func OptionalA2AMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler) http.Handler {
+	return a2aMiddleware(deps, nonceStore, next, true)
 }
 
-func a2aMiddleware(deps verify.Deps, next http.Handler, allowMissing bool) http.Handler {
+func a2aMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler, allowMissing bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bundleHeader := r.Header.Get("X-DRS-Bundle")
 		if bundleHeader == "" {
@@ -41,6 +43,29 @@ func a2aMiddleware(deps verify.Deps, next http.Handler, allowMissing bool) http.
 		if err != nil {
 			http.Error(w, `{"error":"X-DRS-Bundle header is not valid base64url JSON"}`, http.StatusBadRequest)
 			return
+		}
+
+		// Nonce replay check — before expensive chain verification.
+		if nonceStore != nil {
+			jti, err := decodeInvocationJTI(bundle.Invocation)
+			if err != nil {
+				http.Error(w, `{"error":"cannot decode invocation JTI"}`, http.StatusBadRequest)
+				return
+			}
+			if err := nonceStore.Check(jti); err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				if errors.Is(err, nonce.ErrReplayDetected) {
+					w.WriteHeader(http.StatusConflict)
+				} else {
+					w.WriteHeader(http.StatusServiceUnavailable)
+				}
+				_ = json.NewEncoder(w).Encode(map[string]string{
+					"error":      "REPLAY_DETECTED",
+					"detail":     err.Error(),
+					"suggestion": "Generate a new invocation with a unique jti.",
+				})
+				return
+			}
 		}
 
 		result := verify.Chain(bundle, deps)
