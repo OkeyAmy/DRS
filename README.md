@@ -1,35 +1,41 @@
 # Delegation Receipt Standard (DRS)
 
-> **Research Project** — Infrastructure-grade accountability layer for agentic AI systems.
+> Infrastructure-grade accountability layer for agentic AI systems.
 
-DRS is a per-step delegation receipt standard built on top of OAuth 2.1 + RFC 8693 + MCP that issues cryptographically signed receipts at every step of an agentic delegation chain — so humans, auditors, and regulators can prove *who authorized what, to whom, and when*.
+DRS is a cryptographic delegation receipt protocol built on OAuth 2.1 + RFC 8693 + MCP. Every time an AI agent acts on behalf of a human, DRS produces a signed, hash-chained receipt that proves — to a human, an auditor, or a regulator — who authorized the action, what was permitted, and when the authorization was granted.
 
-**Full documentation → [okeyamy.github.io/DRS](https://okeyamy.github.io/DRS/)**
+**Documentation → [okeyamy.github.io/DRS](https://okeyamy.github.io/DRS/)**
 
 ---
 
 ## The Problem
 
-When an AI agent sub-delegates work to other agents, standard OAuth 2.1 and JWT-based flows lose the chain of custody. An attacker can splice a forged delegation into the middle of the chain (CVE-2025-55241) and the tool server cannot detect it. DRS closes this gap with a tamper-evident receipt at every hop.
+When an AI agent sub-delegates work to other agents, standard OAuth 2.1 and JWT-based flows lose the chain of custody. An attacker can splice a forged delegation into the middle of the chain and the tool server has no way to detect it. DRS closes this gap with a tamper-evident, hash-linked receipt at every hop — from the human who clicked "approve" to the agent that executed the tool call.
+
+## How It Works
+
+```
+Human approves (consent record with session ID + policy hash)
+  └─ Root Delegation Receipt issued (signed by operator key)
+       └─ Sub-delegation Receipt issued (signed by agent A)
+            └─ Invocation Receipt issued (signed by agent B)
+                 └─ Tool Server verifies the full chain before executing
+                      └─ Auditor reconstructs the chain months later
+```
+
+Each receipt is an Ed25519-signed JWT. Each receipt's hash is carried in the next receipt's `prev_dr_hash` field. The chain cannot be reordered, truncated, or spliced without breaking the hash linkage. The verifier checks all of this — six verification blocks — before allowing a tool call through.
 
 ## Architecture
 
-Three-layer language stack chosen for correctness and performance:
+Three-layer language stack chosen for correctness, performance, and deployability:
 
 | Layer | Language | Responsibility |
 |---|---|---|
 | `drs-core` | Rust | Ed25519 crypto, CID computation, RFC 8785 JCS canonicalization, capability index |
-| `drs-verify` | Go | Verification server, MCP/A2A middleware, LRU caches, revocation, RFC 3161 anchor |
-| `drs-sdk` | TypeScript | Developer SDK, issuance path, WASM bundle |
+| `drs-verify` | Go | HTTP verification server, MCP/A2A middleware, LRU caches, revocation, RFC 3161 anchor |
+| `drs-sdk` | TypeScript | Developer-facing SDK, issuance path, WASM bundle |
 
-```
-End User
-  └─ issues Root DR (drs-sdk)
-       └─ Developer sub-delegates (drs-sdk)
-            └─ Agent Runtime invokes tool (drs-sdk)
-                 └─ Tool Server verifies chain (drs-verify + drs-core)
-                      └─ Auditor reconstructs chain (drs-verify CLI)
-```
+Rust compiles to native and WASM. Go compiles to a single static binary (`CGO_ENABLED=0`). TypeScript ships the WASM bundle — no native compilation step for developers.
 
 ## Quick Start
 
@@ -38,23 +44,24 @@ End User
 pnpm add @okeyamy/drs-sdk
 
 # Generate a keypair
-npx drs keygen --out operator.key
+npx drs keygen
 
-# Issue a root delegation
+# Issue a root delegation receipt
 import { issueRootDelegation } from '@okeyamy/drs-sdk'
+
 const dr = await issueRootDelegation({
   issuerKey: operatorKey,
   subject:   'did:key:z6Mk...',
-  policy:    [['==', '.tool', '"web_search"']],
+  policy:    { max_cost_usd: 1.00, allowed_tools: ['web_search'] },
   expiresIn: 3600,
 })
 
-# Start the verification server
+# Run the verification server
 docker run -p 8080:8080 \
-  -e DRS_OPERATOR_DID=did:key:z6Mk... \
+  -e SERVER_IDENTITY=did:key:z6Mk... \
   ghcr.io/okeyamy/drs-verify:latest
 
-# Verify a bundle (returns full VerificationResult JSON)
+# Verify a bundle
 curl -X POST http://localhost:8080/verify \
   -H 'Content-Type: application/json' \
   -d @bundle.json
@@ -64,39 +71,47 @@ curl -X POST http://localhost:8080/verify \
 
 ### `POST /verify`
 
-Verifies a DRS chain bundle. Accepts a `ChainBundle` JSON body. Returns `VerificationResult` JSON. HTTP 200 on all responses (check `result.valid` in the body).
+Accepts a `ChainBundle` JSON body. Runs all six verification blocks. Returns `VerificationResult` JSON — check `result.valid` in the body.
+
+```json
+{
+  "valid": true,
+  "context": {
+    "root_principal": "did:key:z6Mk...",
+    "root_type": "human",
+    "chain_depth": 2,
+    "session_id": "sess_abc123"
+  }
+}
+```
+
+### MCP and A2A middleware — `POST /mcp/*` and `POST /a2a/*`
+
+Drop `drs-verify` in front of your MCP or A2A server. It extracts the `X-DRS-Bundle` header, runs the full verification chain, and forwards verified requests with the `VerificationContext` attached. Unverified requests get `401`. Invalid bundles get `403`. Replayed invocations get `409`.
+
+```go
+mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nonceStore, yourHandler))
+```
 
 ### `POST /admin/revoke`
 
-Marks a delegation receipt as locally revoked by its status list index. Requires `Authorization: Bearer <DRS_ADMIN_TOKEN>` header.
-
-```bash
-curl -X POST http://localhost:8080/admin/revoke \
-  -H 'Authorization: Bearer <admin-token>' \
-  -H 'Content-Type: application/json' \
-  -d '{"status_list_index": 42}'
-```
+Marks a delegation by its status list index as locally revoked. Requires `Authorization: Bearer <DRS_ADMIN_TOKEN>`.
 
 ### `GET /healthz` / `GET /readyz`
 
-Health and readiness probes for Kubernetes/Docker.
+Kubernetes and Docker health probes.
 
-### `POST /mcp/*` / `POST /a2a/*`
+## Security Properties
 
-MCP and A2A middleware routes — extract the `X-DRS-Bundle` header, verify, and forward verified requests.
-
-## Storage Tiers
-
-| Tier | Name | Backend | Use case |
-|---|---|---|---|
-| 0 | Session | In-memory | Development and testing (default) |
-| 1 | Ephemeral | Filesystem | Standard production (set `STORE_DIR`) |
-| 2 | Durable | S3-compatible | Long-term retention (roadmap) |
-| 3 | Compliant | WORM + RFC 3161 | Regulated deployments — WORM with cryptographic timestamps (set `STORE_DIR` + `TSA_URL`) |
-| 4 | Timestamped | Tier 3 + per-DR TSToken | EU AI Act or third-party time proof (set `STORE_DIR` + `TSA_URL`) |
-| 5 | On-Chain | Tier 3 + Ethereum | Explicit customer requirement only — gas costs apply (roadmap) |
-
-Tiers 3 and 4 use RFC 3161 trusted timestamping (IETF 2001) — legally recognized under EU eIDAS and US federal courts. No gas fees. TSA providers: FreeTSA (free), DigiCert, GlobalSign. See [`docs/storage-tiers.md`](docs/storage-tiers.md) for the full tier reference.
+- **Ed25519** via `ed25519-dalek` 2.x — RUSTSEC-2022-0093 patched, `verify_strict` semantics in Rust core
+- **Nonce replay protection** — invocation JTIs checked against a bounded TTL-evicting store before chain verification; replays get `409 Conflict`
+- **Fail-closed** — any verification error denies the capability; there is no partial success
+- **Constant-time comparisons** — multicodec prefix checks and bearer token validation use `crypto/subtle`
+- **RFC 8785 JCS canonicalization** — no `JSON.stringify` key sort, no canonicalization divergence across implementations
+- **LRU-bounded DID resolver cache** — hard cap at 10,000 entries (~640 KB)
+- **W3C Bitstring Status List revocation** — `sync.Once` concurrency guard prevents thundering herd on cache miss
+- **Request body capped** at 1 MiB by default (`MAX_BODY_BYTES`)
+- **DID resolver** supports `did:key` (self-authenticating, no network I/O) and `did:web` (HTTPS + TLS)
 
 ## Configuration
 
@@ -105,75 +120,108 @@ All configuration is environment-variable driven. No hard-coded URLs, ports, or 
 | Variable | Default | Description |
 |---|---|---|
 | `LISTEN_ADDR` | `:8080` | HTTP listen address |
-| `DID_CACHE_SIZE` | `10000` | LRU DID resolver cache cap (~640 KB) |
-| `DID_CACHE_TTL_SECS` | `3600` | DID cache entry TTL |
+| `SERVER_IDENTITY` | — | This server's DID — enforces `invocation.tool_server` binding |
+| `DID_CACHE_SIZE` | `10000` | LRU DID resolver cache cap |
+| `DID_CACHE_TTL_SECS` | `3600` | DID cache TTL (1 hour) |
 | `STATUS_LIST_BASE_URL` | — | W3C Bitstring Status List endpoint |
 | `STATUS_CACHE_TTL_SECS` | `300` | Status list cache TTL (5 min) |
-| `DRS_ADMIN_TOKEN` | — | Bearer token for `POST /admin/revoke` (required to enable the endpoint) |
-| `STORE_DIR` | — | Base directory for filesystem store (Tier 1/3) |
+| `NONCE_STORE_MAX_ENTRIES` | `100000` | Replay protection store capacity |
+| `NONCE_STORE_TTL_SECS` | `3600` | Replay protection TTL (1 hour) |
+| `DRS_ADMIN_TOKEN` | — | Bearer token for `POST /admin/revoke` |
+| `STORE_DIR` | — | Filesystem store base directory (Tier 1/3) |
 | `TSA_URL` | — | RFC 3161 TSA endpoint — enables Tier 3 store |
 | `MAX_BODY_BYTES` | `1048576` | Maximum request body size (1 MiB) |
 | `LOG_LEVEL` | `info` | Log level: debug / info / warn / error |
 
+## Storage Tiers
+
+| Tier | Backend | Use case |
+|---|---|---|
+| 0 | In-memory LRU | Development and testing (default) |
+| 1 | Filesystem | Standard production (`STORE_DIR`) |
+| 2 | S3-compatible | Long-term retention (roadmap) |
+| 3 | WORM + RFC 3161 | Regulated deployments (`STORE_DIR` + `TSA_URL`) |
+| 5 | Ethereum mainnet | Blockchain-native enterprise (opt-in only, roadmap) |
+
+Tier 3 uses RFC 3161 trusted timestamping — legally recognized under EU eIDAS and admissible in US federal courts. Supported TSA providers: FreeTSA (free), DigiCert, GlobalSign.
+
+## Verification Algorithm
+
+The verifier runs six blocks in sequence. All must pass. Failure is fail-closed.
+
+| Block | Name | What it checks |
+|---|---|---|
+| A | Completeness | Bundle has receipts and an invocation |
+| B | Structural Integrity | Hash chain linkage, JTI prefixes, issuer continuity, subject consistency |
+| C | Cryptographic Validity | Ed25519 signature on every receipt and the invocation |
+| D | Policy Validity | Command attenuation, capability subset checks, invocation args satisfy all policies |
+| E | Temporal Validity | `nbf` / `exp` bounds on every receipt |
+| F | Revocation | W3C Bitstring Status List + local revocation store |
+
 ## Repository Layout
 
 ```
-drs-core/          Rust — crypto primitives and capability index
-drs-verify/        Go  — verification server and middleware
-drs-sdk/           TypeScript — developer SDK
-docs/              Architecture documents and technical audit
-docs-site/         mdBook source for the documentation site
-.github/workflows/ CI: docs deploy to GitHub Pages on every push
+drs-core/           Rust — crypto primitives, capability index, WASM target
+drs-verify/         Go  — verification server, middleware, caches
+  pkg/nonce/        Replay protection store
+  pkg/verify/       Six-block verification algorithm
+  pkg/resolver/     DID resolver (did:key, did:web)
+  pkg/revocation/   Status list cache and local revocation store
+  pkg/middleware/   MCP and A2A HTTP middleware
+  pkg/anchor/       RFC 3161 trusted timestamp client and verifier
+  pkg/policy/       Capability policy evaluation and attenuation
+  pkg/store/        Tiered receipt storage (memory, filesystem, Tier3)
+drs-sdk/            TypeScript — SDK, WASM bundle, CLI
+docs/               Architecture documents and technical audit
+docs-site/          mdBook source → okeyamy.github.io/DRS
+examples/           DRS wired into real agentic systems (contributions welcome)
 ```
-
-## Documentation
-
-The docs cover four audiences:
-
-| Audience | What you'll find |
-|---|---|
-| **Developers** | SDK install, MCP/A2A middleware, issuance guide |
-| **Operators** | Deployment, key management, revocation, storage tiers |
-| **Auditors** | Chain reconstruction, EU AI Act export, HIPAA evidence |
-| **Contributors** | Architecture deep-dive, testing standards, false-positive history |
-
-→ **[Read the docs](https://okeyamy.github.io/DRS/)**
-
-## Security
-
-- Ed25519 signatures via `ed25519-dalek` 2.x (RUSTSEC-2022-0093 patched)
-- Constant-time multicodec prefix comparison (no timing oracle)
-- RFC 8785 JCS canonicalization (no `JSON.stringify` key sort)
-- Fail-closed capability checks — error = denied
-- LRU-bounded DID resolver cache (10,000 entries max)
-- Bitstring Status List revocation with `sync.Once` concurrency guard
-- Admin revocation endpoint requires bearer token (`DRS_ADMIN_TOKEN`)
-- Request body capped at 1 MiB by default (`MAX_BODY_BYTES`)
 
 ## Implementation Status
 
 **Fully implemented:**
 
-- Six-block chain verification algorithm (Blocks A–F: completeness, structural integrity, Ed25519 signatures, policy attenuation, temporal validity, revocation)
-- MCP and A2A protocol middleware
-- LRU DID resolver cache with TTL
-- W3C Bitstring Status List revocation cache (sync.Once concurrency guard)
+- Six-block chain verification (Blocks A–F)
+- Nonce replay protection for MCP and A2A middleware
+- `did:key` and `did:web` DID resolution with LRU cache
+- W3C Bitstring Status List revocation with concurrency guard
 - Local revocation store with `POST /admin/revoke`
 - RFC 3161 trusted timestamp anchor (Tier 3 store)
-- TypeScript SDK: issuance path, CLI (`drs keygen`, `drs issue`, `drs verify`, `drs audit`)
-- Docker deployment (distroless, static binary)
+- TypeScript SDK: issuance, CLI (`drs keygen`, `drs issue`, `drs verify`, `drs audit`)
+- Docker deployment (distroless image, static binary)
+- Human-rooted consent records with session ID, policy hash, and locale
+
+**Open issues (tracked):**
+
+- Revocation status list partial read protection ([#8](https://github.com/OkeyAmy/DRS/issues/8))
+- RFC 3161 trust chain validation ([#9](https://github.com/OkeyAmy/DRS/issues/9))
+- DID resolver lock contention ([#10](https://github.com/OkeyAmy/DRS/issues/10))
+- Encrypted key management in SDK ([#11](https://github.com/OkeyAmy/DRS/issues/11))
+- Filesystem store path traversal ([#15](https://github.com/OkeyAmy/DRS/issues/15))
+- Policy cost NaN/negative bypass ([#14](https://github.com/OkeyAmy/DRS/issues/14))
+- Rate limiting ([#19](https://github.com/OkeyAmy/DRS/issues/19))
 
 **Roadmap:**
 
 - EU AI Act / HIPAA / SOX audit export formats
-- Ethereum mainnet blockchain anchor (Tier 5 — opt-in only, for blockchain-native enterprise deployments)
-- Automated system root renewal logic
+- Structured logging (`log/slog`)
+- Circuit breaker for `did:web` resolution
+- Ethereum mainnet anchor (Tier 5 — opt-in only)
 
-## Status
+## Contributing
 
-This is a research project. APIs are not stable. Do not deploy to production without a full security audit.
+Read `CLAUDE.md` before touching the crypto layer. The architecture documents in `docs/` explain what was tried in v1 and v2 and why it was scrapped — read them before proposing changes to the verification path.
 
-Version history: v1 (scrapped — wrong threat model), v2 (scrapped — wrong UCAN version + O(n·m) capability check), v3 (migrated to OAuth 2.1), v4 (current).
+The issue tracker has scoped work across security hardening, protocol implementation, SDK tooling, and integration examples. All issues have exact file references and a clear definition of done.
+
+The one rule for examples: use a real system, not a toy project built just for this.
+
+## Version History
+
+v1 — scrapped. Invented delegation chains from scratch; UCAN already defined this.
+v2 — scrapped. Built against UCAN 0.x while the spec was v1.0-rc.1; O(n·m) capability check; TypeScript crypto with GC pauses.
+v3 — migrated to OAuth 2.1 + RFC 8693.
+v4 — current.
 
 ## License
 
