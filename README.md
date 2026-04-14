@@ -204,13 +204,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for open work and how to get involved.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Version History
-
-v1 — scrapped. Invented delegation chains from scratch; UCAN already defined this.
-v2 — scrapped. Built against UCAN 0.x while the spec was v1.0-rc.1; O(n·m) capability check; TypeScript crypto with GC pauses.
-v3 — migrated to OAuth 2.1 + RFC 8693.
-v4 — current.
-
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
