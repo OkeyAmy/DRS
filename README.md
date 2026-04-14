@@ -191,15 +191,7 @@ examples/           DRS wired into real agentic systems (contributions welcome)
 - Docker deployment (distroless image, static binary)
 - Human-rooted consent records with session ID, policy hash, and locale
 
-**Open issues (tracked):**
-
-- Revocation status list partial read protection ([#8](https://github.com/OkeyAmy/DRS/issues/8))
-- RFC 3161 trust chain validation ([#9](https://github.com/OkeyAmy/DRS/issues/9))
-- DID resolver lock contention ([#10](https://github.com/OkeyAmy/DRS/issues/10))
-- Encrypted key management in SDK ([#11](https://github.com/OkeyAmy/DRS/issues/11))
-- Filesystem store path traversal ([#15](https://github.com/OkeyAmy/DRS/issues/15))
-- Policy cost NaN/negative bypass ([#14](https://github.com/OkeyAmy/DRS/issues/14))
-- Rate limiting ([#19](https://github.com/OkeyAmy/DRS/issues/19))
+See [CONTRIBUTING.md](CONTRIBUTING.md) for open work and how to get involved.
 
 **Roadmap:**
 
@@ -210,11 +202,7 @@ examples/           DRS wired into real agentic systems (contributions welcome)
 
 ## Contributing
 
-Read `CLAUDE.md` before touching the crypto layer. The architecture documents in `docs/` explain what was tried in v1 and v2 and why it was scrapped — read them before proposing changes to the verification path.
-
-The issue tracker has scoped work across security hardening, protocol implementation, SDK tooling, and integration examples. All issues have exact file references and a clear definition of done.
-
-The one rule for examples: use a real system, not a toy project built just for this.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Version History
 
