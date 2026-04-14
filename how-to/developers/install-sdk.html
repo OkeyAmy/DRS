@@ -148,10 +148,10 @@
                         <a href="../../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/how-to/developers/install-sdk.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/how-to/developers/install-sdk.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -184,16 +184,12 @@
 <h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
 <ul>
 <li>Node.js 20+</li>
-<li>pnpm (required — do not use npm or yarn)</li>
+<li>pnpm</li>
 </ul>
 <h2 id="install"><a class="header" href="#install">Install</a></h2>
-<pre><code class="language-bash">pnpm add @drs/sdk
+<pre><code class="language-bash">pnpm add @okeyamy/drs-sdk
 </code></pre>
-<h2 id="optional-browser-side-verification"><a class="header" href="#optional-browser-side-verification">Optional: browser-side verification</a></h2>
-<p>For client-side verification in browser environments, also install the WASM package:</p>
-<pre><code class="language-bash">pnpm add @drs/wasm
-</code></pre>
-<p><code>@drs/sdk</code> detects <code>@drs/wasm</code> at runtime. If absent, the SDK's <code>VerifyClient</code> falls back to calling drs-verify over HTTP. If present, <code>initWasm()</code> loads the WASM module for local verification.</p>
+<p>Repository: <code>https://github.com/OkeyAmy/DRS</code></p>
 <h2 id="typescript-configuration"><a class="header" href="#typescript-configuration">TypeScript configuration</a></h2>
 <pre><code class="language-json">{
   "compilerOptions": {
@@ -206,27 +202,47 @@
 <h2 id="verify-the-install"><a class="header" href="#verify-the-install">Verify the install</a></h2>
 <pre><code class="language-bash">pnpm exec drs keygen
 </code></pre>
-<p>Expected:</p>
-<pre><code>Private key (keep secret): &lt;base64url 32 bytes&gt;
-DID:                        did:key:z6Mk...
+<p>Expected output includes:</p>
+<pre><code class="language-text">Ed25519 keypair generated.
+
+DID          : did:key:z6Mk...
+Public key   : &lt;hex&gt;
+Private key  : &lt;hex&gt;
 </code></pre>
 <h2 id="whats-in-the-package"><a class="header" href="#whats-in-the-package">What's in the package</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Export path</th><th>Contents</th></tr></thead><tbody>
-<tr><td><code>@drs/sdk</code> (main)</td><td><code>issueRootDelegation</code>, <code>issueSubDelegation</code>, <code>issueInvocation</code>, <code>buildBundle</code>, <code>serialiseBundle</code>, <code>parseBundle</code>, <code>computeChainHash</code>, <code>checkPolicyAttenuation</code>, <code>translatePolicy</code></td></tr>
-<tr><td><code>@drs/sdk/verify</code></td><td><code>VerifyClient</code> — HTTP client for drs-verify</td></tr>
-<tr><td><code>@drs/sdk/wasm</code></td><td><code>initWasm</code>, <code>getWasmModule</code>, <code>isWasmReady</code></td></tr>
-<tr><td><code>@drs/sdk/types</code></td><td>All TypeScript interfaces</td></tr>
-</tbody></table>
-</div>
+<p>The published package exports from the root entry only. Import from
+<code>@okeyamy/drs-sdk</code>, not subpaths.</p>
+<p>If you are wiring middleware guides from this docs site, use package names and
+paths exactly as shown in each page. Do not switch to legacy aliases.</p>
+<pre><code class="language-ts">import {
+  issueRootDelegation,
+  issueSubDelegation,
+  issueInvocation,
+  buildBundle,
+  serialiseBundle,
+  parseBundle,
+  computeChainHash,
+  checkPolicyAttenuation,
+  translatePolicy,
+  VerifyClient,
+  initWasm,
+  getWasmModule,
+  isWasmReady,
+} from "@okeyamy/drs-sdk";
+</code></pre>
+<h2 id="browser--wasm-notes"><a class="header" href="#browser--wasm-notes">Browser / WASM notes</a></h2>
+<p>The SDK includes a WASM loader, but browser/WASM verification is still an
+explicit integration path:</p>
+<ul>
+<li><code>VerifyClient</code> talks to a running <code>drs-verify</code> HTTP service</li>
+<li><code>initWasm()</code> / <code>getWasmModule()</code> are available if you wire in a WASM build</li>
+<li>there is no published standalone <code>@drs/wasm</code> package in this repo today</li>
+</ul>
 <h2 id="building-the-wasm-package-yourself"><a class="header" href="#building-the-wasm-package-yourself">Building the WASM package yourself</a></h2>
-<p>If you are developing locally or want to use unreleased drs-core changes:</p>
+<p>If you are developing locally and want to experiment with the WASM build:</p>
 <pre><code class="language-bash">cd drs-core
 wasm-pack build --target web --features wasm
 # Output: drs-core/pkg/
-
-# Link it locally
-cd drs-core/pkg &amp;&amp; pnpm link --global
-cd drs-sdk &amp;&amp; pnpm link --global @drs/wasm
 </code></pre>
 
                     </main>

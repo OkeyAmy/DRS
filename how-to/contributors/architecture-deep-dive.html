@@ -148,10 +148,10 @@
                         <a href="../../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/how-to/contributors/architecture-deep-dive.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/how-to/contributors/architecture-deep-dive.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -208,11 +208,11 @@
 </div>
 <h2 id="data-flow"><a class="header" href="#data-flow">Data flow</a></h2>
 <pre><code>Issuance (TypeScript SDK):
-  Policy params → jcsSerialise(payload) → ed.signAsync → JWT string
+  Policy params → jcsSerialise(payload) → sign → JWT string
 
-Verification (Go, calls Rust):
-  JWT string → parse header/payload → resolve_did → ed25519_verify_strict
-            → check_policy_attenuation → is_revoked → VerifiedChain
+Verification (Go):
+  JWT string → parse header/payload → resolve_did → crypto/ed25519.Verify
+            → check_policy_attenuation → revocation checks → VerificationResult
 
 DID resolution (Go):
   DID string → base58Decode → strip multicodec prefix [0xed, 0x01]
@@ -221,9 +221,9 @@ DID resolution (Go):
 <h2 id="adding-a-new-algorithm"><a class="header" href="#adding-a-new-algorithm">Adding a new algorithm</a></h2>
 <ol>
 <li>Write it in Rust first (<code>drs-core/src/</code>)</li>
-<li>Write tests with official test vectors from the relevant RFC</li>
-<li>If Go middleware needs it: re-implement with the same interface (Go cannot call Rust without CGO complexity — prefer reimplementation for simple algorithms)</li>
-<li>TypeScript only calls WASM or the HTTP API — no algorithm logic in TypeScript</li>
+<li>Add or extend shared conformance vectors when the protocol surface changes</li>
+<li>Port it to Go if the verifier needs the same rule on the hot path</li>
+<li>Keep TypeScript logic aligned with the conformance contract</li>
 </ol>
 <h2 id="security-sensitive-code-checklist"><a class="header" href="#security-sensitive-code-checklist">Security-sensitive code checklist</a></h2>
 <p>Before merging any change to the crypto or verification path:</p>

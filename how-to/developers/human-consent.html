@@ -148,10 +148,10 @@
                         <a href="../../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/how-to/developers/human-consent.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/how-to/developers/human-consent.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -185,9 +185,11 @@
 <h2 id="why-it-matters"><a class="header" href="#why-it-matters">Why it matters</a></h2>
 <p>The <code>policy</code> field in a DR is machine-readable JSON. A user who clicks "Allow" on a form that shows them <code>{"max_cost_usd":50}</code> has not meaningfully consented — they have not understood what they approved.</p>
 <p>The <code>drs_consent.policy_hash</code> is the SHA-256 of the <strong>human-readable text</strong> the user actually saw. Auditors can verify that the consent UI displayed legible information, not raw JSON.</p>
+<p>Important: compute the hash from the exact rendered text shown to the user
+after localization and formatting.</p>
 <h2 id="generating-the-human-readable-text"><a class="header" href="#generating-the-human-readable-text">Generating the human-readable text</a></h2>
 <p>Use the SDK's <code>translatePolicy</code> function:</p>
-<pre><code class="language-typescript">import { translatePolicy } from '@drs/sdk';
+<pre><code class="language-typescript">import { translatePolicy } from '@okeyamy/drs-sdk';
 
 const humanText = translatePolicy({
   allowed_tools: ['web_search', 'write_file'],
@@ -207,14 +209,14 @@ const humanText = translatePolicy({
 <pre><code class="language-bash">echo '{"allowed_tools":["web_search"],"max_cost_usd":50}' | pnpm exec drs translate --locale en-GB
 </code></pre>
 <h2 id="computing-the-policy-hash"><a class="header" href="#computing-the-policy-hash">Computing the policy hash</a></h2>
-<pre><code class="language-typescript">import { computeChainHash } from '@drs/sdk';
+<pre><code class="language-typescript">import { computeChainHash } from '@okeyamy/drs-sdk';
 
 // Hash the text the user saw — not the policy JSON
 const policyHash = computeChainHash(humanText);
 // "sha256:a1b2c3..."
 </code></pre>
 <h2 id="building-the-consent-record"><a class="header" href="#building-the-consent-record">Building the consent record</a></h2>
-<pre><code class="language-typescript">import { issueRootDelegation, computeChainHash, translatePolicy } from '@drs/sdk';
+<pre><code class="language-typescript">import { issueRootDelegation, computeChainHash, translatePolicy } from '@okeyamy/drs-sdk';
 
 const policy = {
   allowed_tools: ['web_search'],
@@ -228,7 +230,7 @@ const humanText = translatePolicy(policy, { locale: 'en-GB' });
 // 2. Show humanText in your consent UI
 // await showConsentDialog(humanText);  — user clicks Allow
 
-// 3. Record their consent
+// 3. Record their consent using the exact same text for policy_hash
 const rootDR = await issueRootDelegation({
   // ... other params ...
   policy,

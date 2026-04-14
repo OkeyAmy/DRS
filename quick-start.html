@@ -148,10 +148,10 @@
                         <a href="print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/quick-start.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/quick-start.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -181,86 +181,82 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h1>
-<p>Get from zero to a verified delegation bundle in under 10 minutes.</p>
+<p>Get from zero to a verified bundle quickly using the current SDK and verifier.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
 <li>Node.js 20+ and pnpm</li>
-<li>Go 1.22+ (to run drs-verify locally)</li>
+<li>Go 1.22+ (to run <code>drs-verify</code> locally)</li>
 </ul>
 <h2 id="1-install-the-sdk"><a class="header" href="#1-install-the-sdk">1. Install the SDK</a></h2>
-<pre><code class="language-bash">pnpm add @drs/sdk
+<pre><code class="language-bash">pnpm add @okeyamy/drs-sdk
 </code></pre>
 <h2 id="2-generate-a-keypair"><a class="header" href="#2-generate-a-keypair">2. Generate a keypair</a></h2>
 <pre><code class="language-bash">pnpm exec drs keygen
 </code></pre>
-<p>Output:</p>
-<pre><code>Private key (keep secret): &lt;base64url-encoded 32 bytes&gt;
-DID:                        did:key:z6Mk...
-</code></pre>
-<p>Save both values. The private key signs delegation receipts. The DID is your identity on the chain.</p>
-<h2 id="3-issue-a-root-delegation"><a class="header" href="#3-issue-a-root-delegation">3. Issue a root delegation</a></h2>
-<pre><code class="language-typescript">import { issueRootDelegation } from '@drs/sdk';
+<p>Current output is plaintext hex:</p>
+<pre><code class="language-text">Ed25519 keypair generated.
 
-const privateKey = Uint8Array.from(Buffer.from('YOUR_PRIVATE_KEY', 'base64url'));
+DID          : did:key:z6Mk...
+Public key   : &lt;hex&gt;
+Private key  : &lt;hex&gt;
+</code></pre>
+<p>Save the DID and private key securely.</p>
+<h2 id="3-issue-a-root-delegation"><a class="header" href="#3-issue-a-root-delegation">3. Issue a root delegation</a></h2>
+<pre><code class="language-typescript">import { issueRootDelegation } from "@okeyamy/drs-sdk";
+
+const privateKey = Uint8Array.from(Buffer.from("YOUR_PRIVATE_KEY_HEX", "hex"));
 const now = Math.floor(Date.now() / 1000);
 
 const rootDR = await issueRootDelegation({
-  signingKey:  privateKey,
-  issuerDid:   'did:key:z6MkYOUR_DID',
-  subjectDid:  'did:key:z6MkYOUR_DID',   // human is both issuer and subject at root
-  audienceDid: 'did:key:z6MkAGENT_DID',
-  cmd: '/mcp/tools/call',
+  signingKey: privateKey,
+  issuerDid: "did:key:z6MkYOUR_DID",
+  subjectDid: "did:key:z6MkYOUR_DID",
+  audienceDid: "did:key:z6MkAGENT_DID",
+  cmd: "/mcp/tools/call",
   policy: {
-    allowed_tools: ['web_search'],
-    max_cost_usd: 10.00,
+    allowed_tools: ["web_search"],
+    max_cost_usd: 10,
     pii_access: false,
   },
   nbf: now,
-  exp: now + 3600,          // 1 hour
-  rootType: 'automated-system',
+  exp: now + 3600,
+  rootType: "automated-system",
 });
-
-console.log('Root DR JWT:', rootDR);
 </code></pre>
-<h2 id="4-start-drs-verify-locally"><a class="header" href="#4-start-drs-verify-locally">4. Start drs-verify locally</a></h2>
+<h2 id="4-start-drs-verify"><a class="header" href="#4-start-drs-verify">4. Start <code>drs-verify</code></a></h2>
 <pre><code class="language-bash">cd drs-verify
 go run ./cmd/server
-# drs-verify listening on :8080
 </code></pre>
 <h2 id="5-build-and-verify-a-bundle"><a class="header" href="#5-build-and-verify-a-bundle">5. Build and verify a bundle</a></h2>
-<pre><code class="language-typescript">import { buildBundle, serialiseBundle, issueInvocation, computeChainHash } from '@drs/sdk';
+<pre><code class="language-typescript">import { buildBundle, serialiseBundle, issueInvocation, computeChainHash } from "@okeyamy/drs-sdk";
+import { writeFileSync } from "node:fs";
 
 const invocation = await issueInvocation({
-  signingKey:  agentPrivateKey,
-  issuerDid:   'did:key:z6MkAGENT_DID',
-  subjectDid:  'did:key:z6MkYOUR_DID',
-  cmd: '/mcp/tools/call',
-  args: { tool: 'web_search', query: 'hello', estimated_cost_usd: 0.01 },
+  signingKey: agentPrivateKey,
+  issuerDid: "did:key:z6MkAGENT_DID",
+  subjectDid: "did:key:z6MkYOUR_DID",
+  cmd: "/mcp/tools/call",
+  args: { tool: "web_search", query: "hello", estimated_cost_usd: 0.01 },
   drChain: [computeChainHash(rootDR)],
-  toolServer: 'did:key:z6MkTOOL_DID',
+  toolServer: "did:key:z6MkTOOL_DID",
 });
 
 const bundle = buildBundle({ invocation, receipts: [rootDR] });
-import { writeFileSync } from 'fs';
-writeFileSync('bundle.json', serialiseBundle(bundle));
+writeFileSync("bundle.json", serialiseBundle(bundle));
 </code></pre>
 <pre><code class="language-bash">DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
 </code></pre>
-<p>Expected output:</p>
-<pre><code>✓ Bundle verified
-  Chain depth:    1
-  Root principal: did:key:z6Mk...
-  Subject:        did:key:z6Mk...
-  Command:        /mcp/tools/call
-  Policy result:  pass
-  Blocks:         A✓ B✓ C✓ D✓ E✓ F✓
+<p>Expected successful output starts with:</p>
+<pre><code class="language-text">✓ Chain verified
+  Root principal : did:key:z6Mk...
+  Chain depth    : 1
 </code></pre>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
 <ul>
-<li><strong>Developers:</strong> <a href="./how-to/developers/mcp-middleware.html">MCP Middleware Integration</a> — integrate DRS into your tool server in one day</li>
-<li><strong>Operators:</strong> <a href="./how-to/operators/deploy-drs-verify.html">Deploy drs-verify</a> — run a production verification server</li>
-<li><strong>Auditors:</strong> <a href="./how-to/auditors/reconstruct-chain.html">Reconstruct a Chain</a> — verify audit evidence independently</li>
-<li><strong>Contributors:</strong> <a href="./how-to/contributors/dev-setup.html">Dev Setup</a> — get the full codebase running</li>
+<li><a href="./how-to/developers/mcp-middleware.html">MCP Middleware Integration</a></li>
+<li><a href="./how-to/operators/deploy-drs-verify.html">Deploy drs-verify</a></li>
+<li><a href="./how-to/auditors/reconstruct-chain.html">Reconstruct a Chain</a></li>
+<li><a href="./how-to/contributors/dev-setup.html">Dev Setup</a></li>
 </ul>
 
                     </main>

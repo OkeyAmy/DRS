@@ -148,10 +148,10 @@
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/reference/api-endpoints.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/reference/api-endpoints.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -226,28 +226,34 @@ Content-Type: application/json
 </code></pre>
 <hr />
 <h2 id="post-mcp-middleware"><a class="header" href="#post-mcp-middleware">POST /mcp/* (middleware)</a></h2>
-<blockquote>
-<p><strong>Implementation status:</strong> The MCP and A2A middleware routes are registered but the reverse proxy mode (<code>DRS_UPSTREAM</code>) and bundle-required enforcement (<code>DRS_REQUIRE_BUNDLE</code>) are not implemented in the current release. The endpoint currently accepts requests and returns 200 after verifying the <code>X-DRS-Bundle</code> header. The proxy and enforcement features are roadmap items.</p>
-</blockquote>
-<p>When <code>DRS_UPSTREAM</code> is configured, drs-verify acts as a reverse proxy. All requests to <code>/mcp/*</code> are intercepted, the <code>X-DRS-Bundle</code> header is verified, and the request is proxied upstream if valid.</p>
-<p><strong>Request:</strong> Any MCP request with <code>X-DRS-Bundle</code> header:</p>
+<p>The built-in server registers <code>/mcp/*</code> routes wrapped with
+<code>middleware.MCPMiddleware</code>. In the current binary, the wrapped handler is a
+stub that returns <code>200</code> after successful verification.</p>
+<p>In your own integration, this wrapped handler is your normal tool/business
+handler. Middleware verifies first, then your handler executes.</p>
+<p><strong>Request:</strong> any MCP request with <code>X-DRS-Bundle</code> header:</p>
 <pre><code>POST /mcp/tools/call
 X-DRS-Bundle: &lt;base64url bundle&gt;
 Content-Type: application/json
 </code></pre>
-<p><strong>On valid bundle:</strong> Proxied to <code>$DRS_UPSTREAM/mcp/tools/call</code>.</p>
+<p><strong>On valid bundle:</strong> request reaches the wrapped handler.</p>
 <p><strong>On invalid bundle (403):</strong></p>
 <pre><code class="language-json">{
-  "error": "SIGNATURE_INVALID",
-  "block": "C",
-  "message": "Ed25519 signature verification failed for issuer did:key:z6Mk..."
+  "valid": false,
+  "error": {
+    "code": "SIGNATURE_INVALID",
+    "message": "Ed25519 signature verification failed for issuer did:key:z6Mk...",
+    "suggestion": "Ensure the receipt chain was signed by the listed issuers."
+  }
 }
 </code></pre>
-<p><strong>On missing bundle (403, when <code>DRS_REQUIRE_BUNDLE=true</code>):</strong></p>
+<p><strong>On missing bundle (401):</strong></p>
 <pre><code class="language-json">{
-  "error": "BUNDLE_MISSING",
-  "message": "X-DRS-Bundle header is required"
+  "error": "Missing X-DRS-Bundle header — DRS verification is required on this route."
 }
+</code></pre>
+<p><strong>On malformed bundle (400):</strong></p>
+<pre><code class="language-json">{"error":"X-DRS-Bundle header is not valid base64url JSON"}
 </code></pre>
 <hr />
 <h2 id="get-healthz"><a class="header" href="#get-healthz">GET /healthz</a></h2>

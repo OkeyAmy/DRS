@@ -148,10 +148,10 @@
                         <a href="../../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/how-to/developers/mcp-middleware.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/how-to/developers/mcp-middleware.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -181,102 +181,100 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="mcp-middleware-integration"><a class="header" href="#mcp-middleware-integration">MCP Middleware Integration</a></h1>
-<p>Add DRS verification to an MCP server. The Go middleware handles all verification — your tool handler code does not change.</p>
+<p>Add DRS verification to an MCP server. The Go middleware verifies the
+<code>X-DRS-Bundle</code> header before your business handler runs.</p>
 <h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
-<pre><code>MCP Client
+<pre><code>MCP client
     │  POST /mcp/tools/call
-    │  X-DRS-Bundle: &lt;base64url bundle&gt;
+    │  X-DRS-Bundle: &lt;base64url(JSON bundle)&gt;
     ▼
-drs-verify middleware
-    │  parse bundle
-    │  run verify_chain (blocks A–F)
+drs-verify/pkg/middleware.MCPMiddleware
+    │  decode base64url
+    │  parse JSON bundle
+    │  run verify.Chain (blocks A–F)
     ▼ VALID
-Your tool handler
-    ▼
-Response + drs:tool-call event emitted
+business handler
 </code></pre>
-<p>If verification fails, the middleware returns <code>403</code> with a JSON error body before your handler is called.</p>
-<h2 id="option-a-go-middleware-native"><a class="header" href="#option-a-go-middleware-native">Option A: Go middleware (native)</a></h2>
-<p>If your MCP server is in Go, import the middleware package directly:</p>
+<p>If verification fails:</p>
+<ul>
+<li>missing bundle: <code>401</code></li>
+<li>malformed base64url/JSON: <code>400</code></li>
+<li>invalid chain: <code>403</code></li>
+</ul>
+<h2 id="go-integration"><a class="header" href="#go-integration">Go integration</a></h2>
+<p>If your MCP-facing server is in Go, wrap the route with
+<code>middleware.MCPMiddleware</code> or <code>middleware.OptionalMCPMiddleware</code>.</p>
 <pre><code class="language-go">package main
 
 import (
+    "log"
     "net/http"
     "time"
 
-    "github.com/yourorg/drs/drs-verify/pkg/middleware"
-    "github.com/yourorg/drs/drs-verify/pkg/resolver"
-    "github.com/yourorg/drs/drs-verify/pkg/verify"
+    "github.com/drs-protocol/drs-verify/pkg/middleware"
+    "github.com/drs-protocol/drs-verify/pkg/resolver"
+    "github.com/drs-protocol/drs-verify/pkg/verify"
 )
 
 func main() {
-    res, _ := resolver.New(10_000, time.Hour)
-    verifier := verify.New(res)
+    res, err := resolver.New(10_000, time.Hour)
+    if err != nil {
+        log.Fatal(err)
+    }
 
-    mcp := middleware.NewMCP(verifier, middleware.MCPConfig{
-        RequireBundle: true,   // 403 on missing X-DRS-Bundle header
-        EmitEvents:    true,   // emit drs:tool-call events
-    })
+    deps := verify.Deps{
+        Resolver: res,
+    }
 
     mux := http.NewServeMux()
-    mux.Handle("/mcp/", mcp.Wrap(yourMCPHandler))
-    http.ListenAndServe(":8080", mux)
+    // 1) Define your normal business logic handler.
+    mcpBusinessHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // 3) Read verification context after middleware has validated the bundle.
+        ctx := middleware.GetVerificationContext(r.Context())
+        if ctx == nil {
+            http.Error(w, "missing verification context", http.StatusForbidden)
+            return
+        }
+
+        // Example: make authorization/usage decisions with verified identity.
+        // ctx.RootPrincipal, ctx.ChainDepth, ctx.LeafPolicy
+        w.WriteHeader(http.StatusOK)
+    })
+
+    // 2) Wrap your business handler with MCP middleware.
+    mux.Handle("/mcp/", middleware.MCPMiddleware(deps,
+        mcpBusinessHandler,
+    ))
+
+    log.Fatal(http.ListenAndServe(":8080", mux))
 }
 </code></pre>
-<h2 id="option-b-sidecar-any-language"><a class="header" href="#option-b-sidecar-any-language">Option B: Sidecar (any language)</a></h2>
-<p>Run drs-verify as a sidecar in front of your server. It listens on <code>:8081</code> and proxies verified requests to your server on <code>:8080</code>:</p>
-<pre><code class="language-bash">docker run -d \
-  --name drs-verify \
-  --network host \
-  -e DRS_LISTEN_ADDR=:8081 \
-  -e DRS_UPSTREAM=http://localhost:8080 \
-  -e DRS_REQUIRE_BUNDLE=true \
-  ghcr.io/okeyamy/drs-verify:latest
-</code></pre>
-<p>Point your MCP client at <code>:8081</code>. Your server on <code>:8080</code> only receives requests that have passed full verification.</p>
-<h2 id="option-c-typescript-verifyclient"><a class="header" href="#option-c-typescript-verifyclient">Option C: TypeScript VerifyClient</a></h2>
-<p>For TypeScript MCP servers that need fine-grained control:</p>
-<pre><code class="language-typescript">import { VerifyClient, parseBundle } from '@drs/sdk';
-
-const drs = new VerifyClient({ baseUrl: process.env.DRS_VERIFY_URL! });
-
-app.post('/mcp/tools/call', async (req, res) =&gt; {
-  const bundleHeader = req.headers['x-drs-bundle'] as string;
-
-  if (!bundleHeader) {
-    return res.status(403).json({ error: 'DRS bundle required' });
-  }
-
-  const result = await drs.verify(bundleHeader);
-  if (!result.valid) {
-    return res.status(403).json({
-      error: result.error,
-      block: result.block,
-      message: result.message,
-    });
-  }
-
-  // result.context contains:
-  //   root_principal, subject, chain_depth, policy_result
-  return executeTool(req.body, result.context);
-});
-</code></pre>
+<p>Use <code>OptionalMCPMiddleware</code> only when DRS is advisory and your business handler can
+safely process requests without a bundle.</p>
+<h2 id="typescript--pure-json-rpc-integration"><a class="header" href="#typescript--pure-json-rpc-integration">TypeScript / pure JSON-RPC integration</a></h2>
+<p>If your MCP traffic is pure JSON-RPC rather than HTTP-terminated, use the
+TypeScript wrapper packages in <code>packages/drs-mcp-client</code> and
+<code>packages/drs-mcp-server</code>.</p>
+<ul>
+<li>client side: injects the bundle into <code>params._meta["X-DRS-Bundle"]</code></li>
+<li>server side: decodes the same base64url string and posts the decoded bundle to
+<code>/verify</code></li>
+</ul>
+<p>This is the Shape 2 transport described in <code>docs/drs-source-of-truth.md</code>.</p>
 <h2 id="testing-your-integration"><a class="header" href="#testing-your-integration">Testing your integration</a></h2>
-<pre><code class="language-bash"># Valid bundle — expect 200
-DRS_VERIFY_URL=http://localhost:8081 pnpm exec drs verify bundle.json
+<pre><code class="language-bash"># Valid bundle — expect exit code 0
+DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
 
-# Missing bundle — expect 403
-curl -X POST http://localhost:8081/mcp/tools/call \
+# Missing bundle — expect 401
+curl -X POST http://localhost:8080/mcp/tools/call \
   -H "Content-Type: application/json" \
   -d '{"tool":"web_search","query":"test"}'
-# {"error":"DRS bundle required"}
 
-# Tampered bundle — expect 403
-curl -X POST http://localhost:8081/mcp/tools/call \
-  -H "X-DRS-Bundle: $(echo 'corrupt' | base64)" \
+# Malformed bundle — expect 400
+curl -X POST http://localhost:8080/mcp/tools/call \
+  -H "X-DRS-Bundle: !!!not-base64url!!!" \
   -H "Content-Type: application/json" \
   -d '{"tool":"web_search","query":"test"}'
-# {"error":"BUNDLE_INCOMPLETE","block":"A","message":"..."}
 </code></pre>
 
                     </main>

@@ -148,10 +148,10 @@
                         <a href="../../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/how-to/auditors/reconstruct-chain.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/how-to/auditors/reconstruct-chain.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -182,11 +182,9 @@
                     <main>
                         <h1 id="reconstruct-a-delegation-chain"><a class="header" href="#reconstruct-a-delegation-chain">Reconstruct a Delegation Chain</a></h1>
 <p>You can reconstruct and verify any delegation chain from stored receipts without operator cooperation. All you need are the JWT strings and the DIDs.</p>
-<h2 id="step-1-retrieve-the-bundle"><a class="header" href="#step-1-retrieve-the-bundle">Step 1: Retrieve the bundle</a></h2>
-<p>If the operator has provided the bundle file:</p>
-<pre><code class="language-bash">pnpm exec drs audit retrieve --inv-jti "inv:7h5c4d3e-..." --output evidence.json
-</code></pre>
-<p>Or assemble manually from JWT strings provided by the operator:</p>
+<h2 id="step-1-obtain-the-bundle"><a class="header" href="#step-1-obtain-the-bundle">Step 1: Obtain the bundle</a></h2>
+<p>If the operator has already provided <code>bundle.json</code>, use that directly.</p>
+<p>Or assemble a bundle manually from JWT strings:</p>
 <pre><code class="language-json">{
   "bundle_version": "4.0",
   "invocation": "&lt;invocation-receipt-jwt&gt;",
@@ -199,54 +197,23 @@
 <h2 id="step-2-verify-the-chain"><a class="header" href="#step-2-verify-the-chain">Step 2: Verify the chain</a></h2>
 <pre><code class="language-bash">pnpm exec drs verify evidence.json
 </code></pre>
-<p>This runs all six verification blocks locally. The public keys are resolved from the DID strings embedded in each JWT's <code>iss</code> field. No network calls to any operator system.</p>
-<pre><code>✓ Bundle verified
-  Chain depth:    2
-  Root principal: did:key:z6MkHuman...
-  Subject:        did:key:z6MkHuman...
-  Command:        /mcp/tools/call
-  Policy result:  pass
-  Blocks:         A✓ B✓ C✓ D✓ E✓ F✓
-</code></pre>
-<h2 id="step-3-read-the-full-audit-trail"><a class="header" href="#step-3-read-the-full-audit-trail">Step 3: Read the full audit trail</a></h2>
+<p>This verifies the chain through <code>drs-verify</code>. The verifier reads the issuer DIDs
+from the JWTs and resolves <code>did:key</code> locally from the DID bytes.</p>
+<h2 id="step-3-read-the-audit-trail"><a class="header" href="#step-3-read-the-audit-trail">Step 3: Read the audit trail</a></h2>
 <pre><code class="language-bash">pnpm exec drs audit evidence.json
 </code></pre>
-<p>Output:</p>
-<pre><code>DRS Chain Audit
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Receipt 0 (root — human)
-  Issued by:   did:key:z6MkHuman...
-  Granted to:  did:key:z6MkAgent1...
-  Command:     /mcp/tools/call
-  Policy:      max_cost_usd=50, allowed_tools=[web_search,write_file]
-  Valid:        2026-03-28 10:30:00 → 2026-05-28 10:30:00
-  Consent:      explicit-ui-click at 2026-03-28T10:30:00Z (locale: en-GB)
-  Policy hash:  sha256:a1b2c3...  (hash of text user saw)
-
-Receipt 1 (sub-delegation)
-  Issued by:   did:key:z6MkAgent1...
-  Granted to:  did:key:z6MkAgent2...
-  Policy:      max_cost_usd=5, allowed_tools=[web_search]
-  Chain hash:  sha256:def456... ✓
-
-Invocation
-  Called by:   did:key:z6MkAgent2...
-  Tool:        web_search
-  Args:        {"estimated_cost_usd": 0.02, "query": "Monad TPS"}
-  Budget used: $0.02 of $5.00 (sub) / $50.00 (root)
-  Chain:       sha256:abc123... → sha256:def456... ✓
-
-All 3 signatures valid. Chain intact. No revocations found.
-</code></pre>
+<p>Current <code>drs audit</code> output is intentionally compact. It prints bundle version,
+receipt count, the main fields from each receipt, and the invocation's issuer,
+command, and tool server.</p>
 <h2 id="step-4-verify-the-consent-record"><a class="header" href="#step-4-verify-the-consent-record">Step 4: Verify the consent record</a></h2>
 <p>To confirm the user saw human-readable policy (not raw JSON):</p>
-<pre><code class="language-bash">pnpm exec drs policy evidence.json --receipt 0
+<p>The CLI does not read policies out of a bundle by receipt index. Instead,
+extract the root receipt payload or save its <code>policy</code> object to a separate JSON
+file, then run:</p>
+<pre><code class="language-bash">pnpm exec drs policy root-policy.json
 </code></pre>
-<p>This shows the policy of the root DR. Cross-reference the <code>policy_hash</code> in the consent record with:</p>
-<pre><code class="language-bash">pnpm exec drs translate --input-json '{"allowed_tools":["web_search"],"max_cost_usd":50}' \
-  | sha256sum
-</code></pre>
-<p>If the SHA-256 of the translated text matches <code>drs_consent.policy_hash</code>, the user saw legible information.</p>
+<p>Use your application-side consent records to relate the translated policy text
+back to the stored <code>policy_hash</code>.</p>
 <h2 id="what-you-can-prove"><a class="header" href="#what-you-can-prove">What you can prove</a></h2>
 <p>From the DRS chain alone, you can prove:</p>
 <ul>

@@ -148,10 +148,10 @@
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/tutorials/01-issue-first-delegation.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/tutorials/01-issue-first-delegation.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -185,7 +185,7 @@
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
 <li>Node.js 20+ and pnpm</li>
-<li><code>@drs/sdk</code> installed: <code>pnpm add @drs/sdk</code></li>
+<li><code>@okeyamy/drs-sdk</code> installed: <code>pnpm add @okeyamy/drs-sdk</code></li>
 </ul>
 <h2 id="step-1-generate-two-keypairs"><a class="header" href="#step-1-generate-two-keypairs">Step 1: Generate two keypairs</a></h2>
 <pre><code class="language-bash"># Human keypair
@@ -200,9 +200,9 @@ pnpm exec drs keygen
 </code></pre>
 <h2 id="step-2-issue-the-root-delegation"><a class="header" href="#step-2-issue-the-root-delegation">Step 2: Issue the root delegation</a></h2>
 <p>Create <code>issue-demo.ts</code>:</p>
-<pre><code class="language-typescript">import { issueRootDelegation, computeChainHash } from '@drs/sdk';
+<pre><code class="language-typescript">import { issueRootDelegation, computeChainHash } from '@okeyamy/drs-sdk';
 
-const humanKey = Uint8Array.from(Buffer.from('HUMAN_PRIVATE_KEY', 'base64url'));
+const humanKey = Uint8Array.from(Buffer.from('HUMAN_PRIVATE_KEY_HEX', 'hex'));
 const now = Math.floor(Date.now() / 1000);
 
 const rootDR = await issueRootDelegation({
@@ -237,9 +237,9 @@ console.log('Root DR hash:', computeChainHash(rootDR));
 </code></pre>
 <h2 id="step-3-issue-a-sub-delegation"><a class="header" href="#step-3-issue-a-sub-delegation">Step 3: Issue a sub-delegation</a></h2>
 <p>The agent narrows the policy before delegating further:</p>
-<pre><code class="language-typescript">import { issueSubDelegation } from '@drs/sdk';
+<pre><code class="language-typescript">import { issueSubDelegation } from '@okeyamy/drs-sdk';
 
-const agentKey = Uint8Array.from(Buffer.from('AGENT_PRIVATE_KEY', 'base64url'));
+const agentKey = Uint8Array.from(Buffer.from('AGENT_PRIVATE_KEY_HEX', 'hex'));
 
 const parentPolicy = {
   allowed_tools: ['web_search', 'write_file'],

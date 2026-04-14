@@ -148,10 +148,10 @@
                         <a href="../../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/how-to/operators/operator-config.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/how-to/operators/operator-config.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -203,11 +203,11 @@
     "supervisor_did": "did:key:z6MkSupervisor...",
     "fallback": "deny"
   },
-  "storage_tier": 2
+  "storage_tier": 1
 }
 </code></pre>
 <p>Load in TypeScript:</p>
-<pre><code class="language-typescript">import { parseOperatorConfig } from '@drs/sdk';
+<pre><code class="language-typescript">import { parseOperatorConfig } from '@okeyamy/drs-sdk';
 import { readFileSync } from 'fs';
 
 const cfg = parseOperatorConfig(
@@ -225,6 +225,11 @@ const cfg = parseOperatorConfig(
 </div>
 <blockquote>
 <p><strong>Security:</strong> Never use <code>"file"</code> or <code>"env"</code> in production with keys that have regulatory significance. Use <code>"aws-kms"</code> or <code>"gcp-kms"</code> for production operator keys. See <a href="./key-management.html">Key Management</a>.</p>
+</blockquote>
+<blockquote>
+<p><strong>Implementation note:</strong> these values are accepted by the configuration model.
+Full KMS integration work is separate from config parsing and should be treated
+as production-hardening work rather than assumed runtime support.</p>
 </blockquote>
 <h2 id="root-type"><a class="header" href="#root-type">Root type</a></h2>
 <div class="table-wrapper"><table><thead><tr><th><code>drs_root_type</code></th><th>When to use</th></tr></thead><tbody>

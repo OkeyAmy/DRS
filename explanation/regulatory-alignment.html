@@ -148,10 +148,10 @@
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/explanation/regulatory-alignment.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/explanation/regulatory-alignment.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -197,15 +197,15 @@
 <li>Complete chain reconstruction without operator involvement</li>
 <li>Per-invocation records linking every agent action to the authorising human</li>
 </ul>
-<p><strong>Export:</strong></p>
-<pre><code class="language-bash">pnpm exec drs audit export --inv-jti "inv:..." --format eu-ai-act --output evidence.json
-</code></pre>
+<p><strong>Current state:</strong> there is no dedicated EU AI Act export command in the CLI
+yet. Today, evidence is assembled from <code>bundle.json</code>, <code>drs verify</code>, and
+<code>drs audit</code> output.</p>
 <h2 id="hipaa-164312b--audit-controls"><a class="header" href="#hipaa-164312b--audit-controls">HIPAA §164.312(b) — Audit Controls</a></h2>
 <p>For healthcare deployments handling PHI, HIPAA §164.312(b) requires audit controls that record and examine activity. DRS provides:</p>
 <ul>
 <li>Invocation Receipts recording every agent action with full delegation provenance</li>
 <li>Signed proof that access was authorised before it occurred (not just a log that it happened)</li>
-<li>Tier 3 (Compliant) storage with WORM policy and 7-year retention</li>
+<li>Tier 3 / Tier 4 deployment postures with timestamping support</li>
 </ul>
 <h2 id="aiuc-1-certification"><a class="header" href="#aiuc-1-certification">AIUC-1 Certification</a></h2>
 <p>AIUC (AI Underwriting Company, founded July 2025 with $15M seed) certifies AI systems for insurance underwriting. AIUC-1 requires demonstrable proof of authorisation for every agent action — not just server logs.</p>
@@ -227,12 +227,13 @@
 </ul>
 <p>Relevant financial regulations: SR 11-7 (Federal Reserve model risk management), EBA Guidelines on ICT risk, GDPR Article 22 (automated decision-making explainability), MiFID II audit trails.</p>
 <h2 id="storage-tiers-and-retention"><a class="header" href="#storage-tiers-and-retention">Storage tiers and retention</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Tier</th><th><code>storage_tier</code></th><th>Backend</th><th>Retention</th><th>Use case</th></tr></thead><tbody>
-<tr><td>Session</td><td><code>0</code></td><td>In-memory</td><td>Process lifetime</td><td>Development, testing</td></tr>
-<tr><td>Ephemeral</td><td><code>1</code></td><td>Local filesystem</td><td>Configurable TTL</td><td>Non-regulated production</td></tr>
-<tr><td>Durable</td><td><code>2</code></td><td>S3 / GCS / Azure Blob</td><td>Configurable</td><td>Standard production</td></tr>
-<tr><td>Compliant</td><td><code>3</code></td><td>WORM object storage</td><td>7 years minimum</td><td>HIPAA, financial services</td></tr>
-<tr><td>On-chain</td><td><code>4</code></td><td>Monad EVM</td><td>Permanent</td><td>Highest-assurance regulatory</td></tr>
+<div class="table-wrapper"><table><thead><tr><th>Tier</th><th><code>storage_tier</code></th><th>Backend</th><th>Status</th></tr></thead><tbody>
+<tr><td>Session</td><td><code>0</code></td><td>In-memory</td><td>Implemented</td></tr>
+<tr><td>Ephemeral</td><td><code>1</code></td><td>Local filesystem</td><td>Implemented</td></tr>
+<tr><td>Durable</td><td><code>2</code></td><td>S3-compatible object store</td><td>Roadmap</td></tr>
+<tr><td>Compliant</td><td><code>3</code></td><td>Filesystem + RFC 3161 timestamping</td><td>Partial</td></tr>
+<tr><td>Timestamped</td><td><code>4</code></td><td>Tier 3 deployment posture</td><td>Partial</td></tr>
+<tr><td>On-chain</td><td><code>5</code></td><td>Ethereum anchor</td><td>Roadmap</td></tr>
 </tbody></table>
 </div>
 <p>Configure via <code>storage_tier</code> in the <a href="../how-to/operators/operator-config.html">Operator Configuration</a>.</p>

@@ -148,10 +148,10 @@
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/tutorials/03-end-to-end-trace.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/tutorials/03-end-to-end-trace.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -320,35 +320,13 @@ RESULT: VALID — executing tool call
 <hr />
 <h2 id="step-6-auditor-reconstructs-the-chain-later"><a class="header" href="#step-6-auditor-reconstructs-the-chain-later">Step 6: Auditor reconstructs the chain (later)</a></h2>
 <p>Three months later, a compliance officer wants evidence:</p>
-<pre><code class="language-bash">pnpm exec drs audit retrieve --inv-jti "inv:7h5c4d3e-..." --output evidence.json
-pnpm exec drs verify evidence.json
-pnpm exec drs audit evidence.json
+<pre><code class="language-bash">pnpm exec drs verify bundle.json
+pnpm exec drs audit bundle.json
 </code></pre>
-<p>Output:</p>
-<pre><code>DRS Chain Audit
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Receipt 0 (root — human)
-  Issued by:  did:key:z6MkAmara...
-  Granted to: did:key:z6MkAgent1...
-  Policy:     max_cost_usd=50, allowed_tools=[web_search]
-  Valid:      2026-03-28 → 2026-05-28
-  Consent:    explicit-ui-click at 2026-03-28T10:30:00Z (en-GB)
-
-Receipt 1 (sub-delegation)
-  Issued by:  did:key:z6MkAgent1...
-  Granted to: did:key:z6MkAgent2...
-  Policy:     max_cost_usd=5, allowed_tools=[web_search]
-  Chain hash: sha256:def456... ✓
-
-Invocation
-  Called by:  did:key:z6MkAgent2...
-  Tool:       web_search("Monad TPS benchmarks")
-  Cost:       $0.02 of $5.00 (sub-delegation limit)
-  Chain hash: sha256:ghi789... ✓
-
-All 3 signatures valid. Chain intact. No revocations.
-</code></pre>
-<p>The compliance officer does not need to contact the operator. The evidence is in the receipts.</p>
+<p>The compliance officer does not need to contact the operator. The evidence is in
+the signed bundle plus the verifier output. The current <code>drs audit</code> command is
+compact rather than full forensic export, but it still exposes the key receipt
+and invocation fields.</p>
 
                     </main>
 

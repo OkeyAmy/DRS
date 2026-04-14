@@ -148,10 +148,10 @@
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/reference/roadmap.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/reference/roadmap.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -181,54 +181,46 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="roadmap"><a class="header" href="#roadmap">Roadmap</a></h1>
-<p>DRS is a research project. The implementation roadmap has four phases.</p>
-<h2 id="phase-1--core-protocol-current"><a class="header" href="#phase-1--core-protocol-current">Phase 1 — Core protocol <em>(current)</em></a></h2>
-<p><strong>Status:</strong> In progress</p>
+<p>DRS is still a research project, but several items previously listed as future
+work are now implemented.</p>
+<h2 id="phase-1--core-protocol"><a class="header" href="#phase-1--core-protocol">Phase 1 — Core protocol</a></h2>
+<p><strong>Status:</strong> Mostly complete</p>
 <ul>
-<li>✓ DRS 4.0 specification (<code>docs/Drs_architecture_v2.md</code>)</li>
-<li>✓ <code>drs-core</code>: Rust crypto primitives, JCS canonicalisation, chain verification, WASM build target</li>
-<li>✓ <code>drs-verify</code>: Go verification server, MCP/A2A middleware, DID resolver with LRU cache, Bitstring Status List cache</li>
-<li>✓ <code>drs-sdk</code>: TypeScript SDK (issuance path), CLI tools (<code>verify</code>, <code>audit</code>, <code>policy</code>, <code>translate</code>, <code>keygen</code>)</li>
-<li>✓ Documentation site (this site)</li>
-<li>✓ Local revocation store with <code>POST /admin/revoke</code> (in-memory, immediate effect)</li>
-<li>✓ RFC 3161 trusted timestamp anchor (<code>pkg/anchor/</code>) — Tier 3 store with TSA client</li>
-<li>◻ <code>did:web</code> resolver production hardening (DNS pinning, certificate transparency)</li>
-<li>◻ Cross-implementation test suite (Rust ↔ Go ↔ TypeScript JWT interop)</li>
+<li>✓ <code>drs-core</code>: Rust crypto primitives, JCS canonicalisation, chain hash, policy primitives</li>
+<li>✓ <code>drs-verify</code>: Go verification server, MCP/A2A middleware, DID resolver cache, revocation, local revoke endpoint</li>
+<li>✓ <code>drs-sdk</code>: TypeScript issuance SDK and CLI (<code>verify</code>, <code>audit</code>, <code>policy</code>, <code>translate</code>, <code>keygen</code>)</li>
+<li>✓ Shared conformance suite across Rust, Go, and TypeScript</li>
+<li>✓ RFC 3161 timestamping support</li>
+<li>◻ <code>did:web</code> resolver production hardening</li>
 </ul>
-<h2 id="phase-2--production-hardening-6-months"><a class="header" href="#phase-2--production-hardening-6-months">Phase 2 — Production hardening <em>(6 months)</em></a></h2>
-<p><strong>Goal:</strong> Production-ready for early adopters and AIUC-1 certification candidates.</p>
+<h2 id="phase-2--production-hardening"><a class="header" href="#phase-2--production-hardening">Phase 2 — Production hardening</a></h2>
 <ul>
-<li>HSM key management integration (AWS KMS, GCP Cloud KMS) in drs-verify</li>
-<li>Tier 3 storage (WORM S3, Azure Blob Immutable Storage)</li>
-<li>AIUC-1 compliance export format and certification documentation</li>
-<li>Performance benchmarks: p50/p99 latency at 10K req/sec with 5-hop chains</li>
-<li>Security audit (external)</li>
+<li>HSM / KMS integration in the verifier</li>
+<li>durable object-store backend (Tier 2 roadmap)</li>
+<li>stronger retention / immutability story for regulated deployments</li>
+<li>external security review</li>
+<li>repeatable performance benchmarks</li>
 </ul>
-<h2 id="phase-3--ecosystem-integration-12-months"><a class="header" href="#phase-3--ecosystem-integration-12-months">Phase 3 — Ecosystem integration <em>(12 months)</em></a></h2>
-<p><strong>Goal:</strong> Plug-and-play integration with the MCP and A2A ecosystems.</p>
+<h2 id="phase-3--ecosystem-integration"><a class="header" href="#phase-3--ecosystem-integration">Phase 3 — Ecosystem integration</a></h2>
 <ul>
-<li>MCP server reference implementation with DRS built in (Go)</li>
-<li>A2A protocol reference implementation with DRS middleware</li>
-<li>Browser SDK: WASM-based verification for browser-hosted agents</li>
-<li>On-chain registry: Ethereum mainnet blockchain anchor (Tier 4 — explicit opt-in for blockchain-native enterprise deployments; Ethereum is the only chain with established regulatory and legal precedent)</li>
-<li>Policy language extensions: resource-level constraints, time-windows, rate limiting</li>
+<li>richer MCP integration guidance and examples</li>
+<li>browser-focused verification flows using the WASM build</li>
+<li>stronger TypeScript packages for pure JSON-RPC MCP transport</li>
+<li>Ethereum anchoring as explicit <strong>Tier 5</strong> opt-in</li>
+<li>richer policy language extensions</li>
 </ul>
-<h2 id="phase-4--standards-track-1824-months"><a class="header" href="#phase-4--standards-track-1824-months">Phase 4 — Standards track <em>(18–24 months)</em></a></h2>
-<p><strong>Goal:</strong> DRS becomes an IETF standard or an officially recognised OAuth profile.</p>
+<h2 id="phase-4--standards-track"><a class="header" href="#phase-4--standards-track">Phase 4 — Standards track</a></h2>
 <ul>
-<li>IETF Internet-Draft submission (OAuth Working Group)</li>
-<li>W3C Community Group proposal for the consent record format</li>
-<li>FINOS AI Governance Framework alignment documentation</li>
-<li>Integration with OpenID for Verifiable Credentials (OID4VC) for human identity binding</li>
+<li>standards-track documentation and draft work</li>
+<li>external governance / interoperability alignment</li>
+<li>stronger regulatory reference material once implementation catches up</li>
 </ul>
 <h2 id="non-goals"><a class="header" href="#non-goals">Non-goals</a></h2>
-<p>These are explicitly out of scope:</p>
 <ul>
-<li>Behavioral safety (preventing LLMs from doing bad things) — model/runtime problem</li>
-<li>LLM non-determinism — outside the authorisation layer</li>
-<li>Prompt injection prevention — DRS records injections, does not prevent them</li>
-<li>Post-compromise key recovery — operational problem</li>
-<li>Agent identity (DIDs are used but not managed by DRS)</li>
+<li>behavioral safety or prompt injection prevention</li>
+<li>model determinism</li>
+<li>post-compromise key recovery</li>
+<li>DID lifecycle management outside DRS itself</li>
 </ul>
 
                     </main>

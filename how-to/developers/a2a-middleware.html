@@ -148,10 +148,10 @@
                         <a href="../../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/how-to/developers/a2a-middleware.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/how-to/developers/a2a-middleware.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -181,42 +181,83 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="a2a-middleware-integration"><a class="header" href="#a2a-middleware-integration">A2A Middleware Integration</a></h1>
-<p>DRS integrates with the Agent-to-Agent (A2A) protocol using the same bundle mechanism as MCP.</p>
+<p>DRS integrates with Agent-to-Agent (A2A) calls using the same bundle transport
+as HTTP-terminated MCP: the full bundle travels in the <code>X-DRS-Bundle</code> header as
+base64url-encoded JSON.</p>
+<p>The middleware validates the bundle before your business handler executes.</p>
 <h2 id="transport"><a class="header" href="#transport">Transport</a></h2>
-<p>The DRS bundle is transmitted as the <code>X-DRS-Bundle</code> header in A2A requests, identical to MCP:</p>
 <pre><code>POST /a2a/tasks/send HTTP/1.1
-X-DRS-Bundle: &lt;base64url bundle&gt;
+X-DRS-Bundle: &lt;base64url(JSON bundle)&gt;
 Content-Type: application/json
 </code></pre>
-<p>The bundle must contain the full delegation chain from the original human root through every agent hop to the current caller.</p>
+<p>The bundle must contain the full delegation chain from the original root to the
+current caller.</p>
+<h2 id="what-happens-on-failure"><a class="header" href="#what-happens-on-failure">What happens on failure</a></h2>
+<ul>
+<li>missing bundle: <code>401</code></li>
+<li>malformed base64url/JSON: <code>400</code></li>
+<li>invalid chain: <code>403</code></li>
+</ul>
 <h2 id="go-middleware"><a class="header" href="#go-middleware">Go middleware</a></h2>
-<pre><code class="language-go">import "github.com/yourorg/drs/drs-verify/pkg/middleware"
+<pre><code class="language-go">package main
 
-a2a := middleware.NewA2A(verifier, middleware.A2AConfig{
-    RequireBundle: true,
-    HeaderName:    "X-DRS-Bundle",
-})
+import (
+    "log"
+    "net/http"
+    "time"
 
-mux.Handle("/a2a/", a2a.Wrap(yourA2AHandler))
+    "github.com/drs-protocol/drs-verify/pkg/middleware"
+    "github.com/drs-protocol/drs-verify/pkg/resolver"
+    "github.com/drs-protocol/drs-verify/pkg/verify"
+)
+
+func main() {
+    res, err := resolver.New(10_000, time.Hour)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    deps := verify.Deps{
+        Resolver: res,
+    }
+
+    mux := http.NewServeMux()
+    // 1) Define your normal A2A business handler.
+    a2aBusinessHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // 3) Read verification context after middleware validation.
+        ctx := middleware.GetVerificationContext(r.Context())
+        if ctx == nil {
+            http.Error(w, "missing verification context", http.StatusForbidden)
+            return
+        }
+
+        // Example: use ctx.RootPrincipal / ctx.ChainDepth / ctx.LeafPolicy.
+        w.WriteHeader(http.StatusOK)
+    })
+
+    // 2) Wrap your business handler with A2A middleware.
+    mux.Handle("/a2a/", middleware.A2AMiddleware(deps,
+        a2aBusinessHandler,
+    ))
+
+    log.Fatal(http.ListenAndServe(":8080", mux))
+}
 </code></pre>
-<h2 id="sidecar-for-non-go-a2a-servers"><a class="header" href="#sidecar-for-non-go-a2a-servers">Sidecar for non-Go A2A servers</a></h2>
-<pre><code class="language-bash">docker run -d \
-  -e DRS_LISTEN_ADDR=:8082 \
-  -e DRS_UPSTREAM=http://localhost:8080 \
-  -e DRS_REQUIRE_BUNDLE=true \
-  ghcr.io/okeyamy/drs-verify:latest
-</code></pre>
+<p>Use <code>OptionalA2AMiddleware</code> only when DRS is advisory and your business handler
+can safely process requests without a bundle.</p>
 <h2 id="chain-depth-in-multi-agent-a2a-topologies"><a class="header" href="#chain-depth-in-multi-agent-a2a-topologies">Chain depth in multi-agent A2A topologies</a></h2>
-<p>In A2A deployments, an orchestrator agent may dispatch to multiple worker agents. Each worker must carry the full chain from the human root to itself:</p>
+<p>In multi-agent A2A deployments, an orchestrator may dispatch to multiple worker
+agents. Each worker carries the full chain to itself:</p>
 <pre><code>Human → Orchestrator DR → Worker DR → Invocation
 </code></pre>
-<p>The Worker's bundle must include:</p>
+<p>That worker bundle includes:</p>
 <ul>
-<li><code>receipts[0]</code>: Root DR (human → orchestrator)</li>
-<li><code>receipts[1]</code>: Sub-DR (orchestrator → worker)</li>
-<li><code>invocation</code>: Invocation receipt (worker → tool server)</li>
+<li><code>receipts[0]</code>: root delegation</li>
+<li><code>receipts[1]</code>: orchestrator → worker sub-delegation</li>
+<li><code>invocation</code>: worker invocation receipt</li>
 </ul>
-<p>The Orchestrator issues the Sub-DR to the Worker before dispatching the task. The Worker creates the Invocation Receipt.</p>
+<p>The orchestrator issues the worker's sub-delegation before dispatch. The worker
+issues the invocation receipt when calling the next service.</p>
 
                     </main>
 

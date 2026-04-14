@@ -148,10 +148,10 @@
                         <a href="../../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/how-to/auditors/independent-verify.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/how-to/auditors/independent-verify.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -184,8 +184,9 @@
 <p>DRS chains can be verified by anyone, without contacting the operator, without a DRS account, and without any central authority.</p>
 <h2 id="what-you-need"><a class="header" href="#what-you-need">What you need</a></h2>
 <ul>
-<li>The DRS bundle (the JWT strings)</li>
-<li>The <code>drs verify</code> CLI (from <code>@drs/sdk</code>) or a running drs-verify instance</li>
+<li>the DRS bundle (the JWT strings)</li>
+<li>the <code>drs verify</code> CLI from <code>@okeyamy/drs-sdk</code></li>
+<li>access to a <code>drs-verify</code> instance you trust, including one you run yourself</li>
 </ul>
 <h2 id="what-you-do-not-need"><a class="header" href="#what-you-do-not-need">What you do NOT need</a></h2>
 <ul>
@@ -199,34 +200,19 @@
 <pre><code>did:key:z6Mk{base58btc(multicodec_prefix + public_key_bytes)}
 </code></pre>
 <p>Anyone with the DID can derive the public key and verify the signature. No registry lookup, no HTTP request, no trust anchor beyond the public key.</p>
-<h2 id="offline-verification"><a class="header" href="#offline-verification">Offline verification</a></h2>
-<p>All blocks except F (revocation) can be run offline:</p>
-<pre><code class="language-bash">pnpm exec drs verify bundle.json --offline
-</code></pre>
-<p>The <code>--offline</code> flag skips Block F (Bitstring Status List lookup). All cryptographic, structural, policy, and temporal checks run locally with no network calls.</p>
-<p>Use <code>--offline</code> when:</p>
-<ul>
-<li>You have no network access</li>
-<li>You are verifying historical evidence (revocation status is not relevant for a past action)</li>
-<li>You distrust the network path to the status list server</li>
-</ul>
-<h2 id="full-online-verification"><a class="header" href="#full-online-verification">Full online verification</a></h2>
+<h2 id="verification"><a class="header" href="#verification">Verification</a></h2>
 <pre><code class="language-bash">DRS_VERIFY_URL=http://your-drs-verify-instance:8080 pnpm exec drs verify bundle.json
 </code></pre>
-<p>Or spin up your own drs-verify instance and point at it:</p>
+<p>Or run your own verifier and point the CLI at it:</p>
 <pre><code class="language-bash">cd drs-verify &amp;&amp; go run ./cmd/server &amp;
 pnpm exec drs verify bundle.json
 </code></pre>
-<h2 id="checking-signatures-manually"><a class="header" href="#checking-signatures-manually">Checking signatures manually</a></h2>
-<p>If you want to verify a signature without the CLI tools, every DRS JWT is a standard EdDSA JWT. Any JWT library that supports <code>alg: EdDSA</code> can verify it:</p>
-<pre><code class="language-bash"># Decode and verify using jwt.io or any EdDSA-capable tool
-# The DID in the "iss" field encodes the public key:
-# did:key:z6Mk{base58(0xed01 + pub_key_bytes)}
-
-# Extract pub key from DID:
-echo "did:key:z6Mk..." | pnpm exec drs resolve-did
-# {"public_key_hex": "0102030405..."}
+<h2 id="signature-model"><a class="header" href="#signature-model">Signature model</a></h2>
+<p>Each DRS JWT is an EdDSA JWT. The issuer DID encodes the Ed25519 public key:</p>
+<pre><code class="language-text">did:key:z6Mk{base58btc(0xed01 + public_key_bytes)}
 </code></pre>
+<p>That lets any verifier derive the public key from the DID without contacting the
+original operator.</p>
 
                     </main>
 

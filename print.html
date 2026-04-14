@@ -149,7 +149,7 @@
                         <a href="print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
 
@@ -213,86 +213,82 @@
 <p>Start with <a href="./explanation/what-is-drs.html">What is DRS?</a> for a conceptual overview, or jump straight to the <a href="./quick-start.html">Quick Start</a>.</p>
 </blockquote>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h1>
-<p>Get from zero to a verified delegation bundle in under 10 minutes.</p>
+<p>Get from zero to a verified bundle quickly using the current SDK and verifier.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
 <li>Node.js 20+ and pnpm</li>
-<li>Go 1.22+ (to run drs-verify locally)</li>
+<li>Go 1.22+ (to run <code>drs-verify</code> locally)</li>
 </ul>
 <h2 id="1-install-the-sdk"><a class="header" href="#1-install-the-sdk">1. Install the SDK</a></h2>
-<pre><code class="language-bash">pnpm add @drs/sdk
+<pre><code class="language-bash">pnpm add @okeyamy/drs-sdk
 </code></pre>
 <h2 id="2-generate-a-keypair"><a class="header" href="#2-generate-a-keypair">2. Generate a keypair</a></h2>
 <pre><code class="language-bash">pnpm exec drs keygen
 </code></pre>
-<p>Output:</p>
-<pre><code>Private key (keep secret): &lt;base64url-encoded 32 bytes&gt;
-DID:                        did:key:z6Mk...
-</code></pre>
-<p>Save both values. The private key signs delegation receipts. The DID is your identity on the chain.</p>
-<h2 id="3-issue-a-root-delegation"><a class="header" href="#3-issue-a-root-delegation">3. Issue a root delegation</a></h2>
-<pre><code class="language-typescript">import { issueRootDelegation } from '@drs/sdk';
+<p>Current output is plaintext hex:</p>
+<pre><code class="language-text">Ed25519 keypair generated.
 
-const privateKey = Uint8Array.from(Buffer.from('YOUR_PRIVATE_KEY', 'base64url'));
+DID          : did:key:z6Mk...
+Public key   : &lt;hex&gt;
+Private key  : &lt;hex&gt;
+</code></pre>
+<p>Save the DID and private key securely.</p>
+<h2 id="3-issue-a-root-delegation"><a class="header" href="#3-issue-a-root-delegation">3. Issue a root delegation</a></h2>
+<pre><code class="language-typescript">import { issueRootDelegation } from "@okeyamy/drs-sdk";
+
+const privateKey = Uint8Array.from(Buffer.from("YOUR_PRIVATE_KEY_HEX", "hex"));
 const now = Math.floor(Date.now() / 1000);
 
 const rootDR = await issueRootDelegation({
-  signingKey:  privateKey,
-  issuerDid:   'did:key:z6MkYOUR_DID',
-  subjectDid:  'did:key:z6MkYOUR_DID',   // human is both issuer and subject at root
-  audienceDid: 'did:key:z6MkAGENT_DID',
-  cmd: '/mcp/tools/call',
+  signingKey: privateKey,
+  issuerDid: "did:key:z6MkYOUR_DID",
+  subjectDid: "did:key:z6MkYOUR_DID",
+  audienceDid: "did:key:z6MkAGENT_DID",
+  cmd: "/mcp/tools/call",
   policy: {
-    allowed_tools: ['web_search'],
-    max_cost_usd: 10.00,
+    allowed_tools: ["web_search"],
+    max_cost_usd: 10,
     pii_access: false,
   },
   nbf: now,
-  exp: now + 3600,          // 1 hour
-  rootType: 'automated-system',
+  exp: now + 3600,
+  rootType: "automated-system",
 });
-
-console.log('Root DR JWT:', rootDR);
 </code></pre>
-<h2 id="4-start-drs-verify-locally"><a class="header" href="#4-start-drs-verify-locally">4. Start drs-verify locally</a></h2>
+<h2 id="4-start-drs-verify"><a class="header" href="#4-start-drs-verify">4. Start <code>drs-verify</code></a></h2>
 <pre><code class="language-bash">cd drs-verify
 go run ./cmd/server
-# drs-verify listening on :8080
 </code></pre>
 <h2 id="5-build-and-verify-a-bundle"><a class="header" href="#5-build-and-verify-a-bundle">5. Build and verify a bundle</a></h2>
-<pre><code class="language-typescript">import { buildBundle, serialiseBundle, issueInvocation, computeChainHash } from '@drs/sdk';
+<pre><code class="language-typescript">import { buildBundle, serialiseBundle, issueInvocation, computeChainHash } from "@okeyamy/drs-sdk";
+import { writeFileSync } from "node:fs";
 
 const invocation = await issueInvocation({
-  signingKey:  agentPrivateKey,
-  issuerDid:   'did:key:z6MkAGENT_DID',
-  subjectDid:  'did:key:z6MkYOUR_DID',
-  cmd: '/mcp/tools/call',
-  args: { tool: 'web_search', query: 'hello', estimated_cost_usd: 0.01 },
+  signingKey: agentPrivateKey,
+  issuerDid: "did:key:z6MkAGENT_DID",
+  subjectDid: "did:key:z6MkYOUR_DID",
+  cmd: "/mcp/tools/call",
+  args: { tool: "web_search", query: "hello", estimated_cost_usd: 0.01 },
   drChain: [computeChainHash(rootDR)],
-  toolServer: 'did:key:z6MkTOOL_DID',
+  toolServer: "did:key:z6MkTOOL_DID",
 });
 
 const bundle = buildBundle({ invocation, receipts: [rootDR] });
-import { writeFileSync } from 'fs';
-writeFileSync('bundle.json', serialiseBundle(bundle));
+writeFileSync("bundle.json", serialiseBundle(bundle));
 </code></pre>
 <pre><code class="language-bash">DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
 </code></pre>
-<p>Expected output:</p>
-<pre><code>✓ Bundle verified
-  Chain depth:    1
-  Root principal: did:key:z6Mk...
-  Subject:        did:key:z6Mk...
-  Command:        /mcp/tools/call
-  Policy result:  pass
-  Blocks:         A✓ B✓ C✓ D✓ E✓ F✓
+<p>Expected successful output starts with:</p>
+<pre><code class="language-text">✓ Chain verified
+  Root principal : did:key:z6Mk...
+  Chain depth    : 1
 </code></pre>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
 <ul>
-<li><strong>Developers:</strong> <a href="./how-to/developers/mcp-middleware.html">MCP Middleware Integration</a> — integrate DRS into your tool server in one day</li>
-<li><strong>Operators:</strong> <a href="./how-to/operators/deploy-drs-verify.html">Deploy drs-verify</a> — run a production verification server</li>
-<li><strong>Auditors:</strong> <a href="./how-to/auditors/reconstruct-chain.html">Reconstruct a Chain</a> — verify audit evidence independently</li>
-<li><strong>Contributors:</strong> <a href="./how-to/contributors/dev-setup.html">Dev Setup</a> — get the full codebase running</li>
+<li><a href="./how-to/developers/mcp-middleware.html">MCP Middleware Integration</a></li>
+<li><a href="./how-to/operators/deploy-drs-verify.html">Deploy drs-verify</a></li>
+<li><a href="./how-to/auditors/reconstruct-chain.html">Reconstruct a Chain</a></li>
+<li><a href="./how-to/contributors/dev-setup.html">Dev Setup</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="what-is-drs"><a class="header" href="#what-is-drs">What is DRS?</a></h1>
 <p><strong>DRS (Delegation Receipt Standard) is a per-step delegation receipt standard built on OAuth 2.1 + RFC 8693 + MCP.</strong></p>
@@ -315,7 +311,10 @@ RFC 8693 + DRS    → adds a signed receipt at EVERY hop
 <li><strong>Delegation Receipt (DR):</strong> A signed JWT issued by each delegator. Contains the command, policy constraints, temporal bounds, and a SHA-256 hash of the previous DR.</li>
 <li><strong>Chain:</strong> The linked sequence of DRs from the human root to the invoking agent. Each <code>prev_dr_hash</code> field links back, creating a tamper-evident chain.</li>
 <li><strong>Invocation Receipt:</strong> A signed JWT recording the actual tool call arguments, the full chain of DR hashes, and the tool server's DID.</li>
-<li><strong>Bundle:</strong> The invocation receipt plus all DRs, transmitted as a base64url-encoded JSON object in the <code>X-DRS-Bundle</code> HTTP header.</li>
+<li><strong>Bundle:</strong> The invocation receipt plus all DRs. On HTTP-terminated routes it
+travels as a base64url-encoded JSON object in the <code>X-DRS-Bundle</code> header. On
+pure JSON-RPC MCP flows it can travel in <code>params._meta["X-DRS-Bundle"]</code> with
+the same base64url encoding.</li>
 </ol>
 <h2 id="what-drs-is-not-1"><a class="header" href="#what-drs-is-not-1">What DRS is not</a></h2>
 <p>DRS is frequently confused with systems it is adjacent to but distinct from:</p>
@@ -325,7 +324,7 @@ RFC 8693 + DRS    → adds a signed receipt at EVERY hop
 <tr><td>OpenTelemetry</td><td>Distributed tracing</td><td>Observability vs. authorisation provenance</td></tr>
 <tr><td>Langfuse / Arize</td><td>LLM observability</td><td>Logs vs. cryptographic proofs</td></tr>
 <tr><td>Agentic JWT</td><td>JWT profile for agent identity</td><td>Identity vs. delegation chain receipts</td></tr>
-<tr><td>Blockchain audit logs</td><td>Immutable event log</td><td>DRS receipts work without blockchain (on-chain is optional tier 4)</td></tr>
+<tr><td>Blockchain audit logs</td><td>Immutable event log</td><td>DRS receipts work without blockchain (on-chain is optional Tier 5)</td></tr>
 </tbody></table>
 </div>
 <p>For a detailed comparison, see <a href="explanation/../reference/comparison.html">DRS vs Alternatives</a>.</p>
@@ -377,7 +376,7 @@ This permission lasts 30 days. Revoke it at any time.
 <p><strong>Key concern:</strong> Did I actually authorise this specific action?</p>
 <hr />
 <h2 id="2-developer"><a class="header" href="#2-developer">2. Developer</a></h2>
-<p>Integrates DRS into MCP tool servers or agent runtimes. Interacts with the TypeScript SDK (<code>@drs/sdk</code>) and the drs-verify HTTP API.</p>
+<p>Integrates DRS into MCP tool servers or agent runtimes. Interacts with the TypeScript SDK (<code>@okeyamy/drs-sdk</code>) and the drs-verify HTTP API.</p>
 <p><strong>What they do:</strong></p>
 <ul>
 <li>Call <code>issueRootDelegation</code> / <code>issueSubDelegation</code> from the SDK</li>
@@ -414,9 +413,8 @@ This permission lasts 30 days. Revoke it at any time.
 <h2 id="5-auditor--compliance-officer"><a class="header" href="#5-auditor--compliance-officer">5. Auditor / Compliance Officer</a></h2>
 <p>Reconstructs delegation chains after the fact to produce evidence for regulators, legal proceedings, or internal investigation. Does not need operator cooperation.</p>
 <p><strong>What they do:</strong></p>
-<pre><code class="language-bash">drs audit retrieve --inv-jti "inv:7h5c4d3e-..."
-drs verify evidence.json
-drs audit export --inv-jti "inv:7h5c4d3e-..." --format eu-ai-act
+<pre><code class="language-bash">drs verify bundle.json
+drs audit bundle.json
 </code></pre>
 <p><strong>Key concern:</strong> Can I prove what happened to a standard that satisfies EU AI Act Article 12?</p>
 <hr />
@@ -565,10 +563,9 @@ pub fn compute_chain_hash(jwt: &amp;str) -&gt; String {
 <ol>
 <li>Parse JWT header — must be <code>{"alg":"EdDSA","typ":"JWT"}</code></li>
 <li>Resolve the issuer DID to its Ed25519 public key (LRU-cached)</li>
-<li>Verify the EdDSA signature over <code>base64url(header).base64url(payload)</code></li>
-<li>Enforce <code>S &lt; L</code> (strict mode — rejects signature malleability)</li>
+<li>Verify the Ed25519 signature over <code>base64url(header).base64url(payload)</code></li>
 </ol>
-<p><strong>Fail condition:</strong> Any signature invalid, any DID unresolvable, any <code>S ≥ L</code>.</p>
+<p><strong>Fail condition:</strong> any signature invalid or any DID unresolvable.</p>
 <blockquote>
 <p><strong>Security:</strong> The multicodec prefix check when resolving <code>did:key</code> DIDs uses <code>crypto/subtle.ConstantTimeCompare</code> in Go and <code>subtle::ConstantTimeEq</code> in Rust. Using <code>bytes.Equal</code> or <code>==</code> leaks timing information.</p>
 </blockquote>
@@ -581,9 +578,11 @@ pub fn compute_chain_hash(jwt: &amp;str) -&gt; String {
 <li><code>args.estimated_cost_usd</code> must be ≤ <code>policy.max_cost_usd</code> (if set) at every level</li>
 <li><code>args.pii_access</code> must be <code>false</code> if <code>policy.pii_access</code> is <code>false</code> at any level</li>
 </ul>
-<p>Sub-DR attenuation check:</p>
+<p>Sub-DR attenuation and temporal nesting checks:</p>
 <ul>
 <li>Each sub-DR's <code>policy</code> must be a subset of its parent's <code>policy</code></li>
+<li>Child <code>nbf</code> must not be earlier than parent <code>nbf</code></li>
+<li>Child <code>exp</code> must not outlive parent <code>exp</code> when both are set</li>
 <li>Any escalation (wider tool list, higher cost limit, <code>pii_access: true</code> when parent has <code>false</code>) fails this block</li>
 </ul>
 <p><strong>Fail condition:</strong> Any argument exceeds any policy constraint, or any sub-DR escalates permissions.</p>
@@ -593,20 +592,20 @@ pub fn compute_chain_hash(jwt: &amp;str) -&gt; String {
 <ul>
 <li><code>now ≥ receipt.nbf</code> for every receipt</li>
 <li><code>now ≤ receipt.exp</code> for every receipt where <code>exp</code> is not null</li>
-<li>Sub-DR <code>nbf ≥ parent nbf</code></li>
-<li>Sub-DR <code>exp ≤ parent exp</code> (when both are set)</li>
 </ul>
-<p><strong>Fail condition:</strong> Any receipt is expired, not yet valid, or has invalid temporal nesting.</p>
+<p><strong>Fail condition:</strong> any receipt is expired or not yet valid.</p>
 <hr />
 <h3 id="block-f--revocation"><a class="header" href="#block-f--revocation">Block F — Revocation</a></h3>
 <p><strong>What:</strong> No receipt has been revoked via either the remote Bitstring Status List or the local revocation store.</p>
-<p>For each <strong>delegation receipt</strong> with a <code>drs_status_list_index</code> (the invocation receipt is not checked for revocation):</p>
+<p>For each delegation receipt with a <code>drs_status_list_index</code>:</p>
 <ol>
-<li><strong>Remote check</strong> — Fetch the W3C Bitstring Status List from <code>STATUS_LIST_BASE_URL</code> (configurable TTL cache, default 5 minutes, with <code>sync.Once</code> concurrency guard). Bit <code>1</code> = revoked.</li>
-<li><strong>Local check</strong> — Query the in-memory local revocation store. Entries are added immediately via <code>POST /admin/revoke</code>. This store does not survive process restart.</li>
+<li><strong>Remote check</strong> — only if <code>STATUS_LIST_BASE_URL</code> is configured.</li>
+<li><strong>Local check</strong> — query the in-memory local revocation store.</li>
 </ol>
-<p>Both checks run for every receipt. Either alone is sufficient to fail verification.</p>
-<p><strong>Fail condition:</strong> Any receipt's <code>drs_status_list_index</code> is marked as revoked in either source, <strong>or</strong> the remote status list check returns an error (fail-closed — an unavailable status list blocks verification).</p>
+<p>If the remote status cache is not configured, that part is skipped. Local
+revocation still runs.</p>
+<p><strong>Fail condition:</strong> any receipt is marked revoked, or a configured remote
+revocation check errors.</p>
 <blockquote>
 <p>The <code>sync.Once</code> guard prevents double-fetch race conditions: when the remote cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result.</p>
 </blockquote>
@@ -631,7 +630,7 @@ pub fn compute_chain_hash(jwt: &amp;str) -&gt; String {
   # Block C
   for (jwt, payload) in receipts + invocation:
     pub_key = resolve_did(payload.iss)  # LRU cached, constant-time prefix check
-    if not ed25519_verify_strict(jwt, pub_key): return Err(SIGNATURE_INVALID)
+    if not ed25519_verify(jwt, pub_key): return Err(SIGNATURE_INVALID)
 
   # Block D
   for dr in drs:
@@ -644,14 +643,10 @@ pub fn compute_chain_hash(jwt: &amp;str) -&gt; String {
   for dr in drs:
     if now &lt; dr.nbf: return Err(RECEIPT_NOT_YET_VALID)
     if dr.exp != null and now &gt; dr.exp: return Err(RECEIPT_EXPIRED)
-  for i in 1..len(drs):
-    if drs[i].nbf &lt; drs[i-1].nbf: return Err(TEMPORAL_BOUNDS_VIOLATION)
-    if both have exp and drs[i].exp &gt; drs[i-1].exp: return Err(TEMPORAL_BOUNDS_VIOLATION)
-
   # Block F
   for dr in drs:
     if dr.drs_status_list_index != null:
-      if remote_status_list.is_revoked(dr.drs_status_list_index):
+      if remote_status_list_configured and remote_status_list.is_revoked(dr.drs_status_list_index):
         return Err(RECEIPT_REVOKED)
       if local_revocation_store.is_revoked(dr.drs_status_list_index):
         return Err(RECEIPT_REVOKED)
@@ -664,96 +659,93 @@ pub fn compute_chain_hash(jwt: &amp;str) -&gt; String {
 <tr><td>Policy check per level</td><td>O(1) avg</td><td>Hash-set intersection in capability index</td></tr>
 <tr><td>DID resolution</td><td>O(1) amortised</td><td>LRU cache, 10,000 entry cap, 1-hour TTL</td></tr>
 <tr><td>Status list check</td><td>O(1) amortised</td><td>5-min TTL, <code>sync.Once</code> guard</td></tr>
-<tr><td>Ed25519 verify</td><td>~0.1ms/sig</td><td><code>ed25519-dalek 2.x</code></td></tr>
+<tr><td>Ed25519 verify</td><td>implementation-dependent</td><td>Go uses <code>crypto/ed25519</code></td></tr>
 <tr><td>Total per request (2-hop chain)</td><td>~0.8ms p99</td><td></td></tr>
 </tbody></table>
 </div><div style="break-before: page; page-break-before: always;"></div><h1 id="architecture"><a class="header" href="#architecture">Architecture</a></h1>
-<p>DRS uses a three-language stack. Each language handles the layer it is genuinely best suited for. This is not aesthetic preference — it is a consequence of the performance and correctness requirements of each layer.</p>
+<p>DRS uses a three-language stack. The three layers are peer implementations with
+different primary roles; the Go verifier does not call Rust at runtime.</p>
 <h2 id="the-three-layers"><a class="header" href="#the-three-layers">The three layers</a></h2>
 <pre><code>┌──────────────────────────────────────────────┐
-│  TypeScript SDK  (@drs/sdk)                   │
-│  Issuance path only. Low-frequency.           │
-│  issueRootDelegation, issueSubDelegation,     │
-│  buildBundle, CLI tools                       │
-│  Delegates crypto to WASM or HTTP             │
+│  TypeScript SDK  (@okeyamy/drs-sdk)           │
+│  issuance, bundle assembly, CLI               │
+│  optional HTTP verification client            │
 └───────────────────┬──────────────────────────┘
-                    │  WASM (drs-core compiled for browser)
-                    │  HTTP (VerifyClient → drs-verify)
+                    │  optional WASM for browser/runtime use
+                    │  HTTP to drs-verify
 ┌───────────────────▼──────────────────────────┐
-│  Go Middleware  (drs-verify)                  │
-│  Verification path. High-frequency.           │
-│  verify_chain (6 blocks), MCP/A2A middleware  │
-│  LRU DID resolver, status list cache          │
-│  Single static binary, goroutine-based        │
+│  Go verifier  (drs-verify)                    │
+│  verification server, middleware, revocation  │
+│  resolver cache, health/readiness, storage    │
 └───────────────────┬──────────────────────────┘
-                    │  Rust crate (native library)
-                    │  WASM (browser target)
+                    │  shared protocol contract
+                    │  conformance vectors
 ┌───────────────────▼──────────────────────────┐
-│  Rust Core  (drs-core)                        │
-│  Ed25519 sign/verify, SHA-256, JCS (RFC 8785) │
-│  Capability index (O(1) policy check)         │
-│  DID key resolution, chain hash computation   │
-│  Zero GC. Stack-allocated. Deterministic.     │
+│  Rust core  (drs-core)                        │
+│  crypto primitives, JCS, chain hash, policy   │
+│  reference implementation for ambiguous cases │
 └──────────────────────────────────────────────┘
 </code></pre>
 <h2 id="why-rust-for-the-core"><a class="header" href="#why-rust-for-the-core">Why Rust for the core</a></h2>
-<p>Ed25519 signature verification requires deterministic, constant-time operations. V8 (JavaScript/TypeScript) cannot guarantee either:</p>
+<p>Rust is the lowest-level implementation and the internal reference when a
+conformance vector is ambiguous. It provides:</p>
 <ul>
-<li>GC pauses of 50–1500ms are common under load</li>
-<li>V8 does not guarantee constant-time execution of arithmetic</li>
+<li><code>ed25519-dalek 2.x</code> for strict cryptographic operations</li>
+<li><code>serde-json-canonicalizer</code> for RFC 8785 JCS</li>
+<li>deterministic, low-level primitives suitable for WASM export</li>
 </ul>
-<p>Rust's <code>ed25519-dalek 2.x</code> provides:</p>
-<ul>
-<li>RUSTSEC-2022-0093 patched (batch verification side-channel fixed)</li>
-<li><code>verify_strict()</code> enforcing <code>S &lt; L</code> — rejects signature malleability</li>
-<li><code>subtle::ConstantTimeEq</code> for security-sensitive comparisons</li>
-<li>Compiles to native library (used by Go via CGO) and WASM (used in browsers)</li>
-</ul>
-<p>The v2 architecture used TypeScript for verification and hit all of these problems in implementation.</p>
+<p>Rust is important for protocol correctness, but it is not linked into
+<code>drs-verify</code> through CGO.</p>
 <h2 id="why-go-for-verification"><a class="header" href="#why-go-for-verification">Why Go for verification</a></h2>
-<p>The verification server handles thousands of concurrent requests. Go's goroutine model gives concurrent request handling without the complexity of async Rust, while the GC is predictable enough for the latency requirements:</p>
+<p>The Go service is the production verification path today. It handles:</p>
 <ul>
-<li><code>sync.Once</code> prevents double-fetch race conditions in the Bitstring Status List cache</li>
-<li><code>hashicorp/golang-lru/v2</code> — LRU with hard cap of 10,000 entries (~640KB)</li>
+<li><code>verify.Chain()</code> (Blocks A-F)</li>
+<li><code>MCPMiddleware</code> / <code>A2AMiddleware</code></li>
+<li>DID resolution with LRU caching</li>
+<li>Bitstring Status List caching with <code>sync.Once</code></li>
+<li>health and readiness endpoints</li>
+<li>storage and local revocation</li>
+</ul>
+<p>Key implementation details:</p>
+<ul>
+<li><code>crypto/ed25519</code> for signature verification</li>
 <li><code>crypto/subtle.ConstantTimeCompare</code> for DID multicodec prefix checks</li>
-<li><code>CGO_ENABLED=0 go build</code> — single static binary, no runtime dependencies</li>
-<li><code>/healthz</code> and <code>/readyz</code> endpoints for Kubernetes readiness probes</li>
+<li><code>CGO_ENABLED=0 go build</code> for a single static binary</li>
 </ul>
 <h2 id="why-typescript-for-the-sdk"><a class="header" href="#why-typescript-for-the-sdk">Why TypeScript for the SDK</a></h2>
-<p>Delegation issuance is low-frequency (human sets up a session, agent runtime boots). The developer experience matters more than raw performance. TypeScript gives:</p>
+<p>Issuance is developer-facing and low-frequency. TypeScript provides:</p>
 <ul>
-<li>Native npm ecosystem integration — one <code>pnpm add @drs/sdk</code></li>
-<li>IDE autocompletion and type safety</li>
-<li>Browser compatibility for consent UIs</li>
-<li>Matches the existing tech stack of most MCP server developers</li>
+<li>ergonomic npm distribution: <code>pnpm add @okeyamy/drs-sdk</code></li>
+<li>strong typing for policies, receipts, and bundles</li>
+<li>browser-friendly UI integration for consent flows</li>
+<li>the CLI used for local development and testing</li>
 </ul>
-<p>TypeScript never handles verification — that path runs in Go or Rust.</p>
+<p>The SDK also includes <code>VerifyClient</code>, which sends bundles to a running
+<code>drs-verify</code> instance over HTTP. Local WASM verification exists as a separate,
+explicit capability; it is not an automatic fallback inside <code>VerifyClient</code>.</p>
 <h2 id="jcs-canonicalisation"><a class="header" href="#jcs-canonicalisation">JCS canonicalisation</a></h2>
-<p>All JWTs in DRS are canonicalised with RFC 8785 (JSON Canonicalization Scheme) before signing. This ensures two logically equivalent objects always produce identical JWT bytes, regardless of which implementation created them.</p>
-<p>The rules:</p>
+<p>All signed JSON in DRS is canonicalised with RFC 8785 before signing. The rules
+are:</p>
 <ul>
-<li>Object keys sorted recursively by Unicode code point</li>
-<li>No whitespace</li>
-<li>IEEE 754 shortest number representation</li>
+<li>object keys sorted recursively</li>
+<li>no insignificant whitespace</li>
+<li>canonical JSON number formatting</li>
 </ul>
-<pre><code class="language-typescript">// WRONG — does not sort nested object keys:
+<pre><code class="language-typescript">// WRONG
 const payload = JSON.stringify(obj);
 
-// CORRECT — RFC 8785 JCS:
-const payload = jcsSerialise(obj);  // from drs-sdk/src/sdk/issue.ts
+// CORRECT
+const payload = jcsSerialise(obj);
 </code></pre>
-<p>The Rust implementation uses <code>serde-json-canonicalizer</code>. The TypeScript implementation has an inline <code>jcsSerialise()</code> function. Both must produce identical output for the same logical object — this is tested in the cross-implementation test suite.</p>
+<p>In the TypeScript SDK, <code>jcsSerialise</code> lives in <code>drs-sdk/src/sdk/jcs.ts</code>. The
+Rust and TypeScript outputs are checked against shared conformance vectors.</p>
 <h2 id="wasm-build"><a class="header" href="#wasm-build">WASM build</a></h2>
 <pre><code class="language-bash">cd drs-core
 wasm-pack build --target web --features wasm
-# Output: drs-core/pkg/ — publish as @drs/wasm
+# Output: drs-core/pkg/
 </code></pre>
-<p>The <code>@drs/wasm</code> package is an optional peer dependency of <code>@drs/sdk</code>. The WASM loader (<code>src/wasm/loader.ts</code>) is:</p>
-<ul>
-<li><strong>Idempotent:</strong> <code>initWasm()</code> can be called multiple times safely</li>
-<li><strong>Lazy:</strong> the WASM binary is not fetched until <code>initWasm()</code> is awaited</li>
-<li><strong>Graceful:</strong> if <code>@drs/wasm</code> is not installed, a clear error is thrown</li>
-</ul>
+<p>The browser/WASM path is explicit: callers initialize it themselves via the
+loader in <code>drs-sdk/src/wasm/loader.ts</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="security-model"><a class="header" href="#security-model">Security Model</a></h1>
 <h2 id="threat-table"><a class="header" href="#threat-table">Threat table</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Threat</th><th>Attack vector</th><th>DRS mitigation</th><th>Residual risk</th></tr></thead><tbody>
@@ -819,15 +811,15 @@ wasm-pack build --target web --features wasm
 <li>Complete chain reconstruction without operator involvement</li>
 <li>Per-invocation records linking every agent action to the authorising human</li>
 </ul>
-<p><strong>Export:</strong></p>
-<pre><code class="language-bash">pnpm exec drs audit export --inv-jti "inv:..." --format eu-ai-act --output evidence.json
-</code></pre>
+<p><strong>Current state:</strong> there is no dedicated EU AI Act export command in the CLI
+yet. Today, evidence is assembled from <code>bundle.json</code>, <code>drs verify</code>, and
+<code>drs audit</code> output.</p>
 <h2 id="hipaa-164312b--audit-controls"><a class="header" href="#hipaa-164312b--audit-controls">HIPAA §164.312(b) — Audit Controls</a></h2>
 <p>For healthcare deployments handling PHI, HIPAA §164.312(b) requires audit controls that record and examine activity. DRS provides:</p>
 <ul>
 <li>Invocation Receipts recording every agent action with full delegation provenance</li>
 <li>Signed proof that access was authorised before it occurred (not just a log that it happened)</li>
-<li>Tier 3 (Compliant) storage with WORM policy and 7-year retention</li>
+<li>Tier 3 / Tier 4 deployment postures with timestamping support</li>
 </ul>
 <h2 id="aiuc-1-certification"><a class="header" href="#aiuc-1-certification">AIUC-1 Certification</a></h2>
 <p>AIUC (AI Underwriting Company, founded July 2025 with $15M seed) certifies AI systems for insurance underwriting. AIUC-1 requires demonstrable proof of authorisation for every agent action — not just server logs.</p>
@@ -849,12 +841,13 @@ wasm-pack build --target web --features wasm
 </ul>
 <p>Relevant financial regulations: SR 11-7 (Federal Reserve model risk management), EBA Guidelines on ICT risk, GDPR Article 22 (automated decision-making explainability), MiFID II audit trails.</p>
 <h2 id="storage-tiers-and-retention"><a class="header" href="#storage-tiers-and-retention">Storage tiers and retention</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Tier</th><th><code>storage_tier</code></th><th>Backend</th><th>Retention</th><th>Use case</th></tr></thead><tbody>
-<tr><td>Session</td><td><code>0</code></td><td>In-memory</td><td>Process lifetime</td><td>Development, testing</td></tr>
-<tr><td>Ephemeral</td><td><code>1</code></td><td>Local filesystem</td><td>Configurable TTL</td><td>Non-regulated production</td></tr>
-<tr><td>Durable</td><td><code>2</code></td><td>S3 / GCS / Azure Blob</td><td>Configurable</td><td>Standard production</td></tr>
-<tr><td>Compliant</td><td><code>3</code></td><td>WORM object storage</td><td>7 years minimum</td><td>HIPAA, financial services</td></tr>
-<tr><td>On-chain</td><td><code>4</code></td><td>Monad EVM</td><td>Permanent</td><td>Highest-assurance regulatory</td></tr>
+<div class="table-wrapper"><table><thead><tr><th>Tier</th><th><code>storage_tier</code></th><th>Backend</th><th>Status</th></tr></thead><tbody>
+<tr><td>Session</td><td><code>0</code></td><td>In-memory</td><td>Implemented</td></tr>
+<tr><td>Ephemeral</td><td><code>1</code></td><td>Local filesystem</td><td>Implemented</td></tr>
+<tr><td>Durable</td><td><code>2</code></td><td>S3-compatible object store</td><td>Roadmap</td></tr>
+<tr><td>Compliant</td><td><code>3</code></td><td>Filesystem + RFC 3161 timestamping</td><td>Partial</td></tr>
+<tr><td>Timestamped</td><td><code>4</code></td><td>Tier 3 deployment posture</td><td>Partial</td></tr>
+<tr><td>On-chain</td><td><code>5</code></td><td>Ethereum anchor</td><td>Roadmap</td></tr>
 </tbody></table>
 </div>
 <p>Configure via <code>storage_tier</code> in the <a href="explanation/../how-to/operators/operator-config.html">Operator Configuration</a>.</p>
@@ -863,7 +856,7 @@ wasm-pack build --target web --features wasm
 <h2 id="prerequisites-1"><a class="header" href="#prerequisites-1">Prerequisites</a></h2>
 <ul>
 <li>Node.js 20+ and pnpm</li>
-<li><code>@drs/sdk</code> installed: <code>pnpm add @drs/sdk</code></li>
+<li><code>@okeyamy/drs-sdk</code> installed: <code>pnpm add @okeyamy/drs-sdk</code></li>
 </ul>
 <h2 id="step-1-generate-two-keypairs"><a class="header" href="#step-1-generate-two-keypairs">Step 1: Generate two keypairs</a></h2>
 <pre><code class="language-bash"># Human keypair
@@ -878,9 +871,9 @@ pnpm exec drs keygen
 </code></pre>
 <h2 id="step-2-issue-the-root-delegation"><a class="header" href="#step-2-issue-the-root-delegation">Step 2: Issue the root delegation</a></h2>
 <p>Create <code>issue-demo.ts</code>:</p>
-<pre><code class="language-typescript">import { issueRootDelegation, computeChainHash } from '@drs/sdk';
+<pre><code class="language-typescript">import { issueRootDelegation, computeChainHash } from '@okeyamy/drs-sdk';
 
-const humanKey = Uint8Array.from(Buffer.from('HUMAN_PRIVATE_KEY', 'base64url'));
+const humanKey = Uint8Array.from(Buffer.from('HUMAN_PRIVATE_KEY_HEX', 'hex'));
 const now = Math.floor(Date.now() / 1000);
 
 const rootDR = await issueRootDelegation({
@@ -915,9 +908,9 @@ console.log('Root DR hash:', computeChainHash(rootDR));
 </code></pre>
 <h2 id="step-3-issue-a-sub-delegation"><a class="header" href="#step-3-issue-a-sub-delegation">Step 3: Issue a sub-delegation</a></h2>
 <p>The agent narrows the policy before delegating further:</p>
-<pre><code class="language-typescript">import { issueSubDelegation } from '@drs/sdk';
+<pre><code class="language-typescript">import { issueSubDelegation } from '@okeyamy/drs-sdk';
 
-const agentKey = Uint8Array.from(Buffer.from('AGENT_PRIVATE_KEY', 'base64url'));
+const agentKey = Uint8Array.from(Buffer.from('AGENT_PRIVATE_KEY_HEX', 'hex'));
 
 const parentPolicy = {
   allowed_tools: ['web_search', 'write_file'],
@@ -971,7 +964,7 @@ console.log('Sub-DR JWT:', subDR);
 <ul>
 <li>Go 1.22+ with <code>drs-verify</code> source</li>
 <li>The <code>rootDR</code> and <code>subDR</code> JWTs from Tutorial 1</li>
-<li><code>@drs/sdk</code> installed</li>
+<li><code>@okeyamy/drs-sdk</code> installed</li>
 </ul>
 <h2 id="step-1-start-drs-verify"><a class="header" href="#step-1-start-drs-verify">Step 1: Start drs-verify</a></h2>
 <pre><code class="language-bash">cd drs-verify
@@ -979,10 +972,10 @@ go run ./cmd/server
 # drs-verify listening on :8080
 </code></pre>
 <h2 id="step-2-issue-an-invocation-receipt"><a class="header" href="#step-2-issue-an-invocation-receipt">Step 2: Issue an invocation receipt</a></h2>
-<pre><code class="language-typescript">import { issueInvocation, computeChainHash, buildBundle, serialiseBundle } from '@drs/sdk';
+<pre><code class="language-typescript">import { issueInvocation, computeChainHash, buildBundle, serialiseBundle } from '@okeyamy/drs-sdk';
 import { writeFileSync } from 'fs';
 
-const agentKey = Uint8Array.from(Buffer.from('SUBAGENT_PRIVATE_KEY', 'base64url'));
+const agentKey = Uint8Array.from(Buffer.from('SUBAGENT_PRIVATE_KEY_HEX', 'hex'));
 
 const invocation = await issueInvocation({
   signingKey:  agentKey,
@@ -1013,14 +1006,10 @@ console.log('Bundle written to bundle.json');
 <h2 id="step-3-verify-via-cli"><a class="header" href="#step-3-verify-via-cli">Step 3: Verify via CLI</a></h2>
 <pre><code class="language-bash">DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
 </code></pre>
-<p>Expected output:</p>
-<pre><code>✓ Bundle verified
-  Chain depth:    2
-  Root principal: did:key:z6MkHUMAN...
-  Subject:        did:key:z6MkHUMAN...
-  Command:        /mcp/tools/call
-  Policy result:  pass
-  Blocks:         A✓ B✓ C✓ D✓ E✓ F✓
+<p>Expected output begins with:</p>
+<pre><code>✓ Chain verified
+  Root principal : did:key:z6MkHUMAN...
+  Chain depth    : 2
 </code></pre>
 <h2 id="step-4-verify-via-http-api-directly"><a class="header" href="#step-4-verify-via-http-api-directly">Step 4: Verify via HTTP API directly</a></h2>
 <pre><code class="language-bash">curl -s -X POST http://localhost:8080/verify \
@@ -1029,11 +1018,11 @@ console.log('Bundle written to bundle.json');
 </code></pre>
 <pre><code class="language-json">{
   "valid": true,
-  "chain_depth": 2,
-  "root_principal": "did:key:z6MkHUMAN...",
-  "subject": "did:key:z6MkHUMAN...",
-  "command": "/mcp/tools/call",
-  "policy_result": "pass"
+  "context": {
+    "root_principal": "did:key:z6MkHUMAN...",
+    "chain_depth": 2,
+    "root_type": "human"
+  }
 }
 </code></pre>
 <h2 id="step-5-test-a-rejection"><a class="header" href="#step-5-test-a-rejection">Step 5: Test a rejection</a></h2>
@@ -1044,13 +1033,13 @@ DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify tampered.json
 </code></pre>
 <p>Expected:</p>
 <pre><code>✗ Verification failed
-  Block:  B (structural integrity)
-  Error:  CHAIN_HASH_MISMATCH — prev_dr_hash mismatch at chain index 1
+  Code       : CHAIN_HASH_MISMATCH
 </code></pre>
 <h2 id="step-6-print-the-full-audit-trail"><a class="header" href="#step-6-print-the-full-audit-trail">Step 6: Print the full audit trail</a></h2>
 <pre><code class="language-bash">pnpm exec drs audit bundle.json
 </code></pre>
-<p>This prints a human-readable breakdown of every receipt in the chain: issuers, audiences, policies, temporal bounds, and consent records.</p>
+<p>This prints the current compact audit breakdown: bundle version, receipt count,
+key receipt fields, and the invocation's issuer / command / tool server.</p>
 <h2 id="next-steps-2"><a class="header" href="#next-steps-2">Next steps</a></h2>
 <ul>
 <li><a href="tutorials/./03-end-to-end-trace.html">End-to-End Trace</a> — watch the full lifecycle including tool server execution</li>
@@ -1196,49 +1185,23 @@ RESULT: VALID — executing tool call
 <hr />
 <h2 id="step-6-auditor-reconstructs-the-chain-later"><a class="header" href="#step-6-auditor-reconstructs-the-chain-later">Step 6: Auditor reconstructs the chain (later)</a></h2>
 <p>Three months later, a compliance officer wants evidence:</p>
-<pre><code class="language-bash">pnpm exec drs audit retrieve --inv-jti "inv:7h5c4d3e-..." --output evidence.json
-pnpm exec drs verify evidence.json
-pnpm exec drs audit evidence.json
+<pre><code class="language-bash">pnpm exec drs verify bundle.json
+pnpm exec drs audit bundle.json
 </code></pre>
-<p>Output:</p>
-<pre><code>DRS Chain Audit
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Receipt 0 (root — human)
-  Issued by:  did:key:z6MkAmara...
-  Granted to: did:key:z6MkAgent1...
-  Policy:     max_cost_usd=50, allowed_tools=[web_search]
-  Valid:      2026-03-28 → 2026-05-28
-  Consent:    explicit-ui-click at 2026-03-28T10:30:00Z (en-GB)
-
-Receipt 1 (sub-delegation)
-  Issued by:  did:key:z6MkAgent1...
-  Granted to: did:key:z6MkAgent2...
-  Policy:     max_cost_usd=5, allowed_tools=[web_search]
-  Chain hash: sha256:def456... ✓
-
-Invocation
-  Called by:  did:key:z6MkAgent2...
-  Tool:       web_search("Monad TPS benchmarks")
-  Cost:       $0.02 of $5.00 (sub-delegation limit)
-  Chain hash: sha256:ghi789... ✓
-
-All 3 signatures valid. Chain intact. No revocations.
-</code></pre>
-<p>The compliance officer does not need to contact the operator. The evidence is in the receipts.</p>
+<p>The compliance officer does not need to contact the operator. The evidence is in
+the signed bundle plus the verifier output. The current <code>drs audit</code> command is
+compact rather than full forensic export, but it still exposes the key receipt
+and invocation fields.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="install-the-sdk"><a class="header" href="#install-the-sdk">Install the SDK</a></h1>
 <h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
 <ul>
 <li>Node.js 20+</li>
-<li>pnpm (required — do not use npm or yarn)</li>
+<li>pnpm</li>
 </ul>
 <h2 id="install"><a class="header" href="#install">Install</a></h2>
-<pre><code class="language-bash">pnpm add @drs/sdk
+<pre><code class="language-bash">pnpm add @okeyamy/drs-sdk
 </code></pre>
-<h2 id="optional-browser-side-verification"><a class="header" href="#optional-browser-side-verification">Optional: browser-side verification</a></h2>
-<p>For client-side verification in browser environments, also install the WASM package:</p>
-<pre><code class="language-bash">pnpm add @drs/wasm
-</code></pre>
-<p><code>@drs/sdk</code> detects <code>@drs/wasm</code> at runtime. If absent, the SDK's <code>VerifyClient</code> falls back to calling drs-verify over HTTP. If present, <code>initWasm()</code> loads the WASM module for local verification.</p>
+<p>Repository: <code>https://github.com/OkeyAmy/DRS</code></p>
 <h2 id="typescript-configuration"><a class="header" href="#typescript-configuration">TypeScript configuration</a></h2>
 <pre><code class="language-json">{
   "compilerOptions": {
@@ -1251,171 +1214,232 @@ All 3 signatures valid. Chain intact. No revocations.
 <h2 id="verify-the-install"><a class="header" href="#verify-the-install">Verify the install</a></h2>
 <pre><code class="language-bash">pnpm exec drs keygen
 </code></pre>
-<p>Expected:</p>
-<pre><code>Private key (keep secret): &lt;base64url 32 bytes&gt;
-DID:                        did:key:z6Mk...
+<p>Expected output includes:</p>
+<pre><code class="language-text">Ed25519 keypair generated.
+
+DID          : did:key:z6Mk...
+Public key   : &lt;hex&gt;
+Private key  : &lt;hex&gt;
 </code></pre>
 <h2 id="whats-in-the-package"><a class="header" href="#whats-in-the-package">What's in the package</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Export path</th><th>Contents</th></tr></thead><tbody>
-<tr><td><code>@drs/sdk</code> (main)</td><td><code>issueRootDelegation</code>, <code>issueSubDelegation</code>, <code>issueInvocation</code>, <code>buildBundle</code>, <code>serialiseBundle</code>, <code>parseBundle</code>, <code>computeChainHash</code>, <code>checkPolicyAttenuation</code>, <code>translatePolicy</code></td></tr>
-<tr><td><code>@drs/sdk/verify</code></td><td><code>VerifyClient</code> — HTTP client for drs-verify</td></tr>
-<tr><td><code>@drs/sdk/wasm</code></td><td><code>initWasm</code>, <code>getWasmModule</code>, <code>isWasmReady</code></td></tr>
-<tr><td><code>@drs/sdk/types</code></td><td>All TypeScript interfaces</td></tr>
-</tbody></table>
-</div>
+<p>The published package exports from the root entry only. Import from
+<code>@okeyamy/drs-sdk</code>, not subpaths.</p>
+<p>If you are wiring middleware guides from this docs site, use package names and
+paths exactly as shown in each page. Do not switch to legacy aliases.</p>
+<pre><code class="language-ts">import {
+  issueRootDelegation,
+  issueSubDelegation,
+  issueInvocation,
+  buildBundle,
+  serialiseBundle,
+  parseBundle,
+  computeChainHash,
+  checkPolicyAttenuation,
+  translatePolicy,
+  VerifyClient,
+  initWasm,
+  getWasmModule,
+  isWasmReady,
+} from "@okeyamy/drs-sdk";
+</code></pre>
+<h2 id="browser--wasm-notes"><a class="header" href="#browser--wasm-notes">Browser / WASM notes</a></h2>
+<p>The SDK includes a WASM loader, but browser/WASM verification is still an
+explicit integration path:</p>
+<ul>
+<li><code>VerifyClient</code> talks to a running <code>drs-verify</code> HTTP service</li>
+<li><code>initWasm()</code> / <code>getWasmModule()</code> are available if you wire in a WASM build</li>
+<li>there is no published standalone <code>@drs/wasm</code> package in this repo today</li>
+</ul>
 <h2 id="building-the-wasm-package-yourself"><a class="header" href="#building-the-wasm-package-yourself">Building the WASM package yourself</a></h2>
-<p>If you are developing locally or want to use unreleased drs-core changes:</p>
+<p>If you are developing locally and want to experiment with the WASM build:</p>
 <pre><code class="language-bash">cd drs-core
 wasm-pack build --target web --features wasm
 # Output: drs-core/pkg/
-
-# Link it locally
-cd drs-core/pkg &amp;&amp; pnpm link --global
-cd drs-sdk &amp;&amp; pnpm link --global @drs/wasm
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="mcp-middleware-integration"><a class="header" href="#mcp-middleware-integration">MCP Middleware Integration</a></h1>
-<p>Add DRS verification to an MCP server. The Go middleware handles all verification — your tool handler code does not change.</p>
+<p>Add DRS verification to an MCP server. The Go middleware verifies the
+<code>X-DRS-Bundle</code> header before your business handler runs.</p>
 <h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
-<pre><code>MCP Client
+<pre><code>MCP client
     │  POST /mcp/tools/call
-    │  X-DRS-Bundle: &lt;base64url bundle&gt;
+    │  X-DRS-Bundle: &lt;base64url(JSON bundle)&gt;
     ▼
-drs-verify middleware
-    │  parse bundle
-    │  run verify_chain (blocks A–F)
+drs-verify/pkg/middleware.MCPMiddleware
+    │  decode base64url
+    │  parse JSON bundle
+    │  run verify.Chain (blocks A–F)
     ▼ VALID
-Your tool handler
-    ▼
-Response + drs:tool-call event emitted
+business handler
 </code></pre>
-<p>If verification fails, the middleware returns <code>403</code> with a JSON error body before your handler is called.</p>
-<h2 id="option-a-go-middleware-native"><a class="header" href="#option-a-go-middleware-native">Option A: Go middleware (native)</a></h2>
-<p>If your MCP server is in Go, import the middleware package directly:</p>
+<p>If verification fails:</p>
+<ul>
+<li>missing bundle: <code>401</code></li>
+<li>malformed base64url/JSON: <code>400</code></li>
+<li>invalid chain: <code>403</code></li>
+</ul>
+<h2 id="go-integration"><a class="header" href="#go-integration">Go integration</a></h2>
+<p>If your MCP-facing server is in Go, wrap the route with
+<code>middleware.MCPMiddleware</code> or <code>middleware.OptionalMCPMiddleware</code>.</p>
 <pre><code class="language-go">package main
 
 import (
+    "log"
     "net/http"
     "time"
 
-    "github.com/yourorg/drs/drs-verify/pkg/middleware"
-    "github.com/yourorg/drs/drs-verify/pkg/resolver"
-    "github.com/yourorg/drs/drs-verify/pkg/verify"
+    "github.com/drs-protocol/drs-verify/pkg/middleware"
+    "github.com/drs-protocol/drs-verify/pkg/resolver"
+    "github.com/drs-protocol/drs-verify/pkg/verify"
 )
 
 func main() {
-    res, _ := resolver.New(10_000, time.Hour)
-    verifier := verify.New(res)
+    res, err := resolver.New(10_000, time.Hour)
+    if err != nil {
+        log.Fatal(err)
+    }
 
-    mcp := middleware.NewMCP(verifier, middleware.MCPConfig{
-        RequireBundle: true,   // 403 on missing X-DRS-Bundle header
-        EmitEvents:    true,   // emit drs:tool-call events
-    })
+    deps := verify.Deps{
+        Resolver: res,
+    }
 
     mux := http.NewServeMux()
-    mux.Handle("/mcp/", mcp.Wrap(yourMCPHandler))
-    http.ListenAndServe(":8080", mux)
+    // 1) Define your normal business logic handler.
+    mcpBusinessHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // 3) Read verification context after middleware has validated the bundle.
+        ctx := middleware.GetVerificationContext(r.Context())
+        if ctx == nil {
+            http.Error(w, "missing verification context", http.StatusForbidden)
+            return
+        }
+
+        // Example: make authorization/usage decisions with verified identity.
+        // ctx.RootPrincipal, ctx.ChainDepth, ctx.LeafPolicy
+        w.WriteHeader(http.StatusOK)
+    })
+
+    // 2) Wrap your business handler with MCP middleware.
+    mux.Handle("/mcp/", middleware.MCPMiddleware(deps,
+        mcpBusinessHandler,
+    ))
+
+    log.Fatal(http.ListenAndServe(":8080", mux))
 }
 </code></pre>
-<h2 id="option-b-sidecar-any-language"><a class="header" href="#option-b-sidecar-any-language">Option B: Sidecar (any language)</a></h2>
-<p>Run drs-verify as a sidecar in front of your server. It listens on <code>:8081</code> and proxies verified requests to your server on <code>:8080</code>:</p>
-<pre><code class="language-bash">docker run -d \
-  --name drs-verify \
-  --network host \
-  -e DRS_LISTEN_ADDR=:8081 \
-  -e DRS_UPSTREAM=http://localhost:8080 \
-  -e DRS_REQUIRE_BUNDLE=true \
-  ghcr.io/okeyamy/drs-verify:latest
-</code></pre>
-<p>Point your MCP client at <code>:8081</code>. Your server on <code>:8080</code> only receives requests that have passed full verification.</p>
-<h2 id="option-c-typescript-verifyclient"><a class="header" href="#option-c-typescript-verifyclient">Option C: TypeScript VerifyClient</a></h2>
-<p>For TypeScript MCP servers that need fine-grained control:</p>
-<pre><code class="language-typescript">import { VerifyClient, parseBundle } from '@drs/sdk';
-
-const drs = new VerifyClient({ baseUrl: process.env.DRS_VERIFY_URL! });
-
-app.post('/mcp/tools/call', async (req, res) =&gt; {
-  const bundleHeader = req.headers['x-drs-bundle'] as string;
-
-  if (!bundleHeader) {
-    return res.status(403).json({ error: 'DRS bundle required' });
-  }
-
-  const result = await drs.verify(bundleHeader);
-  if (!result.valid) {
-    return res.status(403).json({
-      error: result.error,
-      block: result.block,
-      message: result.message,
-    });
-  }
-
-  // result.context contains:
-  //   root_principal, subject, chain_depth, policy_result
-  return executeTool(req.body, result.context);
-});
-</code></pre>
+<p>Use <code>OptionalMCPMiddleware</code> only when DRS is advisory and your business handler can
+safely process requests without a bundle.</p>
+<h2 id="typescript--pure-json-rpc-integration"><a class="header" href="#typescript--pure-json-rpc-integration">TypeScript / pure JSON-RPC integration</a></h2>
+<p>If your MCP traffic is pure JSON-RPC rather than HTTP-terminated, use the
+TypeScript wrapper packages in <code>packages/drs-mcp-client</code> and
+<code>packages/drs-mcp-server</code>.</p>
+<ul>
+<li>client side: injects the bundle into <code>params._meta["X-DRS-Bundle"]</code></li>
+<li>server side: decodes the same base64url string and posts the decoded bundle to
+<code>/verify</code></li>
+</ul>
+<p>This is the Shape 2 transport described in <code>docs/drs-source-of-truth.md</code>.</p>
 <h2 id="testing-your-integration"><a class="header" href="#testing-your-integration">Testing your integration</a></h2>
-<pre><code class="language-bash"># Valid bundle — expect 200
-DRS_VERIFY_URL=http://localhost:8081 pnpm exec drs verify bundle.json
+<pre><code class="language-bash"># Valid bundle — expect exit code 0
+DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
 
-# Missing bundle — expect 403
-curl -X POST http://localhost:8081/mcp/tools/call \
+# Missing bundle — expect 401
+curl -X POST http://localhost:8080/mcp/tools/call \
   -H "Content-Type: application/json" \
   -d '{"tool":"web_search","query":"test"}'
-# {"error":"DRS bundle required"}
 
-# Tampered bundle — expect 403
-curl -X POST http://localhost:8081/mcp/tools/call \
-  -H "X-DRS-Bundle: $(echo 'corrupt' | base64)" \
+# Malformed bundle — expect 400
+curl -X POST http://localhost:8080/mcp/tools/call \
+  -H "X-DRS-Bundle: !!!not-base64url!!!" \
   -H "Content-Type: application/json" \
   -d '{"tool":"web_search","query":"test"}'
-# {"error":"BUNDLE_INCOMPLETE","block":"A","message":"..."}
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="a2a-middleware-integration"><a class="header" href="#a2a-middleware-integration">A2A Middleware Integration</a></h1>
-<p>DRS integrates with the Agent-to-Agent (A2A) protocol using the same bundle mechanism as MCP.</p>
+<p>DRS integrates with Agent-to-Agent (A2A) calls using the same bundle transport
+as HTTP-terminated MCP: the full bundle travels in the <code>X-DRS-Bundle</code> header as
+base64url-encoded JSON.</p>
+<p>The middleware validates the bundle before your business handler executes.</p>
 <h2 id="transport"><a class="header" href="#transport">Transport</a></h2>
-<p>The DRS bundle is transmitted as the <code>X-DRS-Bundle</code> header in A2A requests, identical to MCP:</p>
 <pre><code>POST /a2a/tasks/send HTTP/1.1
-X-DRS-Bundle: &lt;base64url bundle&gt;
+X-DRS-Bundle: &lt;base64url(JSON bundle)&gt;
 Content-Type: application/json
 </code></pre>
-<p>The bundle must contain the full delegation chain from the original human root through every agent hop to the current caller.</p>
+<p>The bundle must contain the full delegation chain from the original root to the
+current caller.</p>
+<h2 id="what-happens-on-failure"><a class="header" href="#what-happens-on-failure">What happens on failure</a></h2>
+<ul>
+<li>missing bundle: <code>401</code></li>
+<li>malformed base64url/JSON: <code>400</code></li>
+<li>invalid chain: <code>403</code></li>
+</ul>
 <h2 id="go-middleware"><a class="header" href="#go-middleware">Go middleware</a></h2>
-<pre><code class="language-go">import "github.com/yourorg/drs/drs-verify/pkg/middleware"
+<pre><code class="language-go">package main
 
-a2a := middleware.NewA2A(verifier, middleware.A2AConfig{
-    RequireBundle: true,
-    HeaderName:    "X-DRS-Bundle",
-})
+import (
+    "log"
+    "net/http"
+    "time"
 
-mux.Handle("/a2a/", a2a.Wrap(yourA2AHandler))
+    "github.com/drs-protocol/drs-verify/pkg/middleware"
+    "github.com/drs-protocol/drs-verify/pkg/resolver"
+    "github.com/drs-protocol/drs-verify/pkg/verify"
+)
+
+func main() {
+    res, err := resolver.New(10_000, time.Hour)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    deps := verify.Deps{
+        Resolver: res,
+    }
+
+    mux := http.NewServeMux()
+    // 1) Define your normal A2A business handler.
+    a2aBusinessHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // 3) Read verification context after middleware validation.
+        ctx := middleware.GetVerificationContext(r.Context())
+        if ctx == nil {
+            http.Error(w, "missing verification context", http.StatusForbidden)
+            return
+        }
+
+        // Example: use ctx.RootPrincipal / ctx.ChainDepth / ctx.LeafPolicy.
+        w.WriteHeader(http.StatusOK)
+    })
+
+    // 2) Wrap your business handler with A2A middleware.
+    mux.Handle("/a2a/", middleware.A2AMiddleware(deps,
+        a2aBusinessHandler,
+    ))
+
+    log.Fatal(http.ListenAndServe(":8080", mux))
+}
 </code></pre>
-<h2 id="sidecar-for-non-go-a2a-servers"><a class="header" href="#sidecar-for-non-go-a2a-servers">Sidecar for non-Go A2A servers</a></h2>
-<pre><code class="language-bash">docker run -d \
-  -e DRS_LISTEN_ADDR=:8082 \
-  -e DRS_UPSTREAM=http://localhost:8080 \
-  -e DRS_REQUIRE_BUNDLE=true \
-  ghcr.io/okeyamy/drs-verify:latest
-</code></pre>
+<p>Use <code>OptionalA2AMiddleware</code> only when DRS is advisory and your business handler
+can safely process requests without a bundle.</p>
 <h2 id="chain-depth-in-multi-agent-a2a-topologies"><a class="header" href="#chain-depth-in-multi-agent-a2a-topologies">Chain depth in multi-agent A2A topologies</a></h2>
-<p>In A2A deployments, an orchestrator agent may dispatch to multiple worker agents. Each worker must carry the full chain from the human root to itself:</p>
+<p>In multi-agent A2A deployments, an orchestrator may dispatch to multiple worker
+agents. Each worker carries the full chain to itself:</p>
 <pre><code>Human → Orchestrator DR → Worker DR → Invocation
 </code></pre>
-<p>The Worker's bundle must include:</p>
+<p>That worker bundle includes:</p>
 <ul>
-<li><code>receipts[0]</code>: Root DR (human → orchestrator)</li>
-<li><code>receipts[1]</code>: Sub-DR (orchestrator → worker)</li>
-<li><code>invocation</code>: Invocation receipt (worker → tool server)</li>
+<li><code>receipts[0]</code>: root delegation</li>
+<li><code>receipts[1]</code>: orchestrator → worker sub-delegation</li>
+<li><code>invocation</code>: worker invocation receipt</li>
 </ul>
-<p>The Orchestrator issues the Sub-DR to the Worker before dispatching the task. The Worker creates the Invocation Receipt.</p>
+<p>The orchestrator issues the worker's sub-delegation before dispatch. The worker
+issues the invocation receipt when calling the next service.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="human-consent-records"><a class="header" href="#human-consent-records">Human Consent Records</a></h1>
 <p>When a human grants authority, the root DR must include a <code>drs_consent</code> record proving the user saw and approved the policy in human-readable form.</p>
 <h2 id="why-it-matters"><a class="header" href="#why-it-matters">Why it matters</a></h2>
 <p>The <code>policy</code> field in a DR is machine-readable JSON. A user who clicks "Allow" on a form that shows them <code>{"max_cost_usd":50}</code> has not meaningfully consented — they have not understood what they approved.</p>
 <p>The <code>drs_consent.policy_hash</code> is the SHA-256 of the <strong>human-readable text</strong> the user actually saw. Auditors can verify that the consent UI displayed legible information, not raw JSON.</p>
+<p>Important: compute the hash from the exact rendered text shown to the user
+after localization and formatting.</p>
 <h2 id="generating-the-human-readable-text"><a class="header" href="#generating-the-human-readable-text">Generating the human-readable text</a></h2>
 <p>Use the SDK's <code>translatePolicy</code> function:</p>
-<pre><code class="language-typescript">import { translatePolicy } from '@drs/sdk';
+<pre><code class="language-typescript">import { translatePolicy } from '@okeyamy/drs-sdk';
 
 const humanText = translatePolicy({
   allowed_tools: ['web_search', 'write_file'],
@@ -1435,14 +1459,14 @@ const humanText = translatePolicy({
 <pre><code class="language-bash">echo '{"allowed_tools":["web_search"],"max_cost_usd":50}' | pnpm exec drs translate --locale en-GB
 </code></pre>
 <h2 id="computing-the-policy-hash"><a class="header" href="#computing-the-policy-hash">Computing the policy hash</a></h2>
-<pre><code class="language-typescript">import { computeChainHash } from '@drs/sdk';
+<pre><code class="language-typescript">import { computeChainHash } from '@okeyamy/drs-sdk';
 
 // Hash the text the user saw — not the policy JSON
 const policyHash = computeChainHash(humanText);
 // "sha256:a1b2c3..."
 </code></pre>
 <h2 id="building-the-consent-record"><a class="header" href="#building-the-consent-record">Building the consent record</a></h2>
-<pre><code class="language-typescript">import { issueRootDelegation, computeChainHash, translatePolicy } from '@drs/sdk';
+<pre><code class="language-typescript">import { issueRootDelegation, computeChainHash, translatePolicy } from '@okeyamy/drs-sdk';
 
 const policy = {
   allowed_tools: ['web_search'],
@@ -1456,7 +1480,7 @@ const humanText = translatePolicy(policy, { locale: 'en-GB' });
 // 2. Show humanText in your consent UI
 // await showConsentDialog(humanText);  — user clicks Allow
 
-// 3. Record their consent
+// 3. Record their consent using the exact same text for policy_hash
 const rootDR = await issueRootDelegation({
   // ... other params ...
   policy,
@@ -1487,7 +1511,9 @@ const rootDR = await issueRootDelegation({
 });
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="sub-delegation"><a class="header" href="#sub-delegation">Sub-Delegation</a></h1>
-<p>Sub-delegations allow an agent to pass a subset of its authority to another agent. The child policy must not escalate beyond the parent — this is the Principle of Least Authority (POLA).</p>
+<p>Sub-delegations allow an agent to pass a subset of its authority to another
+agent. The child policy must not escalate beyond the parent — this is the
+Principle of Least Authority (POLA).</p>
 <h2 id="attenuation-rules"><a class="header" href="#attenuation-rules">Attenuation rules</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Parent policy field</th><th>Child constraint</th></tr></thead><tbody>
 <tr><td><code>allowed_tools: [A, B, C]</code></td><td>Child <code>allowed_tools</code> must be ⊆ <code>{A, B, C}</code></td></tr>
@@ -1499,9 +1525,15 @@ const rootDR = await issueRootDelegation({
 <tr><td><code>nbf: T</code></td><td>Child <code>nbf</code> must be ≥ <code>T</code></td></tr>
 </tbody></table>
 </div>
-<p>Violation at issuance throws <code>DrsError: POLICY_ESCALATION</code>. Violation in a received bundle fails Block D of <code>verify_chain</code>.</p>
+<p>Violation at issuance throws <code>DrsError: POLICY_ESCALATION</code>. Violation in a
+received bundle fails Block D of <code>verify_chain</code>.</p>
+<p>Practical model:</p>
+<ul>
+<li>SDK issuance checks protect you before signing invalid receipts.</li>
+<li>Verifier checks protect downstream services from invalid external bundles.</li>
+</ul>
 <h2 id="example-narrowing-authority"><a class="header" href="#example-narrowing-authority">Example: narrowing authority</a></h2>
-<pre><code class="language-typescript">import { issueSubDelegation } from '@drs/sdk';
+<pre><code class="language-typescript">import { issueSubDelegation } from '@okeyamy/drs-sdk';
 
 const parentPolicy = {
   allowed_tools: ['web_search', 'write_file', 'read_file'],
@@ -1674,11 +1706,11 @@ spec:
     "supervisor_did": "did:key:z6MkSupervisor...",
     "fallback": "deny"
   },
-  "storage_tier": 2
+  "storage_tier": 1
 }
 </code></pre>
 <p>Load in TypeScript:</p>
-<pre><code class="language-typescript">import { parseOperatorConfig } from '@drs/sdk';
+<pre><code class="language-typescript">import { parseOperatorConfig } from '@okeyamy/drs-sdk';
 import { readFileSync } from 'fs';
 
 const cfg = parseOperatorConfig(
@@ -1696,6 +1728,11 @@ const cfg = parseOperatorConfig(
 </div>
 <blockquote>
 <p><strong>Security:</strong> Never use <code>"file"</code> or <code>"env"</code> in production with keys that have regulatory significance. Use <code>"aws-kms"</code> or <code>"gcp-kms"</code> for production operator keys. See <a href="how-to/operators/./key-management.html">Key Management</a>.</p>
+</blockquote>
+<blockquote>
+<p><strong>Implementation note:</strong> these values are accepted by the configuration model.
+Full KMS integration work is separate from config parsing and should be treated
+as production-hardening work rather than assumed runtime support.</p>
 </blockquote>
 <h2 id="root-type"><a class="header" href="#root-type">Root type</a></h2>
 <div class="table-wrapper"><table><thead><tr><th><code>drs_root_type</code></th><th>When to use</th></tr></thead><tbody>
@@ -1728,26 +1765,36 @@ const cfg = parseOperatorConfig(
 <p><strong>Security:</strong> <code>"allow-degraded"</code> should never be the default in regulated deployments. Discuss with your security team before enabling it.</p>
 </blockquote>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="storage-tiers"><a class="header" href="#storage-tiers">Storage Tiers</a></h1>
-<p>DRS defines four storage tiers for delegation receipts, ordered by durability and compliance requirements.</p>
+<p>DRS uses a six-tier storage model. The canonical reference lives in
+<code>docs/storage-tiers.md</code>; this page summarizes it and highlights what is actually
+implemented today.</p>
 <h2 id="tier-reference"><a class="header" href="#tier-reference">Tier reference</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Tier</th><th>Name</th><th>Backend</th><th>Env vars required</th><th>Use case</th></tr></thead><tbody>
-<tr><td>0</td><td>In-memory</td><td>LRU cache (process lifetime)</td><td><em>(none — default)</em></td><td>Development, testing</td></tr>
-<tr><td>1</td><td>Filesystem</td><td>Local disk</td><td><code>STORE_DIR</code></td><td>Standard production</td></tr>
-<tr><td>3</td><td>WORM + RFC 3161</td><td>Filesystem + trusted timestamp</td><td><code>STORE_DIR</code> + <code>TSA_URL</code></td><td>Regulated deployments (HIPAA, EU AI Act, financial)</td></tr>
-<tr><td>4</td><td>Blockchain</td><td>Tier 3 + on-chain anchor (not yet implemented)</td><td><em>(not yet implemented)</em></td><td>Blockchain-native enterprise opt-in</td></tr>
+<div class="table-wrapper"><table><thead><tr><th>Tier</th><th>Name</th><th>Backend</th><th>Env vars</th><th>Status</th></tr></thead><tbody>
+<tr><td>0</td><td>Session</td><td>In-memory</td><td><em>(none)</em></td><td>Implemented</td></tr>
+<tr><td>1</td><td>Ephemeral</td><td>Local filesystem</td><td><code>STORE_DIR</code></td><td>Implemented</td></tr>
+<tr><td>2</td><td>Durable</td><td>S3-compatible object store</td><td>roadmap</td><td>Not implemented</td></tr>
+<tr><td>3</td><td>Compliant</td><td>Filesystem + RFC 3161 timestamping</td><td><code>STORE_DIR</code> + <code>TSA_URL</code></td><td>Partially implemented</td></tr>
+<tr><td>4</td><td>Timestamped</td><td>Tier 3 deployment posture with timestamp retrieval/reporting</td><td><code>STORE_DIR</code> + <code>TSA_URL</code></td><td>Partially implemented</td></tr>
+<tr><td>5</td><td>On-chain</td><td>Tier 3 + Ethereum anchor</td><td>roadmap</td><td>Not implemented</td></tr>
 </tbody></table>
 </div>
-<blockquote>
-<p><strong>Note on Tier 2:</strong> There is no Tier 2 in the current implementation. S3 or other object storage backends are a roadmap item.</p>
-</blockquote>
-<h2 id="when-to-use-each-tier"><a class="header" href="#when-to-use-each-tier">When to use each tier</a></h2>
-<p><strong>Tier 0 (In-memory):</strong> Default when <code>STORE_DIR</code> is not set. Receipts are lost on process restart. Use only for local development and tests.</p>
-<p><strong>Tier 1 (Filesystem):</strong> Set <code>STORE_DIR</code> to a directory path. Receipts are written as files and survive process restart. No compliance controls — suitable for production deployments where regulatory requirements do not mandate timestamping.</p>
-<p><strong>Tier 3 (WORM + RFC 3161):</strong> Set both <code>STORE_DIR</code> and <code>TSA_URL</code>. Every stored receipt is timestamped by an RFC 3161 Trusted Signing Authority (TSA). The TSA signs a SHA-256 hash of the stored JWT string with the current time and returns a DER timestamp token. This token is stored alongside the DR.</p>
-<p>RFC 3161 (IETF 2001, updated by RFC 5816 in 2010 to add SHA-2 support) is the standard used here. Timestamp tokens are legally recognised under EU eIDAS and in US federal courts. TSA failure is best-effort — if the TSA is unreachable, the receipt is still stored (Tier 1 semantics) and the error is logged. Storage is never blocked by TSA availability.</p>
-<p><strong>Tier 4 (Blockchain):</strong> Not implemented. When built, this will be an explicit opt-in for customers who require on-chain proof and understand the gas cost implications. The default anchor mechanism is RFC 3161 (Tier 3), not blockchain.</p>
+<h2 id="what-is-actually-implemented-today"><a class="header" href="#what-is-actually-implemented-today">What is actually implemented today</a></h2>
+<p><strong>Tier 0:</strong> default when <code>STORE_DIR</code> is unset. Receipts are lost on restart.</p>
+<p><strong>Tier 1:</strong> receipts are written to the local filesystem and survive restart.</p>
+<p><strong>Tier 2:</strong> documented target only. There is no S3-compatible store in the
+current codebase.</p>
+<p><strong>Tier 3:</strong> when <code>TSA_URL</code> is set, <code>drs-verify</code> stores the receipt and attempts
+RFC 3161 timestamping. This is best-effort:</p>
+<ul>
+<li>the receipt is still stored if the TSA is unavailable</li>
+<li>the timestamp is stored alongside the receipt when available</li>
+<li>WORM semantics are not enforced by the current filesystem backend</li>
+</ul>
+<p><strong>Tier 4:</strong> same backend as Tier 3. Today this is a reporting / operator posture
+rather than a separate storage engine.</p>
+<p><strong>Tier 5:</strong> Ethereum anchoring is a roadmap item, not a delivered feature.</p>
 <h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
-<pre><code class="language-bash"># Tier 0 — in-memory (default)
+<pre><code class="language-bash"># Tier 0 — session / in-memory
 LISTEN_ADDR=:8080 ./drs-verify
 
 # Tier 1 — filesystem
@@ -1755,34 +1802,14 @@ LISTEN_ADDR=:8080 \
   STORE_DIR=/data/drs \
   ./drs-verify
 
-# Tier 3 — filesystem + RFC 3161 trusted timestamp
+# Tier 3 / Tier 4 — filesystem + RFC 3161 timestamping
 LISTEN_ADDR=:8080 \
   STORE_DIR=/data/drs \
   TSA_URL=https://freetsa.org/tsr \
   ./drs-verify
 </code></pre>
-<blockquote>
-<p>For a complete list of environment variables including <code>STATUS_LIST_BASE_URL</code> (required for remote revocation) and <code>DRS_ADMIN_TOKEN</code> (required for <code>POST /admin/revoke</code>), see the <a href="how-to/operators/../../reference/configuration.html">Configuration Reference</a>.</p>
-</blockquote>
-<h2 id="tsa-providers"><a class="header" href="#tsa-providers">TSA providers</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Provider</th><th>URL</th><th>Cost</th><th>Notes</th></tr></thead><tbody>
-<tr><td>FreeTSA</td><td><code>https://freetsa.org/tsr</code></td><td>Free</td><td>Non-commercial use; rate-limited</td></tr>
-<tr><td>DigiCert</td><td><code>https://timestamp.digicert.com</code></td><td>Free (DigiCert customers)</td><td>Production-grade</td></tr>
-<tr><td>GlobalSign</td><td><code>http://timestamp.globalsign.com/tsa/r6advanced1</code></td><td>Commercial</td><td>AATL/WebTrust certified. HTTP is correct for TSA — the response is self-verifying (signed by the TSA certificate chain).</td></tr>
-</tbody></table>
-</div>
-<h2 id="why-not-blockchain-by-default"><a class="header" href="#why-not-blockchain-by-default">Why not blockchain by default?</a></h2>
-<p>The core DRS guarantees (tamper-evident receipts, Ed25519 signatures, hash-chained custody) require zero blockchain. The only problem blockchain was solving in the v1/v2 architecture was "immutable third-party timestamp" — and RFC 3161 solves that problem better:</p>
-<div class="table-wrapper"><table><thead><tr><th>Property</th><th>RFC 3161</th><th>Blockchain</th></tr></thead><tbody>
-<tr><td>User pays gas fees</td><td>No</td><td>Yes</td></tr>
-<tr><td>Latency</td><td>~200 ms (typical)</td><td>400 ms–12 s (typical)</td></tr>
-<tr><td>Legal recognition</td><td>EU eIDAS, US federal courts, ISO 18014</td><td>Unclear / jurisdiction-dependent</td></tr>
-<tr><td>Requires wallet / token</td><td>No</td><td>Yes</td></tr>
-<tr><td>Battle-tested</td><td>20+ years</td><td>4 months–10 years depending on chain</td></tr>
-<tr><td>Free tier</td><td>Yes (FreeTSA)</td><td>No</td></tr>
-</tbody></table>
-</div>
-<p>Blockchain anchoring is available as Tier 4 for customers who specifically require it — for example, blockchain-native enterprises whose compliance teams are already comfortable with on-chain evidence. It is never the default.</p>
+<p>For the full canonical model, caveats, and tier semantics, see
+<a href="how-to/operators/../../../docs/storage-tiers.html">Canonical Storage Tiers</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="key-management-1"><a class="header" href="#key-management-1">Key Management</a></h1>
 <h2 id="key-types-and-requirements"><a class="header" href="#key-types-and-requirements">Key types and requirements</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Key type</th><th>Recommended storage</th><th>Rotation</th></tr></thead><tbody>
@@ -1869,11 +1896,9 @@ echo "DRS_KMS_KEY_ID=&lt;key-id&gt;" &gt;&gt; .env
 <p>The status list cache uses <code>sync.Once</code> internally to prevent double-fetch race conditions under concurrent load. When the cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="reconstruct-a-delegation-chain"><a class="header" href="#reconstruct-a-delegation-chain">Reconstruct a Delegation Chain</a></h1>
 <p>You can reconstruct and verify any delegation chain from stored receipts without operator cooperation. All you need are the JWT strings and the DIDs.</p>
-<h2 id="step-1-retrieve-the-bundle"><a class="header" href="#step-1-retrieve-the-bundle">Step 1: Retrieve the bundle</a></h2>
-<p>If the operator has provided the bundle file:</p>
-<pre><code class="language-bash">pnpm exec drs audit retrieve --inv-jti "inv:7h5c4d3e-..." --output evidence.json
-</code></pre>
-<p>Or assemble manually from JWT strings provided by the operator:</p>
+<h2 id="step-1-obtain-the-bundle"><a class="header" href="#step-1-obtain-the-bundle">Step 1: Obtain the bundle</a></h2>
+<p>If the operator has already provided <code>bundle.json</code>, use that directly.</p>
+<p>Or assemble a bundle manually from JWT strings:</p>
 <pre><code class="language-json">{
   "bundle_version": "4.0",
   "invocation": "&lt;invocation-receipt-jwt&gt;",
@@ -1886,54 +1911,23 @@ echo "DRS_KMS_KEY_ID=&lt;key-id&gt;" &gt;&gt; .env
 <h2 id="step-2-verify-the-chain"><a class="header" href="#step-2-verify-the-chain">Step 2: Verify the chain</a></h2>
 <pre><code class="language-bash">pnpm exec drs verify evidence.json
 </code></pre>
-<p>This runs all six verification blocks locally. The public keys are resolved from the DID strings embedded in each JWT's <code>iss</code> field. No network calls to any operator system.</p>
-<pre><code>✓ Bundle verified
-  Chain depth:    2
-  Root principal: did:key:z6MkHuman...
-  Subject:        did:key:z6MkHuman...
-  Command:        /mcp/tools/call
-  Policy result:  pass
-  Blocks:         A✓ B✓ C✓ D✓ E✓ F✓
-</code></pre>
-<h2 id="step-3-read-the-full-audit-trail"><a class="header" href="#step-3-read-the-full-audit-trail">Step 3: Read the full audit trail</a></h2>
+<p>This verifies the chain through <code>drs-verify</code>. The verifier reads the issuer DIDs
+from the JWTs and resolves <code>did:key</code> locally from the DID bytes.</p>
+<h2 id="step-3-read-the-audit-trail"><a class="header" href="#step-3-read-the-audit-trail">Step 3: Read the audit trail</a></h2>
 <pre><code class="language-bash">pnpm exec drs audit evidence.json
 </code></pre>
-<p>Output:</p>
-<pre><code>DRS Chain Audit
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Receipt 0 (root — human)
-  Issued by:   did:key:z6MkHuman...
-  Granted to:  did:key:z6MkAgent1...
-  Command:     /mcp/tools/call
-  Policy:      max_cost_usd=50, allowed_tools=[web_search,write_file]
-  Valid:        2026-03-28 10:30:00 → 2026-05-28 10:30:00
-  Consent:      explicit-ui-click at 2026-03-28T10:30:00Z (locale: en-GB)
-  Policy hash:  sha256:a1b2c3...  (hash of text user saw)
-
-Receipt 1 (sub-delegation)
-  Issued by:   did:key:z6MkAgent1...
-  Granted to:  did:key:z6MkAgent2...
-  Policy:      max_cost_usd=5, allowed_tools=[web_search]
-  Chain hash:  sha256:def456... ✓
-
-Invocation
-  Called by:   did:key:z6MkAgent2...
-  Tool:        web_search
-  Args:        {"estimated_cost_usd": 0.02, "query": "Monad TPS"}
-  Budget used: $0.02 of $5.00 (sub) / $50.00 (root)
-  Chain:       sha256:abc123... → sha256:def456... ✓
-
-All 3 signatures valid. Chain intact. No revocations found.
-</code></pre>
+<p>Current <code>drs audit</code> output is intentionally compact. It prints bundle version,
+receipt count, the main fields from each receipt, and the invocation's issuer,
+command, and tool server.</p>
 <h2 id="step-4-verify-the-consent-record"><a class="header" href="#step-4-verify-the-consent-record">Step 4: Verify the consent record</a></h2>
 <p>To confirm the user saw human-readable policy (not raw JSON):</p>
-<pre><code class="language-bash">pnpm exec drs policy evidence.json --receipt 0
+<p>The CLI does not read policies out of a bundle by receipt index. Instead,
+extract the root receipt payload or save its <code>policy</code> object to a separate JSON
+file, then run:</p>
+<pre><code class="language-bash">pnpm exec drs policy root-policy.json
 </code></pre>
-<p>This shows the policy of the root DR. Cross-reference the <code>policy_hash</code> in the consent record with:</p>
-<pre><code class="language-bash">pnpm exec drs translate --input-json '{"allowed_tools":["web_search"],"max_cost_usd":50}' \
-  | sha256sum
-</code></pre>
-<p>If the SHA-256 of the translated text matches <code>drs_consent.policy_hash</code>, the user saw legible information.</p>
+<p>Use your application-side consent records to relate the translated policy text
+back to the stored <code>policy_hash</code>.</p>
 <h2 id="what-you-can-prove"><a class="header" href="#what-you-can-prove">What you can prove</a></h2>
 <p>From the DRS chain alone, you can prove:</p>
 <ul>
@@ -1949,8 +1943,9 @@ All 3 signatures valid. Chain intact. No revocations found.
 <p>DRS chains can be verified by anyone, without contacting the operator, without a DRS account, and without any central authority.</p>
 <h2 id="what-you-need"><a class="header" href="#what-you-need">What you need</a></h2>
 <ul>
-<li>The DRS bundle (the JWT strings)</li>
-<li>The <code>drs verify</code> CLI (from <code>@drs/sdk</code>) or a running drs-verify instance</li>
+<li>the DRS bundle (the JWT strings)</li>
+<li>the <code>drs verify</code> CLI from <code>@okeyamy/drs-sdk</code></li>
+<li>access to a <code>drs-verify</code> instance you trust, including one you run yourself</li>
 </ul>
 <h2 id="what-you-do-not-need"><a class="header" href="#what-you-do-not-need">What you do NOT need</a></h2>
 <ul>
@@ -1964,156 +1959,83 @@ All 3 signatures valid. Chain intact. No revocations found.
 <pre><code>did:key:z6Mk{base58btc(multicodec_prefix + public_key_bytes)}
 </code></pre>
 <p>Anyone with the DID can derive the public key and verify the signature. No registry lookup, no HTTP request, no trust anchor beyond the public key.</p>
-<h2 id="offline-verification"><a class="header" href="#offline-verification">Offline verification</a></h2>
-<p>All blocks except F (revocation) can be run offline:</p>
-<pre><code class="language-bash">pnpm exec drs verify bundle.json --offline
-</code></pre>
-<p>The <code>--offline</code> flag skips Block F (Bitstring Status List lookup). All cryptographic, structural, policy, and temporal checks run locally with no network calls.</p>
-<p>Use <code>--offline</code> when:</p>
-<ul>
-<li>You have no network access</li>
-<li>You are verifying historical evidence (revocation status is not relevant for a past action)</li>
-<li>You distrust the network path to the status list server</li>
-</ul>
-<h2 id="full-online-verification"><a class="header" href="#full-online-verification">Full online verification</a></h2>
+<h2 id="verification"><a class="header" href="#verification">Verification</a></h2>
 <pre><code class="language-bash">DRS_VERIFY_URL=http://your-drs-verify-instance:8080 pnpm exec drs verify bundle.json
 </code></pre>
-<p>Or spin up your own drs-verify instance and point at it:</p>
+<p>Or run your own verifier and point the CLI at it:</p>
 <pre><code class="language-bash">cd drs-verify &amp;&amp; go run ./cmd/server &amp;
 pnpm exec drs verify bundle.json
 </code></pre>
-<h2 id="checking-signatures-manually"><a class="header" href="#checking-signatures-manually">Checking signatures manually</a></h2>
-<p>If you want to verify a signature without the CLI tools, every DRS JWT is a standard EdDSA JWT. Any JWT library that supports <code>alg: EdDSA</code> can verify it:</p>
-<pre><code class="language-bash"># Decode and verify using jwt.io or any EdDSA-capable tool
-# The DID in the "iss" field encodes the public key:
-# did:key:z6Mk{base58(0xed01 + pub_key_bytes)}
-
-# Extract pub key from DID:
-echo "did:key:z6Mk..." | pnpm exec drs resolve-did
-# {"public_key_hex": "0102030405..."}
+<h2 id="signature-model"><a class="header" href="#signature-model">Signature model</a></h2>
+<p>Each DRS JWT is an EdDSA JWT. The issuer DID encodes the Ed25519 public key:</p>
+<pre><code class="language-text">did:key:z6Mk{base58btc(0xed01 + public_key_bytes)}
 </code></pre>
+<p>That lets any verifier derive the public key from the DID without contacting the
+original operator.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="export-evidence-for-eu-ai-act"><a class="header" href="#export-evidence-for-eu-ai-act">Export Evidence for EU AI Act</a></h1>
-<p>DRS provides a dedicated export format for EU AI Act compliance evidence. The export covers Article 12 (record-keeping) and Article 13 (transparency) requirements.</p>
-<h2 id="export-command"><a class="header" href="#export-command">Export command</a></h2>
-<pre><code class="language-bash">pnpm exec drs audit export \
-  --inv-jti "inv:7h5c4d3e-..." \
-  --format eu-ai-act \
-  --output eu-ai-act-evidence.json
+<p>There is no dedicated <code>drs audit export</code> command in the current CLI. If you need
+EU AI Act evidence today, assemble it from three artifacts:</p>
+<ol>
+<li>the bundle JSON itself</li>
+<li>the <code>drs verify</code> result</li>
+<li>the <code>drs audit</code> output</li>
+</ol>
+<h2 id="current-workflow"><a class="header" href="#current-workflow">Current workflow</a></h2>
+<pre><code class="language-bash">pnpm exec drs verify bundle.json &gt; verify.txt
+pnpm exec drs audit bundle.json &gt; audit.txt
+cp bundle.json eu-ai-act-bundle.json
 </code></pre>
-<h2 id="what-the-export-contains"><a class="header" href="#what-the-export-contains">What the export contains</a></h2>
-<pre><code class="language-json">{
-  "export_format": "eu-ai-act",
-  "export_timestamp": "2026-03-30T10:00:00Z",
-  "article_12_evidence": {
-    "delegation_chain": [
-      {
-        "receipt_index": 0,
-        "type": "root-delegation",
-        "issuer": "did:key:z6MkHuman...",
-        "audience": "did:key:z6MkAgent1...",
-        "issued_at": "2026-03-28T10:30:00Z",
-        "valid_until": "2026-05-28T10:30:00Z",
-        "policy_summary": "web_search only, max £50",
-        "signature_valid": true,
-        "jwt": "&lt;root-dr-jwt&gt;"
-      }
-    ],
-    "invocation": {
-      "type": "invocation-receipt",
-      "issuer": "did:key:z6MkAgent2...",
-      "tool": "web_search",
-      "args_summary": "query: Monad TPS benchmarks",
-      "cost_usd": 0.02,
-      "signature_valid": true,
-      "jwt": "&lt;invocation-jwt&gt;"
-    },
-    "chain_verification": {
-      "all_signatures_valid": true,
-      "chain_intact": true,
-      "no_revocations": true,
-      "blocks_passed": ["A", "B", "C", "D", "E", "F"]
-    }
-  },
-  "article_13_evidence": {
-    "consent_record": {
-      "method": "explicit-ui-click",
-      "timestamp": "2026-03-28T10:30:00Z",
-      "locale": "en-GB",
-      "policy_hash": "sha256:a1b2c3...",
-      "policy_text_shown_to_user": "Research Agent wants permission to:\n✓  Search the web\n✗  Cannot spend more than £50.00"
-    }
-  }
-}
-</code></pre>
-<h2 id="submitting-the-evidence"><a class="header" href="#submitting-the-evidence">Submitting the evidence</a></h2>
-<p>Submit <code>eu-ai-act-evidence.json</code> to:</p>
+<h2 id="what-you-can-include-today"><a class="header" href="#what-you-can-include-today">What you can include today</a></h2>
 <ul>
-<li>Your internal compliance officer for review</li>
-<li>The notified body conducting a conformity assessment</li>
-<li>The national market surveillance authority if requested</li>
+<li>the signed delegation chain (<code>bundle.json</code>)</li>
+<li>verifier output proving whether the chain is valid</li>
+<li>the audit trail showing issuer, audience, command, expiry, and tool server</li>
+<li>any external policy/consent records your application stored alongside the DRS flow</li>
 </ul>
-<p>The evidence is self-contained — no operator cooperation is needed to authenticate it. All signatures are verifiable from the public keys encoded in the DIDs.</p>
-<h2 id="batch-export"><a class="header" href="#batch-export">Batch export</a></h2>
-<p>For a date range of invocations:</p>
-<pre><code class="language-bash">pnpm exec drs audit export \
-  --subject "did:key:z6MkHuman..." \
-  --date-range "2026-01-01/2026-03-31" \
-  --format eu-ai-act \
-  --output q1-2026-eu-ai-act.json
-</code></pre>
+<h2 id="what-is-not-automated-yet"><a class="header" href="#what-is-not-automated-yet">What is not automated yet</a></h2>
+<p>The repo does not currently ship:</p>
+<ul>
+<li><code>drs audit export</code></li>
+<li>EU AI Act-specific JSON schemas</li>
+<li>batch export by date range or subject</li>
+</ul>
+<p>Those remain documentation and tooling work for a future release.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="hipaa-audit-evidence"><a class="header" href="#hipaa-audit-evidence">HIPAA Audit Evidence</a></h1>
-<p>For healthcare deployments handling Protected Health Information (PHI), HIPAA §164.312(b) requires audit controls that record and examine activity in information systems containing PHI.</p>
-<h2 id="what-drs-provides-for-hipaa"><a class="header" href="#what-drs-provides-for-hipaa">What DRS provides for HIPAA</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>HIPAA Requirement</th><th>DRS Mechanism</th></tr></thead><tbody>
-<tr><td>Record activity in PHI systems</td><td>Invocation Receipts — every agent action recorded and signed</td></tr>
-<tr><td>Verify authorisation was granted before access</td><td>Delegation Receipts — signed proof of authorisation before invocation</td></tr>
-<tr><td>Tamper-evident audit trail</td><td>Ed25519 signatures + <code>prev_dr_hash</code> chain</td></tr>
-<tr><td>Independent auditability</td><td><code>did:key</code> resolution — no central authority needed</td></tr>
-<tr><td>Retention (7 years minimum)</td><td>Tier 3 storage — WORM-enabled with configurable retention</td></tr>
+<p>For healthcare deployments handling PHI, DRS can provide tamper-evident proof of
+authorization and invocation activity. The current tooling is useful, but it is
+not yet a dedicated HIPAA export pipeline.</p>
+<h2 id="what-drs-can-show-today"><a class="header" href="#what-drs-can-show-today">What DRS can show today</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>HIPAA concern</th><th>Current DRS evidence</th></tr></thead><tbody>
+<tr><td>Record activity in PHI systems</td><td>signed invocation receipt</td></tr>
+<tr><td>Verify authorization before access</td><td>signed delegation chain</td></tr>
+<tr><td>Tamper evidence</td><td>Ed25519 signatures + <code>prev_dr_hash</code> chain</td></tr>
+<tr><td>Independent verification</td><td><code>did:key</code>-based signature checks</td></tr>
 </tbody></table>
 </div>
-<h2 id="retrieving-evidence-for-a-hipaa-audit"><a class="header" href="#retrieving-evidence-for-a-hipaa-audit">Retrieving evidence for a HIPAA audit</a></h2>
-<pre><code class="language-bash"># Retrieve all invocations by an agent that touched PHI systems
-pnpm exec drs audit retrieve \
-  --tool-server "did:key:z6MkPHISystem..." \
-  --date-range "2026-01-01/2026-03-31" \
-  --output hipaa-audit-trail.json
-
-# Verify the entire set
-pnpm exec drs verify hipaa-audit-trail.json
-
-# Print human-readable audit trail
-pnpm exec drs audit hipaa-audit-trail.json
+<h2 id="current-evidence-workflow"><a class="header" href="#current-evidence-workflow">Current evidence workflow</a></h2>
+<pre><code class="language-bash">pnpm exec drs verify bundle.json &gt; verify.txt
+pnpm exec drs audit bundle.json &gt; audit.txt
 </code></pre>
-<h2 id="required-storage-configuration-for-hipaa"><a class="header" href="#required-storage-configuration-for-hipaa">Required storage configuration for HIPAA</a></h2>
-<p>PHI-touching deployments must use Tier 3 storage:</p>
-<pre><code class="language-bash">DRS_STORAGE_TIER=3
-DRS_S3_WORM_POLICY=true
-DRS_RETENTION_DAYS=2555    # 7 years = 365 × 7
-</code></pre>
-<p>Or in <code>OperatorConfig</code>:</p>
-<pre><code class="language-json">{
-  "storage_tier": 3,
-  "drs_regulatory": {
-    "frameworks": ["hipaa-164.312b"],
-    "retention_days": 2555
-  }
-}
-</code></pre>
-<h2 id="demonstrating-authorisation-for-baa-compliance"><a class="header" href="#demonstrating-authorisation-for-baa-compliance">Demonstrating authorisation for BAA compliance</a></h2>
-<p>Under a Business Associate Agreement (BAA), you must demonstrate that agent access to PHI was:</p>
-<ol>
-<li>Authorised by an identified individual (the <code>iss</code> of the root DR, with valid signature)</li>
-<li>Within the scope of the authorisation (Block D policy compliance)</li>
-<li>Logged with a tamper-evident record (the signed invocation receipt)</li>
-</ol>
-<pre><code class="language-bash"># Export HIPAA evidence for a specific invocation
-pnpm exec drs audit export \
-  --inv-jti "inv:7h5c4d3e-..." \
-  --format hipaa \
-  --output hipaa-single-event.json
-</code></pre>
-<p>The output includes: delegation chain with signatures, invocation record, verification result, and retention metadata.</p>
+<p>Archive these outputs together with the original <code>bundle.json</code>.</p>
+<h2 id="storage-caveat"><a class="header" href="#storage-caveat">Storage caveat</a></h2>
+<p>The canonical storage model points regulated deployments toward Tier 3 / Tier 4
+postures, but the current implementation does not enforce WORM semantics on the
+filesystem backend. RFC 3161 timestamping is available when <code>TSA_URL</code> is set,
+and TSA failures are best-effort.</p>
+<p>See:</p>
+<ul>
+<li><a href="how-to/auditors/../operators/storage-tiers.html">Storage Tiers</a></li>
+<li><code>docs/storage-tiers.md</code></li>
+</ul>
+<h2 id="what-is-not-implemented"><a class="header" href="#what-is-not-implemented">What is not implemented</a></h2>
+<p>The current repo does not ship:</p>
+<ul>
+<li><code>drs audit retrieve</code></li>
+<li><code>drs audit export --format hipaa</code></li>
+<li>a HIPAA-specific export schema</li>
+</ul>
+<p>If you need HIPAA packaging today, build it from the raw bundle plus verifier
+and audit outputs.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="development-setup"><a class="header" href="#development-setup">Development Setup</a></h1>
 <h2 id="prerequisites-3"><a class="header" href="#prerequisites-3">Prerequisites</a></h2>
 <p>Install all three language toolchains:</p>
@@ -2132,8 +2054,8 @@ npm install -g pnpm
 cargo install wasm-pack
 </code></pre>
 <h2 id="clone-and-build"><a class="header" href="#clone-and-build">Clone and build</a></h2>
-<pre><code class="language-bash">git clone https://github.com/yourorg/drs
-cd drs
+<pre><code class="language-bash">git clone https://github.com/OkeyAmy/DRS
+cd DRS
 
 # Rust core
 cd drs-core
@@ -2222,11 +2144,11 @@ curl http://localhost:8080/healthz
 </div>
 <h2 id="data-flow"><a class="header" href="#data-flow">Data flow</a></h2>
 <pre><code>Issuance (TypeScript SDK):
-  Policy params → jcsSerialise(payload) → ed.signAsync → JWT string
+  Policy params → jcsSerialise(payload) → sign → JWT string
 
-Verification (Go, calls Rust):
-  JWT string → parse header/payload → resolve_did → ed25519_verify_strict
-            → check_policy_attenuation → is_revoked → VerifiedChain
+Verification (Go):
+  JWT string → parse header/payload → resolve_did → crypto/ed25519.Verify
+            → check_policy_attenuation → revocation checks → VerificationResult
 
 DID resolution (Go):
   DID string → base58Decode → strip multicodec prefix [0xed, 0x01]
@@ -2235,9 +2157,9 @@ DID resolution (Go):
 <h2 id="adding-a-new-algorithm"><a class="header" href="#adding-a-new-algorithm">Adding a new algorithm</a></h2>
 <ol>
 <li>Write it in Rust first (<code>drs-core/src/</code>)</li>
-<li>Write tests with official test vectors from the relevant RFC</li>
-<li>If Go middleware needs it: re-implement with the same interface (Go cannot call Rust without CGO complexity — prefer reimplementation for simple algorithms)</li>
-<li>TypeScript only calls WASM or the HTTP API — no algorithm logic in TypeScript</li>
+<li>Add or extend shared conformance vectors when the protocol surface changes</li>
+<li>Port it to Go if the verifier needs the same rule on the hot path</li>
+<li>Keep TypeScript logic aligned with the conformance contract</li>
 </ol>
 <h2 id="security-sensitive-code-checklist"><a class="header" href="#security-sensitive-code-checklist">Security-sensitive code checklist</a></h2>
 <p>Before merging any change to the crypto or verification path:</p>
@@ -2581,76 +2503,69 @@ govulncheck ./...
 </code></pre>
 <p>The <code>message</code> field always contains a full English sentence with diagnosis. The <code>block</code> field (A–F) tells you which verification stage failed.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="cli-commands"><a class="header" href="#cli-commands">CLI Commands</a></h1>
-<p>The <code>drs</code> CLI is included in <code>@drs/sdk</code>. Install globally:</p>
-<pre><code class="language-bash">pnpm add -g @drs/sdk
+<p>The <code>drs</code> CLI is included in <code>@okeyamy/drs-sdk</code>.</p>
+<pre><code class="language-bash">pnpm add -g @okeyamy/drs-sdk
 drs --help
 </code></pre>
-<p>Or use without global install via:</p>
+<p>Or run it without a global install:</p>
 <pre><code class="language-bash">pnpm exec drs &lt;command&gt;
 </code></pre>
 <hr />
 <h2 id="drs-verify"><a class="header" href="#drs-verify">drs verify</a></h2>
-<p>Verify a DRS bundle against drs-verify.</p>
-<pre><code class="language-bash">drs verify &lt;bundle-file&gt; [options]
+<p>Verify a bundle against a running <code>drs-verify</code> service.</p>
+<pre><code class="language-bash">drs verify [--include-timestamps] &lt;bundle.json&gt;
 </code></pre>
-<div class="table-wrapper"><table><thead><tr><th>Option</th><th>Description</th></tr></thead><tbody>
-<tr><td><code>--url &lt;url&gt;</code></td><td>drs-verify base URL (default: <code>$DRS_VERIFY_URL</code>)</td></tr>
-<tr><td><code>--offline</code></td><td>Skip Block F (revocation check) — runs all other blocks locally</td></tr>
-</tbody></table>
-</div>
+<p>The CLI reads the verifier base URL from <code>DRS_VERIFY_URL</code>. If unset, it uses
+<code>http://localhost:8080</code>.</p>
 <p><strong>Examples:</strong></p>
 <pre><code class="language-bash"># Verify against local drs-verify
 DRS_VERIFY_URL=http://localhost:8080 drs verify bundle.json
 
-# Offline verification (no revocation check)
-drs verify bundle.json --offline
-
-# Verify and show all block results
-drs verify bundle.json --verbose
+# Ask the server to retrieve and verify RFC 3161 timestamp tokens
+drs verify --include-timestamps bundle.json
 </code></pre>
-<p><strong>Exit codes:</strong> <code>0</code> = valid, <code>1</code> = invalid, <code>2</code> = error (malformed input, server unreachable)</p>
+<p><strong>Exit codes:</strong> <code>0</code> = valid, <code>1</code> = invalid or command error.</p>
 <hr />
 <h2 id="drs-audit"><a class="header" href="#drs-audit">drs audit</a></h2>
-<p>Print the full human-readable audit trail for a bundle.</p>
-<pre><code class="language-bash">drs audit &lt;bundle-file&gt;
+<p>Print a human-readable audit trail for a bundle file.</p>
+<pre><code class="language-bash">drs audit &lt;bundle.json&gt;
 </code></pre>
-<p>Shows: issuer/audience for each receipt, policy at each level, consent record, temporal bounds, chain hashes, and invocation arguments.</p>
+<p>Current output includes:</p>
+<ul>
+<li>bundle version</li>
+<li>receipt count</li>
+<li><code>iss</code>, <code>aud</code>, <code>cmd</code>, <code>exp</code> for each receipt</li>
+<li><code>iss</code>, <code>cmd</code>, <code>tool_server</code> for the invocation</li>
+</ul>
+<p>It does not currently export regulatory evidence packages or retrieve bundles by
+invocation ID.</p>
 <hr />
 <h2 id="drs-policy"><a class="header" href="#drs-policy">drs policy</a></h2>
-<p>Display the policy from a delegation receipt.</p>
-<pre><code class="language-bash">drs policy &lt;bundle-file&gt; [--receipt &lt;index&gt;]
+<p>Translate a policy JSON file or a JSON document with a top-level <code>policy</code> field.</p>
+<pre><code class="language-bash">drs policy &lt;receipt.json&gt;
 </code></pre>
-<p><code>--receipt 0</code> shows the root DR's policy. <code>--receipt 1</code> shows the first sub-DR's policy. Default: shows all.</p>
+<p>The command does not support <code>--receipt</code>. If you want the policy from a bundle,
+extract one receipt payload first or save the policy to its own JSON file.</p>
 <hr />
 <h2 id="drs-translate"><a class="header" href="#drs-translate">drs translate</a></h2>
 <p>Translate a policy JSON object to plain English.</p>
-<pre><code class="language-bash">drs translate &lt;policy-file&gt; [--locale &lt;locale&gt;]
+<pre><code class="language-bash">drs translate &lt;policy.json&gt;
 </code></pre>
-<pre><code class="language-bash">echo '{"allowed_tools":["web_search"],"max_cost_usd":50,"pii_access":false}' \
-  | drs translate --locale en-GB
-</code></pre>
-<p>Output:</p>
-<pre><code>Research Agent wants permission to:
-✓  Search the web
-✗  Cannot access personal data
-✗  Cannot spend more than £50.00
-</code></pre>
-<p>Supported locales: <code>en-GB</code>, <code>en-US</code>, <code>fr-FR</code>, <code>de-DE</code> (others fall back to <code>en-US</code>).</p>
 <hr />
 <h2 id="drs-keygen"><a class="header" href="#drs-keygen">drs keygen</a></h2>
-<p>Generate a new Ed25519 keypair.</p>
-<pre><code class="language-bash">drs keygen [--output &lt;file&gt;]
+<p>Generate a new Ed25519 keypair for development or testing.</p>
+<pre><code class="language-bash">drs keygen
 </code></pre>
-<p>Without <code>--output</code>: prints private key (base64url) and DID to stdout.</p>
-<p>With <code>--output keypair.json</code>: writes:</p>
-<pre><code class="language-json">{
-  "private_key": "&lt;base64url 32 bytes&gt;",
-  "did": "did:key:z6Mk...",
-  "created_at": "2026-03-30T10:00:00Z"
-}
+<p>Current output:</p>
+<pre><code class="language-text">Ed25519 keypair generated.
+
+DID          : did:key:z6Mk...
+Public key   : &lt;hex&gt;
+Private key  : &lt;hex&gt;
 </code></pre>
 <blockquote>
-<p><strong>Security:</strong> The private key is printed to stdout or written to the output file in plaintext. Use HSM or KMS for production keys — the <code>keygen</code> command is for development only.</p>
+<p><strong>Security:</strong> the private key is printed in plaintext hex. Do not commit it.
+Use a proper KMS or HSM for production keys.</p>
 </blockquote>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="api-endpoints"><a class="header" href="#api-endpoints">API Endpoints</a></h1>
 <p>The drs-verify HTTP server exposes these endpoints.</p>
@@ -2698,28 +2613,34 @@ Content-Type: application/json
 </code></pre>
 <hr />
 <h2 id="post-mcp-middleware"><a class="header" href="#post-mcp-middleware">POST /mcp/* (middleware)</a></h2>
-<blockquote>
-<p><strong>Implementation status:</strong> The MCP and A2A middleware routes are registered but the reverse proxy mode (<code>DRS_UPSTREAM</code>) and bundle-required enforcement (<code>DRS_REQUIRE_BUNDLE</code>) are not implemented in the current release. The endpoint currently accepts requests and returns 200 after verifying the <code>X-DRS-Bundle</code> header. The proxy and enforcement features are roadmap items.</p>
-</blockquote>
-<p>When <code>DRS_UPSTREAM</code> is configured, drs-verify acts as a reverse proxy. All requests to <code>/mcp/*</code> are intercepted, the <code>X-DRS-Bundle</code> header is verified, and the request is proxied upstream if valid.</p>
-<p><strong>Request:</strong> Any MCP request with <code>X-DRS-Bundle</code> header:</p>
+<p>The built-in server registers <code>/mcp/*</code> routes wrapped with
+<code>middleware.MCPMiddleware</code>. In the current binary, the wrapped handler is a
+stub that returns <code>200</code> after successful verification.</p>
+<p>In your own integration, this wrapped handler is your normal tool/business
+handler. Middleware verifies first, then your handler executes.</p>
+<p><strong>Request:</strong> any MCP request with <code>X-DRS-Bundle</code> header:</p>
 <pre><code>POST /mcp/tools/call
 X-DRS-Bundle: &lt;base64url bundle&gt;
 Content-Type: application/json
 </code></pre>
-<p><strong>On valid bundle:</strong> Proxied to <code>$DRS_UPSTREAM/mcp/tools/call</code>.</p>
+<p><strong>On valid bundle:</strong> request reaches the wrapped handler.</p>
 <p><strong>On invalid bundle (403):</strong></p>
 <pre><code class="language-json">{
-  "error": "SIGNATURE_INVALID",
-  "block": "C",
-  "message": "Ed25519 signature verification failed for issuer did:key:z6Mk..."
+  "valid": false,
+  "error": {
+    "code": "SIGNATURE_INVALID",
+    "message": "Ed25519 signature verification failed for issuer did:key:z6Mk...",
+    "suggestion": "Ensure the receipt chain was signed by the listed issuers."
+  }
 }
 </code></pre>
-<p><strong>On missing bundle (403, when <code>DRS_REQUIRE_BUNDLE=true</code>):</strong></p>
+<p><strong>On missing bundle (401):</strong></p>
 <pre><code class="language-json">{
-  "error": "BUNDLE_MISSING",
-  "message": "X-DRS-Bundle header is required"
+  "error": "Missing X-DRS-Bundle header — DRS verification is required on this route."
 }
+</code></pre>
+<p><strong>On malformed bundle (400):</strong></p>
+<pre><code class="language-json">{"error":"X-DRS-Bundle header is not valid base64url JSON"}
 </code></pre>
 <hr />
 <h2 id="get-healthz"><a class="header" href="#get-healthz">GET /healthz</a></h2>
@@ -2882,54 +2803,46 @@ volumes:
 <tr><td>Get AIUC-1 certification</td><td>DRS</td></tr>
 </tbody></table>
 </div><div style="break-before: page; page-break-before: always;"></div><h1 id="roadmap"><a class="header" href="#roadmap">Roadmap</a></h1>
-<p>DRS is a research project. The implementation roadmap has four phases.</p>
-<h2 id="phase-1--core-protocol-current"><a class="header" href="#phase-1--core-protocol-current">Phase 1 — Core protocol <em>(current)</em></a></h2>
-<p><strong>Status:</strong> In progress</p>
+<p>DRS is still a research project, but several items previously listed as future
+work are now implemented.</p>
+<h2 id="phase-1--core-protocol"><a class="header" href="#phase-1--core-protocol">Phase 1 — Core protocol</a></h2>
+<p><strong>Status:</strong> Mostly complete</p>
 <ul>
-<li>✓ DRS 4.0 specification (<code>docs/Drs_architecture_v2.md</code>)</li>
-<li>✓ <code>drs-core</code>: Rust crypto primitives, JCS canonicalisation, chain verification, WASM build target</li>
-<li>✓ <code>drs-verify</code>: Go verification server, MCP/A2A middleware, DID resolver with LRU cache, Bitstring Status List cache</li>
-<li>✓ <code>drs-sdk</code>: TypeScript SDK (issuance path), CLI tools (<code>verify</code>, <code>audit</code>, <code>policy</code>, <code>translate</code>, <code>keygen</code>)</li>
-<li>✓ Documentation site (this site)</li>
-<li>✓ Local revocation store with <code>POST /admin/revoke</code> (in-memory, immediate effect)</li>
-<li>✓ RFC 3161 trusted timestamp anchor (<code>pkg/anchor/</code>) — Tier 3 store with TSA client</li>
-<li>◻ <code>did:web</code> resolver production hardening (DNS pinning, certificate transparency)</li>
-<li>◻ Cross-implementation test suite (Rust ↔ Go ↔ TypeScript JWT interop)</li>
+<li>✓ <code>drs-core</code>: Rust crypto primitives, JCS canonicalisation, chain hash, policy primitives</li>
+<li>✓ <code>drs-verify</code>: Go verification server, MCP/A2A middleware, DID resolver cache, revocation, local revoke endpoint</li>
+<li>✓ <code>drs-sdk</code>: TypeScript issuance SDK and CLI (<code>verify</code>, <code>audit</code>, <code>policy</code>, <code>translate</code>, <code>keygen</code>)</li>
+<li>✓ Shared conformance suite across Rust, Go, and TypeScript</li>
+<li>✓ RFC 3161 timestamping support</li>
+<li>◻ <code>did:web</code> resolver production hardening</li>
 </ul>
-<h2 id="phase-2--production-hardening-6-months"><a class="header" href="#phase-2--production-hardening-6-months">Phase 2 — Production hardening <em>(6 months)</em></a></h2>
-<p><strong>Goal:</strong> Production-ready for early adopters and AIUC-1 certification candidates.</p>
+<h2 id="phase-2--production-hardening"><a class="header" href="#phase-2--production-hardening">Phase 2 — Production hardening</a></h2>
 <ul>
-<li>HSM key management integration (AWS KMS, GCP Cloud KMS) in drs-verify</li>
-<li>Tier 3 storage (WORM S3, Azure Blob Immutable Storage)</li>
-<li>AIUC-1 compliance export format and certification documentation</li>
-<li>Performance benchmarks: p50/p99 latency at 10K req/sec with 5-hop chains</li>
-<li>Security audit (external)</li>
+<li>HSM / KMS integration in the verifier</li>
+<li>durable object-store backend (Tier 2 roadmap)</li>
+<li>stronger retention / immutability story for regulated deployments</li>
+<li>external security review</li>
+<li>repeatable performance benchmarks</li>
 </ul>
-<h2 id="phase-3--ecosystem-integration-12-months"><a class="header" href="#phase-3--ecosystem-integration-12-months">Phase 3 — Ecosystem integration <em>(12 months)</em></a></h2>
-<p><strong>Goal:</strong> Plug-and-play integration with the MCP and A2A ecosystems.</p>
+<h2 id="phase-3--ecosystem-integration"><a class="header" href="#phase-3--ecosystem-integration">Phase 3 — Ecosystem integration</a></h2>
 <ul>
-<li>MCP server reference implementation with DRS built in (Go)</li>
-<li>A2A protocol reference implementation with DRS middleware</li>
-<li>Browser SDK: WASM-based verification for browser-hosted agents</li>
-<li>On-chain registry: Ethereum mainnet blockchain anchor (Tier 4 — explicit opt-in for blockchain-native enterprise deployments; Ethereum is the only chain with established regulatory and legal precedent)</li>
-<li>Policy language extensions: resource-level constraints, time-windows, rate limiting</li>
+<li>richer MCP integration guidance and examples</li>
+<li>browser-focused verification flows using the WASM build</li>
+<li>stronger TypeScript packages for pure JSON-RPC MCP transport</li>
+<li>Ethereum anchoring as explicit <strong>Tier 5</strong> opt-in</li>
+<li>richer policy language extensions</li>
 </ul>
-<h2 id="phase-4--standards-track-1824-months"><a class="header" href="#phase-4--standards-track-1824-months">Phase 4 — Standards track <em>(18–24 months)</em></a></h2>
-<p><strong>Goal:</strong> DRS becomes an IETF standard or an officially recognised OAuth profile.</p>
+<h2 id="phase-4--standards-track"><a class="header" href="#phase-4--standards-track">Phase 4 — Standards track</a></h2>
 <ul>
-<li>IETF Internet-Draft submission (OAuth Working Group)</li>
-<li>W3C Community Group proposal for the consent record format</li>
-<li>FINOS AI Governance Framework alignment documentation</li>
-<li>Integration with OpenID for Verifiable Credentials (OID4VC) for human identity binding</li>
+<li>standards-track documentation and draft work</li>
+<li>external governance / interoperability alignment</li>
+<li>stronger regulatory reference material once implementation catches up</li>
 </ul>
 <h2 id="non-goals"><a class="header" href="#non-goals">Non-goals</a></h2>
-<p>These are explicitly out of scope:</p>
 <ul>
-<li>Behavioral safety (preventing LLMs from doing bad things) — model/runtime problem</li>
-<li>LLM non-determinism — outside the authorisation layer</li>
-<li>Prompt injection prevention — DRS records injections, does not prevent them</li>
-<li>Post-compromise key recovery — operational problem</li>
-<li>Agent identity (DIDs are used but not managed by DRS)</li>
+<li>behavioral safety or prompt injection prevention</li>
+<li>model determinism</li>
+<li>post-compromise key recovery</li>
+<li>DID lifecycle management outside DRS itself</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="glossary"><a class="header" href="#glossary">Glossary</a></h1>
 <p><strong>Attenuation</strong> — The constraint that a sub-delegation's policy must be a strict subset of its parent's policy. A sub-agent can only be granted less authority than the agent that delegated to it. See <a href="reference/glossary.html#pola">Principle of Least Authority (POLA)</a>.</p>

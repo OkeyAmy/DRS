@@ -148,10 +148,10 @@
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/explanation/five-actors.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/explanation/five-actors.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -197,7 +197,7 @@ This permission lasts 30 days. Revoke it at any time.
 <p><strong>Key concern:</strong> Did I actually authorise this specific action?</p>
 <hr />
 <h2 id="2-developer"><a class="header" href="#2-developer">2. Developer</a></h2>
-<p>Integrates DRS into MCP tool servers or agent runtimes. Interacts with the TypeScript SDK (<code>@drs/sdk</code>) and the drs-verify HTTP API.</p>
+<p>Integrates DRS into MCP tool servers or agent runtimes. Interacts with the TypeScript SDK (<code>@okeyamy/drs-sdk</code>) and the drs-verify HTTP API.</p>
 <p><strong>What they do:</strong></p>
 <ul>
 <li>Call <code>issueRootDelegation</code> / <code>issueSubDelegation</code> from the SDK</li>
@@ -234,9 +234,8 @@ This permission lasts 30 days. Revoke it at any time.
 <h2 id="5-auditor--compliance-officer"><a class="header" href="#5-auditor--compliance-officer">5. Auditor / Compliance Officer</a></h2>
 <p>Reconstructs delegation chains after the fact to produce evidence for regulators, legal proceedings, or internal investigation. Does not need operator cooperation.</p>
 <p><strong>What they do:</strong></p>
-<pre><code class="language-bash">drs audit retrieve --inv-jti "inv:7h5c4d3e-..."
-drs verify evidence.json
-drs audit export --inv-jti "inv:7h5c4d3e-..." --format eu-ai-act
+<pre><code class="language-bash">drs verify bundle.json
+drs audit bundle.json
 </code></pre>
 <p><strong>Key concern:</strong> Can I prove what happened to a standard that satisfies EU AI Act Article 12?</p>
 <hr />

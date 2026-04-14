@@ -148,10 +148,10 @@
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/explanation/verification-algorithm.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/explanation/verification-algorithm.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -204,10 +204,9 @@
 <ol>
 <li>Parse JWT header — must be <code>{"alg":"EdDSA","typ":"JWT"}</code></li>
 <li>Resolve the issuer DID to its Ed25519 public key (LRU-cached)</li>
-<li>Verify the EdDSA signature over <code>base64url(header).base64url(payload)</code></li>
-<li>Enforce <code>S &lt; L</code> (strict mode — rejects signature malleability)</li>
+<li>Verify the Ed25519 signature over <code>base64url(header).base64url(payload)</code></li>
 </ol>
-<p><strong>Fail condition:</strong> Any signature invalid, any DID unresolvable, any <code>S ≥ L</code>.</p>
+<p><strong>Fail condition:</strong> any signature invalid or any DID unresolvable.</p>
 <blockquote>
 <p><strong>Security:</strong> The multicodec prefix check when resolving <code>did:key</code> DIDs uses <code>crypto/subtle.ConstantTimeCompare</code> in Go and <code>subtle::ConstantTimeEq</code> in Rust. Using <code>bytes.Equal</code> or <code>==</code> leaks timing information.</p>
 </blockquote>
@@ -220,9 +219,11 @@
 <li><code>args.estimated_cost_usd</code> must be ≤ <code>policy.max_cost_usd</code> (if set) at every level</li>
 <li><code>args.pii_access</code> must be <code>false</code> if <code>policy.pii_access</code> is <code>false</code> at any level</li>
 </ul>
-<p>Sub-DR attenuation check:</p>
+<p>Sub-DR attenuation and temporal nesting checks:</p>
 <ul>
 <li>Each sub-DR's <code>policy</code> must be a subset of its parent's <code>policy</code></li>
+<li>Child <code>nbf</code> must not be earlier than parent <code>nbf</code></li>
+<li>Child <code>exp</code> must not outlive parent <code>exp</code> when both are set</li>
 <li>Any escalation (wider tool list, higher cost limit, <code>pii_access: true</code> when parent has <code>false</code>) fails this block</li>
 </ul>
 <p><strong>Fail condition:</strong> Any argument exceeds any policy constraint, or any sub-DR escalates permissions.</p>
@@ -232,20 +233,20 @@
 <ul>
 <li><code>now ≥ receipt.nbf</code> for every receipt</li>
 <li><code>now ≤ receipt.exp</code> for every receipt where <code>exp</code> is not null</li>
-<li>Sub-DR <code>nbf ≥ parent nbf</code></li>
-<li>Sub-DR <code>exp ≤ parent exp</code> (when both are set)</li>
 </ul>
-<p><strong>Fail condition:</strong> Any receipt is expired, not yet valid, or has invalid temporal nesting.</p>
+<p><strong>Fail condition:</strong> any receipt is expired or not yet valid.</p>
 <hr />
 <h3 id="block-f--revocation"><a class="header" href="#block-f--revocation">Block F — Revocation</a></h3>
 <p><strong>What:</strong> No receipt has been revoked via either the remote Bitstring Status List or the local revocation store.</p>
-<p>For each <strong>delegation receipt</strong> with a <code>drs_status_list_index</code> (the invocation receipt is not checked for revocation):</p>
+<p>For each delegation receipt with a <code>drs_status_list_index</code>:</p>
 <ol>
-<li><strong>Remote check</strong> — Fetch the W3C Bitstring Status List from <code>STATUS_LIST_BASE_URL</code> (configurable TTL cache, default 5 minutes, with <code>sync.Once</code> concurrency guard). Bit <code>1</code> = revoked.</li>
-<li><strong>Local check</strong> — Query the in-memory local revocation store. Entries are added immediately via <code>POST /admin/revoke</code>. This store does not survive process restart.</li>
+<li><strong>Remote check</strong> — only if <code>STATUS_LIST_BASE_URL</code> is configured.</li>
+<li><strong>Local check</strong> — query the in-memory local revocation store.</li>
 </ol>
-<p>Both checks run for every receipt. Either alone is sufficient to fail verification.</p>
-<p><strong>Fail condition:</strong> Any receipt's <code>drs_status_list_index</code> is marked as revoked in either source, <strong>or</strong> the remote status list check returns an error (fail-closed — an unavailable status list blocks verification).</p>
+<p>If the remote status cache is not configured, that part is skipped. Local
+revocation still runs.</p>
+<p><strong>Fail condition:</strong> any receipt is marked revoked, or a configured remote
+revocation check errors.</p>
 <blockquote>
 <p>The <code>sync.Once</code> guard prevents double-fetch race conditions: when the remote cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result.</p>
 </blockquote>
@@ -270,7 +271,7 @@
   # Block C
   for (jwt, payload) in receipts + invocation:
     pub_key = resolve_did(payload.iss)  # LRU cached, constant-time prefix check
-    if not ed25519_verify_strict(jwt, pub_key): return Err(SIGNATURE_INVALID)
+    if not ed25519_verify(jwt, pub_key): return Err(SIGNATURE_INVALID)
 
   # Block D
   for dr in drs:
@@ -283,14 +284,10 @@
   for dr in drs:
     if now &lt; dr.nbf: return Err(RECEIPT_NOT_YET_VALID)
     if dr.exp != null and now &gt; dr.exp: return Err(RECEIPT_EXPIRED)
-  for i in 1..len(drs):
-    if drs[i].nbf &lt; drs[i-1].nbf: return Err(TEMPORAL_BOUNDS_VIOLATION)
-    if both have exp and drs[i].exp &gt; drs[i-1].exp: return Err(TEMPORAL_BOUNDS_VIOLATION)
-
   # Block F
   for dr in drs:
     if dr.drs_status_list_index != null:
-      if remote_status_list.is_revoked(dr.drs_status_list_index):
+      if remote_status_list_configured and remote_status_list.is_revoked(dr.drs_status_list_index):
         return Err(RECEIPT_REVOKED)
       if local_revocation_store.is_revoked(dr.drs_status_list_index):
         return Err(RECEIPT_REVOKED)
@@ -303,7 +300,7 @@
 <tr><td>Policy check per level</td><td>O(1) avg</td><td>Hash-set intersection in capability index</td></tr>
 <tr><td>DID resolution</td><td>O(1) amortised</td><td>LRU cache, 10,000 entry cap, 1-hour TTL</td></tr>
 <tr><td>Status list check</td><td>O(1) amortised</td><td>5-min TTL, <code>sync.Once</code> guard</td></tr>
-<tr><td>Ed25519 verify</td><td>~0.1ms/sig</td><td><code>ed25519-dalek 2.x</code></td></tr>
+<tr><td>Ed25519 verify</td><td>implementation-dependent</td><td>Go uses <code>crypto/ed25519</code></td></tr>
 <tr><td>Total per request (2-hop chain)</td><td>~0.8ms p99</td><td></td></tr>
 </tbody></table>
 </div>

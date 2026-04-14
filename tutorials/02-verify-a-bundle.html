@@ -148,10 +148,10 @@
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/tutorials/02-verify-a-bundle.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/tutorials/02-verify-a-bundle.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -186,7 +186,7 @@
 <ul>
 <li>Go 1.22+ with <code>drs-verify</code> source</li>
 <li>The <code>rootDR</code> and <code>subDR</code> JWTs from Tutorial 1</li>
-<li><code>@drs/sdk</code> installed</li>
+<li><code>@okeyamy/drs-sdk</code> installed</li>
 </ul>
 <h2 id="step-1-start-drs-verify"><a class="header" href="#step-1-start-drs-verify">Step 1: Start drs-verify</a></h2>
 <pre><code class="language-bash">cd drs-verify
@@ -194,10 +194,10 @@ go run ./cmd/server
 # drs-verify listening on :8080
 </code></pre>
 <h2 id="step-2-issue-an-invocation-receipt"><a class="header" href="#step-2-issue-an-invocation-receipt">Step 2: Issue an invocation receipt</a></h2>
-<pre><code class="language-typescript">import { issueInvocation, computeChainHash, buildBundle, serialiseBundle } from '@drs/sdk';
+<pre><code class="language-typescript">import { issueInvocation, computeChainHash, buildBundle, serialiseBundle } from '@okeyamy/drs-sdk';
 import { writeFileSync } from 'fs';
 
-const agentKey = Uint8Array.from(Buffer.from('SUBAGENT_PRIVATE_KEY', 'base64url'));
+const agentKey = Uint8Array.from(Buffer.from('SUBAGENT_PRIVATE_KEY_HEX', 'hex'));
 
 const invocation = await issueInvocation({
   signingKey:  agentKey,
@@ -228,14 +228,10 @@ console.log('Bundle written to bundle.json');
 <h2 id="step-3-verify-via-cli"><a class="header" href="#step-3-verify-via-cli">Step 3: Verify via CLI</a></h2>
 <pre><code class="language-bash">DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
 </code></pre>
-<p>Expected output:</p>
-<pre><code>✓ Bundle verified
-  Chain depth:    2
-  Root principal: did:key:z6MkHUMAN...
-  Subject:        did:key:z6MkHUMAN...
-  Command:        /mcp/tools/call
-  Policy result:  pass
-  Blocks:         A✓ B✓ C✓ D✓ E✓ F✓
+<p>Expected output begins with:</p>
+<pre><code>✓ Chain verified
+  Root principal : did:key:z6MkHUMAN...
+  Chain depth    : 2
 </code></pre>
 <h2 id="step-4-verify-via-http-api-directly"><a class="header" href="#step-4-verify-via-http-api-directly">Step 4: Verify via HTTP API directly</a></h2>
 <pre><code class="language-bash">curl -s -X POST http://localhost:8080/verify \
@@ -244,11 +240,11 @@ console.log('Bundle written to bundle.json');
 </code></pre>
 <pre><code class="language-json">{
   "valid": true,
-  "chain_depth": 2,
-  "root_principal": "did:key:z6MkHUMAN...",
-  "subject": "did:key:z6MkHUMAN...",
-  "command": "/mcp/tools/call",
-  "policy_result": "pass"
+  "context": {
+    "root_principal": "did:key:z6MkHUMAN...",
+    "chain_depth": 2,
+    "root_type": "human"
+  }
 }
 </code></pre>
 <h2 id="step-5-test-a-rejection"><a class="header" href="#step-5-test-a-rejection">Step 5: Test a rejection</a></h2>
@@ -259,13 +255,13 @@ DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify tampered.json
 </code></pre>
 <p>Expected:</p>
 <pre><code>✗ Verification failed
-  Block:  B (structural integrity)
-  Error:  CHAIN_HASH_MISMATCH — prev_dr_hash mismatch at chain index 1
+  Code       : CHAIN_HASH_MISMATCH
 </code></pre>
 <h2 id="step-6-print-the-full-audit-trail"><a class="header" href="#step-6-print-the-full-audit-trail">Step 6: Print the full audit trail</a></h2>
 <pre><code class="language-bash">pnpm exec drs audit bundle.json
 </code></pre>
-<p>This prints a human-readable breakdown of every receipt in the chain: issuers, audiences, policies, temporal bounds, and consent records.</p>
+<p>This prints the current compact audit breakdown: bundle version, receipt count,
+key receipt fields, and the invocation's issuer / command / tool server.</p>
 <h2 id="next-steps"><a class="header" href="#next-steps">Next steps</a></h2>
 <ul>
 <li><a href="./03-end-to-end-trace.html">End-to-End Trace</a> — watch the full lifecycle including tool server execution</li>

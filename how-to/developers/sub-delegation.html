@@ -148,10 +148,10 @@
                         <a href="../../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/how-to/developers/sub-delegation.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/how-to/developers/sub-delegation.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -181,7 +181,9 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="sub-delegation"><a class="header" href="#sub-delegation">Sub-Delegation</a></h1>
-<p>Sub-delegations allow an agent to pass a subset of its authority to another agent. The child policy must not escalate beyond the parent — this is the Principle of Least Authority (POLA).</p>
+<p>Sub-delegations allow an agent to pass a subset of its authority to another
+agent. The child policy must not escalate beyond the parent — this is the
+Principle of Least Authority (POLA).</p>
 <h2 id="attenuation-rules"><a class="header" href="#attenuation-rules">Attenuation rules</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Parent policy field</th><th>Child constraint</th></tr></thead><tbody>
 <tr><td><code>allowed_tools: [A, B, C]</code></td><td>Child <code>allowed_tools</code> must be ⊆ <code>{A, B, C}</code></td></tr>
@@ -193,9 +195,15 @@
 <tr><td><code>nbf: T</code></td><td>Child <code>nbf</code> must be ≥ <code>T</code></td></tr>
 </tbody></table>
 </div>
-<p>Violation at issuance throws <code>DrsError: POLICY_ESCALATION</code>. Violation in a received bundle fails Block D of <code>verify_chain</code>.</p>
+<p>Violation at issuance throws <code>DrsError: POLICY_ESCALATION</code>. Violation in a
+received bundle fails Block D of <code>verify_chain</code>.</p>
+<p>Practical model:</p>
+<ul>
+<li>SDK issuance checks protect you before signing invalid receipts.</li>
+<li>Verifier checks protect downstream services from invalid external bundles.</li>
+</ul>
 <h2 id="example-narrowing-authority"><a class="header" href="#example-narrowing-authority">Example: narrowing authority</a></h2>
-<pre><code class="language-typescript">import { issueSubDelegation } from '@drs/sdk';
+<pre><code class="language-typescript">import { issueSubDelegation } from '@okeyamy/drs-sdk';
 
 const parentPolicy = {
   allowed_tools: ['web_search', 'write_file', 'read_file'],

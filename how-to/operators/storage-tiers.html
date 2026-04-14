@@ -148,10 +148,10 @@
                         <a href="../../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/how-to/operators/storage-tiers.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/how-to/operators/storage-tiers.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -181,26 +181,36 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="storage-tiers"><a class="header" href="#storage-tiers">Storage Tiers</a></h1>
-<p>DRS defines four storage tiers for delegation receipts, ordered by durability and compliance requirements.</p>
+<p>DRS uses a six-tier storage model. The canonical reference lives in
+<code>docs/storage-tiers.md</code>; this page summarizes it and highlights what is actually
+implemented today.</p>
 <h2 id="tier-reference"><a class="header" href="#tier-reference">Tier reference</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Tier</th><th>Name</th><th>Backend</th><th>Env vars required</th><th>Use case</th></tr></thead><tbody>
-<tr><td>0</td><td>In-memory</td><td>LRU cache (process lifetime)</td><td><em>(none — default)</em></td><td>Development, testing</td></tr>
-<tr><td>1</td><td>Filesystem</td><td>Local disk</td><td><code>STORE_DIR</code></td><td>Standard production</td></tr>
-<tr><td>3</td><td>WORM + RFC 3161</td><td>Filesystem + trusted timestamp</td><td><code>STORE_DIR</code> + <code>TSA_URL</code></td><td>Regulated deployments (HIPAA, EU AI Act, financial)</td></tr>
-<tr><td>4</td><td>Blockchain</td><td>Tier 3 + on-chain anchor (not yet implemented)</td><td><em>(not yet implemented)</em></td><td>Blockchain-native enterprise opt-in</td></tr>
+<div class="table-wrapper"><table><thead><tr><th>Tier</th><th>Name</th><th>Backend</th><th>Env vars</th><th>Status</th></tr></thead><tbody>
+<tr><td>0</td><td>Session</td><td>In-memory</td><td><em>(none)</em></td><td>Implemented</td></tr>
+<tr><td>1</td><td>Ephemeral</td><td>Local filesystem</td><td><code>STORE_DIR</code></td><td>Implemented</td></tr>
+<tr><td>2</td><td>Durable</td><td>S3-compatible object store</td><td>roadmap</td><td>Not implemented</td></tr>
+<tr><td>3</td><td>Compliant</td><td>Filesystem + RFC 3161 timestamping</td><td><code>STORE_DIR</code> + <code>TSA_URL</code></td><td>Partially implemented</td></tr>
+<tr><td>4</td><td>Timestamped</td><td>Tier 3 deployment posture with timestamp retrieval/reporting</td><td><code>STORE_DIR</code> + <code>TSA_URL</code></td><td>Partially implemented</td></tr>
+<tr><td>5</td><td>On-chain</td><td>Tier 3 + Ethereum anchor</td><td>roadmap</td><td>Not implemented</td></tr>
 </tbody></table>
 </div>
-<blockquote>
-<p><strong>Note on Tier 2:</strong> There is no Tier 2 in the current implementation. S3 or other object storage backends are a roadmap item.</p>
-</blockquote>
-<h2 id="when-to-use-each-tier"><a class="header" href="#when-to-use-each-tier">When to use each tier</a></h2>
-<p><strong>Tier 0 (In-memory):</strong> Default when <code>STORE_DIR</code> is not set. Receipts are lost on process restart. Use only for local development and tests.</p>
-<p><strong>Tier 1 (Filesystem):</strong> Set <code>STORE_DIR</code> to a directory path. Receipts are written as files and survive process restart. No compliance controls — suitable for production deployments where regulatory requirements do not mandate timestamping.</p>
-<p><strong>Tier 3 (WORM + RFC 3161):</strong> Set both <code>STORE_DIR</code> and <code>TSA_URL</code>. Every stored receipt is timestamped by an RFC 3161 Trusted Signing Authority (TSA). The TSA signs a SHA-256 hash of the stored JWT string with the current time and returns a DER timestamp token. This token is stored alongside the DR.</p>
-<p>RFC 3161 (IETF 2001, updated by RFC 5816 in 2010 to add SHA-2 support) is the standard used here. Timestamp tokens are legally recognised under EU eIDAS and in US federal courts. TSA failure is best-effort — if the TSA is unreachable, the receipt is still stored (Tier 1 semantics) and the error is logged. Storage is never blocked by TSA availability.</p>
-<p><strong>Tier 4 (Blockchain):</strong> Not implemented. When built, this will be an explicit opt-in for customers who require on-chain proof and understand the gas cost implications. The default anchor mechanism is RFC 3161 (Tier 3), not blockchain.</p>
+<h2 id="what-is-actually-implemented-today"><a class="header" href="#what-is-actually-implemented-today">What is actually implemented today</a></h2>
+<p><strong>Tier 0:</strong> default when <code>STORE_DIR</code> is unset. Receipts are lost on restart.</p>
+<p><strong>Tier 1:</strong> receipts are written to the local filesystem and survive restart.</p>
+<p><strong>Tier 2:</strong> documented target only. There is no S3-compatible store in the
+current codebase.</p>
+<p><strong>Tier 3:</strong> when <code>TSA_URL</code> is set, <code>drs-verify</code> stores the receipt and attempts
+RFC 3161 timestamping. This is best-effort:</p>
+<ul>
+<li>the receipt is still stored if the TSA is unavailable</li>
+<li>the timestamp is stored alongside the receipt when available</li>
+<li>WORM semantics are not enforced by the current filesystem backend</li>
+</ul>
+<p><strong>Tier 4:</strong> same backend as Tier 3. Today this is a reporting / operator posture
+rather than a separate storage engine.</p>
+<p><strong>Tier 5:</strong> Ethereum anchoring is a roadmap item, not a delivered feature.</p>
 <h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
-<pre><code class="language-bash"># Tier 0 — in-memory (default)
+<pre><code class="language-bash"># Tier 0 — session / in-memory
 LISTEN_ADDR=:8080 ./drs-verify
 
 # Tier 1 — filesystem
@@ -208,34 +218,14 @@ LISTEN_ADDR=:8080 \
   STORE_DIR=/data/drs \
   ./drs-verify
 
-# Tier 3 — filesystem + RFC 3161 trusted timestamp
+# Tier 3 / Tier 4 — filesystem + RFC 3161 timestamping
 LISTEN_ADDR=:8080 \
   STORE_DIR=/data/drs \
   TSA_URL=https://freetsa.org/tsr \
   ./drs-verify
 </code></pre>
-<blockquote>
-<p>For a complete list of environment variables including <code>STATUS_LIST_BASE_URL</code> (required for remote revocation) and <code>DRS_ADMIN_TOKEN</code> (required for <code>POST /admin/revoke</code>), see the <a href="../../reference/configuration.html">Configuration Reference</a>.</p>
-</blockquote>
-<h2 id="tsa-providers"><a class="header" href="#tsa-providers">TSA providers</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Provider</th><th>URL</th><th>Cost</th><th>Notes</th></tr></thead><tbody>
-<tr><td>FreeTSA</td><td><code>https://freetsa.org/tsr</code></td><td>Free</td><td>Non-commercial use; rate-limited</td></tr>
-<tr><td>DigiCert</td><td><code>https://timestamp.digicert.com</code></td><td>Free (DigiCert customers)</td><td>Production-grade</td></tr>
-<tr><td>GlobalSign</td><td><code>http://timestamp.globalsign.com/tsa/r6advanced1</code></td><td>Commercial</td><td>AATL/WebTrust certified. HTTP is correct for TSA — the response is self-verifying (signed by the TSA certificate chain).</td></tr>
-</tbody></table>
-</div>
-<h2 id="why-not-blockchain-by-default"><a class="header" href="#why-not-blockchain-by-default">Why not blockchain by default?</a></h2>
-<p>The core DRS guarantees (tamper-evident receipts, Ed25519 signatures, hash-chained custody) require zero blockchain. The only problem blockchain was solving in the v1/v2 architecture was "immutable third-party timestamp" — and RFC 3161 solves that problem better:</p>
-<div class="table-wrapper"><table><thead><tr><th>Property</th><th>RFC 3161</th><th>Blockchain</th></tr></thead><tbody>
-<tr><td>User pays gas fees</td><td>No</td><td>Yes</td></tr>
-<tr><td>Latency</td><td>~200 ms (typical)</td><td>400 ms–12 s (typical)</td></tr>
-<tr><td>Legal recognition</td><td>EU eIDAS, US federal courts, ISO 18014</td><td>Unclear / jurisdiction-dependent</td></tr>
-<tr><td>Requires wallet / token</td><td>No</td><td>Yes</td></tr>
-<tr><td>Battle-tested</td><td>20+ years</td><td>4 months–10 years depending on chain</td></tr>
-<tr><td>Free tier</td><td>Yes (FreeTSA)</td><td>No</td></tr>
-</tbody></table>
-</div>
-<p>Blockchain anchoring is available as Tier 4 for customers who specifically require it — for example, blockchain-native enterprises whose compliance teams are already comfortable with on-chain evidence. It is never the default.</p>
+<p>For the full canonical model, caveats, and tier semantics, see
+<a href="../../../docs/storage-tiers.html">Canonical Storage Tiers</a>.</p>
 
                     </main>
 

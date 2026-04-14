@@ -148,10 +148,10 @@
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <i id="print-button" class="fa fa-print"></i>
                         </a>
-                        <a href="https://github.com/okey/drs" title="Git repository" aria-label="Git repository">
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
                             <i id="git-repository-button" class="fa fa-github"></i>
                         </a>
-                        <a href="https://github.com/okey/drs/edit/main/docs-site/src/src/explanation/what-is-drs.md" title="Suggest an edit" aria-label="Suggest an edit">
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/explanation/what-is-drs.md" title="Suggest an edit" aria-label="Suggest an edit">
                             <i id="git-edit-button" class="fa fa-edit"></i>
                         </a>
 
@@ -201,7 +201,10 @@ RFC 8693 + DRS    → adds a signed receipt at EVERY hop
 <li><strong>Delegation Receipt (DR):</strong> A signed JWT issued by each delegator. Contains the command, policy constraints, temporal bounds, and a SHA-256 hash of the previous DR.</li>
 <li><strong>Chain:</strong> The linked sequence of DRs from the human root to the invoking agent. Each <code>prev_dr_hash</code> field links back, creating a tamper-evident chain.</li>
 <li><strong>Invocation Receipt:</strong> A signed JWT recording the actual tool call arguments, the full chain of DR hashes, and the tool server's DID.</li>
-<li><strong>Bundle:</strong> The invocation receipt plus all DRs, transmitted as a base64url-encoded JSON object in the <code>X-DRS-Bundle</code> HTTP header.</li>
+<li><strong>Bundle:</strong> The invocation receipt plus all DRs. On HTTP-terminated routes it
+travels as a base64url-encoded JSON object in the <code>X-DRS-Bundle</code> header. On
+pure JSON-RPC MCP flows it can travel in <code>params._meta["X-DRS-Bundle"]</code> with
+the same base64url encoding.</li>
 </ol>
 <h2 id="what-drs-is-not"><a class="header" href="#what-drs-is-not">What DRS is not</a></h2>
 <p>DRS is frequently confused with systems it is adjacent to but distinct from:</p>
@@ -211,7 +214,7 @@ RFC 8693 + DRS    → adds a signed receipt at EVERY hop
 <tr><td>OpenTelemetry</td><td>Distributed tracing</td><td>Observability vs. authorisation provenance</td></tr>
 <tr><td>Langfuse / Arize</td><td>LLM observability</td><td>Logs vs. cryptographic proofs</td></tr>
 <tr><td>Agentic JWT</td><td>JWT profile for agent identity</td><td>Identity vs. delegation chain receipts</td></tr>
-<tr><td>Blockchain audit logs</td><td>Immutable event log</td><td>DRS receipts work without blockchain (on-chain is optional tier 4)</td></tr>
+<tr><td>Blockchain audit logs</td><td>Immutable event log</td><td>DRS receipts work without blockchain (on-chain is optional Tier 5)</td></tr>
 </tbody></table>
 </div>
 <p>For a detailed comparison, see <a href="../reference/comparison.html">DRS vs Alternatives</a>.</p>
