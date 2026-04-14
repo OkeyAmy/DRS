@@ -1,6 +1,8 @@
 # Sub-Delegation
 
-Sub-delegations allow an agent to pass a subset of its authority to another agent. The child policy must not escalate beyond the parent — this is the Principle of Least Authority (POLA).
+Sub-delegations allow an agent to pass a subset of its authority to another
+agent. The child policy must not escalate beyond the parent — this is the
+Principle of Least Authority (POLA).
 
 ## Attenuation rules
 
@@ -14,12 +16,17 @@ Sub-delegations allow an agent to pass a subset of its authority to another agen
 | `exp: T` | Child `exp` must be ≤ `T` |
 | `nbf: T` | Child `nbf` must be ≥ `T` |
 
-Violation at issuance throws `DrsError: POLICY_ESCALATION`. Violation in a received bundle fails Block D of `verify_chain`.
+Violation at issuance throws `DrsError: POLICY_ESCALATION`. Violation in a
+received bundle fails Block D of `verify_chain`.
+
+Practical model:
+- SDK issuance checks protect you before signing invalid receipts.
+- Verifier checks protect downstream services from invalid external bundles.
 
 ## Example: narrowing authority
 
 ```typescript
-import { issueSubDelegation } from '@drs/sdk';
+import { issueSubDelegation } from '@okeyamy/drs-sdk';
 
 const parentPolicy = {
   allowed_tools: ['web_search', 'write_file', 'read_file'],

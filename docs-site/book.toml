@@ -10,8 +10,8 @@ build-dir = "book"
 [output.html]
 default-theme = "navy"
 preferred-dark-theme = "navy"
-git-repository-url = "https://github.com/okey/drs"
-edit-url-template = "https://github.com/okey/drs/edit/main/docs-site/src/{path}"
+git-repository-url = "https://github.com/OkeyAmy/DRS"
+edit-url-template = "https://github.com/OkeyAmy/DRS/edit/main/docs-site/{path}"
 additional-css = ["theme/css/custom.css"]
 no-section-label = false
 

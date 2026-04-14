@@ -52,7 +52,9 @@ type OperatorConfig struct {
 	Escalation Escalation `json:"escalation"`
 
 	// StorageTier selects the DR Store tier for receipts issued by this operator.
-	// 0 = memory, 1 = filesystem, 2 = S3, 3 = WORM, 4 = on-chain.
+	// 0 = session (memory), 1 = ephemeral (filesystem), 2 = durable (S3, roadmap),
+	// 3 = compliant (WORM + RFC 3161), 4 = timestamped (per-DR TSToken),
+	// 5 = on-chain (Ethereum, roadmap).
 	StorageTier int `json:"storage_tier"`
 }
 
@@ -104,8 +106,8 @@ func (c *OperatorConfig) Validate() error {
 	if c.RenewalRules.SessionTTLHours < 0 {
 		return fmt.Errorf("operator: session_ttl_hours must be >= 0")
 	}
-	if c.StorageTier < 0 || c.StorageTier > 4 {
-		return fmt.Errorf("operator: storage_tier must be 0–4")
+	if c.StorageTier < 0 || c.StorageTier > 5 {
+		return fmt.Errorf("operator: storage_tier must be 0–5")
 	}
 	return nil
 }

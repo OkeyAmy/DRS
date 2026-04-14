@@ -12,6 +12,7 @@ import * as ed from "@noble/ed25519";
 import { sha256 } from "@noble/hashes/sha256";
 import { sha512 } from "@noble/hashes/sha512";
 import { base64url, base64urlBytes } from "./base64url.js";
+import { jcsSerialise } from "./jcs.js";
 import { checkPolicyAttenuation } from "./policy.js";
 import type {
   ChainBundle,
@@ -227,37 +228,8 @@ export async function buildJwt(payload: unknown, signingKey: Uint8Array): Promis
   return `${signingInput}.${base64urlBytes(sig)}`;
 }
 
-/**
- * Serialises `value` to canonical JSON per RFC 8785 (JSON Canonicalization Scheme).
- *
- * Guarantees:
- * - Object keys sorted by Unicode code point at every nesting level
- * - No whitespace
- * - Number formatting per IEEE 754 shortest representation (same as V8 JSON.stringify)
- * - Standard JSON string escaping
- *
- * This matches the Rust drs-core jcs_canonical_bytes() output. Never use
- * JSON.stringify for signed content — it does not sort nested object keys.
- */
-function jcsSerialise(value: unknown): string {
-  if (value === null || value === undefined) return "null";
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (typeof value === "number") {
-    if (!isFinite(value)) throw new Error("jcsSerialise: non-finite number is not valid JSON");
-    return JSON.stringify(value); // V8 JSON.stringify produces RFC 8785-compliant number representations
-  }
-  if (typeof value === "string") return JSON.stringify(value);
-  if (Array.isArray(value)) {
-    return `[${value.map(jcsSerialise).join(",")}]`;
-  }
-  if (typeof value === "object") {
-    const obj = value as Record<string, unknown>;
-    const sortedKeys = Object.keys(obj).sort();
-    const entries = sortedKeys.map((k) => `${JSON.stringify(k)}:${jcsSerialise(obj[k])}`);
-    return `{${entries.join(",")}}`;
-  }
-  return "null";
-}
+// jcsSerialise imported from ./jcs.ts — single canonical implementation across
+// the SDK (issuance + conformance tests). See that module for RFC 8785 rules.
 
 /** Computes SHA-256 of a JWT string and returns "sha256:{hex}". */
 export function computeChainHash(jwt: string): string {

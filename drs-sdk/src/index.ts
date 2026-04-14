@@ -32,6 +32,9 @@ export type { RootDelegationParams, SubDelegationParams, InvocationParams } from
 // Bundle assembly
 export { buildBundle, serialiseBundle, parseBundle } from "./sdk/bundle.js";
 
+// JCS canonicalization
+export { jcsSerialise } from "./sdk/jcs.js";
+
 // Policy
 export { checkPolicyAttenuation, translatePolicy } from "./sdk/policy.js";
 

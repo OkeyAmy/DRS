@@ -18,17 +18,16 @@ Article 13 requires transparency in the operation of high-risk AI systems. DRS p
 - Complete chain reconstruction without operator involvement
 - Per-invocation records linking every agent action to the authorising human
 
-**Export:**
-```bash
-pnpm exec drs audit export --inv-jti "inv:..." --format eu-ai-act --output evidence.json
-```
+**Current state:** there is no dedicated EU AI Act export command in the CLI
+yet. Today, evidence is assembled from `bundle.json`, `drs verify`, and
+`drs audit` output.
 
 ## HIPAA §164.312(b) — Audit Controls
 
 For healthcare deployments handling PHI, HIPAA §164.312(b) requires audit controls that record and examine activity. DRS provides:
 - Invocation Receipts recording every agent action with full delegation provenance
 - Signed proof that access was authorised before it occurred (not just a log that it happened)
-- Tier 3 (Compliant) storage with WORM policy and 7-year retention
+- Tier 3 / Tier 4 deployment postures with timestamping support
 
 ## AIUC-1 Certification
 
@@ -56,12 +55,13 @@ Relevant financial regulations: SR 11-7 (Federal Reserve model risk management),
 
 ## Storage tiers and retention
 
-| Tier | `storage_tier` | Backend | Retention | Use case |
-|---|---|---|---|---|
-| Session | `0` | In-memory | Process lifetime | Development, testing |
-| Ephemeral | `1` | Local filesystem | Configurable TTL | Non-regulated production |
-| Durable | `2` | S3 / GCS / Azure Blob | Configurable | Standard production |
-| Compliant | `3` | WORM object storage | 7 years minimum | HIPAA, financial services |
-| On-chain | `4` | Monad EVM | Permanent | Highest-assurance regulatory |
+| Tier | `storage_tier` | Backend | Status |
+|---|---|---|---|
+| Session | `0` | In-memory | Implemented |
+| Ephemeral | `1` | Local filesystem | Implemented |
+| Durable | `2` | S3-compatible object store | Roadmap |
+| Compliant | `3` | Filesystem + RFC 3161 timestamping | Partial |
+| Timestamped | `4` | Tier 3 deployment posture | Partial |
+| On-chain | `5` | Ethereum anchor | Roadmap |
 
 Configure via `storage_tier` in the [Operator Configuration](../how-to/operators/operator-config.md).

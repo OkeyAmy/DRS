@@ -176,35 +176,11 @@ Amara's activity feed updates: *"Research agent used web_search — £0.02 of £
 Three months later, a compliance officer wants evidence:
 
 ```bash
-pnpm exec drs audit retrieve --inv-jti "inv:7h5c4d3e-..." --output evidence.json
-pnpm exec drs verify evidence.json
-pnpm exec drs audit evidence.json
+pnpm exec drs verify bundle.json
+pnpm exec drs audit bundle.json
 ```
 
-Output:
-```
-DRS Chain Audit
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Receipt 0 (root — human)
-  Issued by:  did:key:z6MkAmara...
-  Granted to: did:key:z6MkAgent1...
-  Policy:     max_cost_usd=50, allowed_tools=[web_search]
-  Valid:      2026-03-28 → 2026-05-28
-  Consent:    explicit-ui-click at 2026-03-28T10:30:00Z (en-GB)
-
-Receipt 1 (sub-delegation)
-  Issued by:  did:key:z6MkAgent1...
-  Granted to: did:key:z6MkAgent2...
-  Policy:     max_cost_usd=5, allowed_tools=[web_search]
-  Chain hash: sha256:def456... ✓
-
-Invocation
-  Called by:  did:key:z6MkAgent2...
-  Tool:       web_search("Monad TPS benchmarks")
-  Cost:       $0.02 of $5.00 (sub-delegation limit)
-  Chain hash: sha256:ghi789... ✓
-
-All 3 signatures valid. Chain intact. No revocations.
-```
-
-The compliance officer does not need to contact the operator. The evidence is in the receipts.
+The compliance officer does not need to contact the operator. The evidence is in
+the signed bundle plus the verifier output. The current `drs audit` command is
+compact rather than full forensic export, but it still exposes the key receipt
+and invocation fields.

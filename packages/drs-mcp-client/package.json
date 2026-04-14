@@ -1,0 +1,39 @@
+{
+  "name": "@drs/mcp-client",
+  "version": "0.1.0",
+  "description": "DRS MCP client transport — injects X-DRS-Bundle headers into MCP tool calls",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "format": "prettier --write src",
+    "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OkeyAmy/DRS",
+    "directory": "packages/drs-mcp-client"
+  },
+  "keywords": ["drs", "mcp", "delegation", "agent", "accountability"],
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.4.0",
+    "prettier": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

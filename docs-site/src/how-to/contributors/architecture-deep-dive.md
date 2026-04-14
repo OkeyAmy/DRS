@@ -33,11 +33,11 @@ Each module has exactly one responsibility. Do not write code that crosses these
 
 ```
 Issuance (TypeScript SDK):
-  Policy params → jcsSerialise(payload) → ed.signAsync → JWT string
+  Policy params → jcsSerialise(payload) → sign → JWT string
 
-Verification (Go, calls Rust):
-  JWT string → parse header/payload → resolve_did → ed25519_verify_strict
-            → check_policy_attenuation → is_revoked → VerifiedChain
+Verification (Go):
+  JWT string → parse header/payload → resolve_did → crypto/ed25519.Verify
+            → check_policy_attenuation → revocation checks → VerificationResult
 
 DID resolution (Go):
   DID string → base58Decode → strip multicodec prefix [0xed, 0x01]
@@ -47,9 +47,9 @@ DID resolution (Go):
 ## Adding a new algorithm
 
 1. Write it in Rust first (`drs-core/src/`)
-2. Write tests with official test vectors from the relevant RFC
-3. If Go middleware needs it: re-implement with the same interface (Go cannot call Rust without CGO complexity — prefer reimplementation for simple algorithms)
-4. TypeScript only calls WASM or the HTTP API — no algorithm logic in TypeScript
+2. Add or extend shared conformance vectors when the protocol surface changes
+3. Port it to Go if the verifier needs the same rule on the hot path
+4. Keep TypeScript logic aligned with the conformance contract
 
 ## Security-sensitive code checklist
 

@@ -87,14 +87,16 @@ MCP and A2A middleware routes — extract the `X-DRS-Bundle` header, verify, and
 
 ## Storage Tiers
 
-| Tier | Backend | Use case |
-|---|---|---|
-| 0 | In-memory | Development and testing (default) |
-| 1 | Filesystem | Standard production (set `STORE_DIR`) |
-| 3 | Filesystem + RFC 3161 | Regulated deployments — WORM with cryptographic timestamps (set `STORE_DIR` + `TSA_URL`) |
-| 4 | Tier 3 + blockchain | Optional enterprise opt-in (not default) |
+| Tier | Name | Backend | Use case |
+|---|---|---|---|
+| 0 | Session | In-memory | Development and testing (default) |
+| 1 | Ephemeral | Filesystem | Standard production (set `STORE_DIR`) |
+| 2 | Durable | S3-compatible | Long-term retention (roadmap) |
+| 3 | Compliant | WORM + RFC 3161 | Regulated deployments — WORM with cryptographic timestamps (set `STORE_DIR` + `TSA_URL`) |
+| 4 | Timestamped | Tier 3 + per-DR TSToken | EU AI Act or third-party time proof (set `STORE_DIR` + `TSA_URL`) |
+| 5 | On-Chain | Tier 3 + Ethereum | Explicit customer requirement only — gas costs apply (roadmap) |
 
-Tier 3 uses RFC 3161 trusted timestamping (IETF 2001) — legally recognized under EU eIDAS and US federal courts. No gas fees. TSA providers: FreeTSA (free), DigiCert, GlobalSign.
+Tiers 3 and 4 use RFC 3161 trusted timestamping (IETF 2001) — legally recognized under EU eIDAS and US federal courts. No gas fees. TSA providers: FreeTSA (free), DigiCert, GlobalSign. See [`docs/storage-tiers.md`](docs/storage-tiers.md) for the full tier reference.
 
 ## Configuration
 
@@ -164,7 +166,7 @@ The docs cover four audiences:
 **Roadmap:**
 
 - EU AI Act / HIPAA / SOX audit export formats
-- Ethereum mainnet blockchain anchor (Tier 4 — opt-in only, for blockchain-native enterprise deployments)
+- Ethereum mainnet blockchain anchor (Tier 5 — opt-in only, for blockchain-native enterprise deployments)
 - Automated system root renewal logic
 
 ## Status

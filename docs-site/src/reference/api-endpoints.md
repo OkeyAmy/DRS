@@ -61,34 +61,45 @@ Body is capped at `MAX_BODY_BYTES` (default 1 MiB).
 
 ## POST /mcp/* (middleware)
 
-> **Implementation status:** The MCP and A2A middleware routes are registered but the reverse proxy mode (`DRS_UPSTREAM`) and bundle-required enforcement (`DRS_REQUIRE_BUNDLE`) are not implemented in the current release. The endpoint currently accepts requests and returns 200 after verifying the `X-DRS-Bundle` header. The proxy and enforcement features are roadmap items.
+The built-in server registers `/mcp/*` routes wrapped with
+`middleware.MCPMiddleware`. In the current binary, the wrapped handler is a
+stub that returns `200` after successful verification.
 
-When `DRS_UPSTREAM` is configured, drs-verify acts as a reverse proxy. All requests to `/mcp/*` are intercepted, the `X-DRS-Bundle` header is verified, and the request is proxied upstream if valid.
+In your own integration, this wrapped handler is your normal tool/business
+handler. Middleware verifies first, then your handler executes.
 
-**Request:** Any MCP request with `X-DRS-Bundle` header:
+**Request:** any MCP request with `X-DRS-Bundle` header:
 ```
 POST /mcp/tools/call
 X-DRS-Bundle: <base64url bundle>
 Content-Type: application/json
 ```
 
-**On valid bundle:** Proxied to `$DRS_UPSTREAM/mcp/tools/call`.
+**On valid bundle:** request reaches the wrapped handler.
 
 **On invalid bundle (403):**
 ```json
 {
-  "error": "SIGNATURE_INVALID",
-  "block": "C",
-  "message": "Ed25519 signature verification failed for issuer did:key:z6Mk..."
+  "valid": false,
+  "error": {
+    "code": "SIGNATURE_INVALID",
+    "message": "Ed25519 signature verification failed for issuer did:key:z6Mk...",
+    "suggestion": "Ensure the receipt chain was signed by the listed issuers."
+  }
 }
 ```
 
-**On missing bundle (403, when `DRS_REQUIRE_BUNDLE=true`):**
+**On missing bundle (401):**
 ```json
 {
-  "error": "BUNDLE_MISSING",
-  "message": "X-DRS-Bundle header is required"
+  "error": "Missing X-DRS-Bundle header — DRS verification is required on this route."
 }
+```
+
+**On malformed bundle (400):**
+
+```json
+{"error":"X-DRS-Bundle header is not valid base64url JSON"}
 ```
 
 ---

@@ -60,7 +60,7 @@ describe("validateOperatorConfig", () => {
   });
 
   it("rejects invalid storage tier", () => {
-    const cfg = { ...validConfig(), storage_tier: 5 as never };
+    const cfg = { ...validConfig(), storage_tier: 6 as never };
     let err: DrsError | undefined;
     try {
       validateOperatorConfig(cfg);

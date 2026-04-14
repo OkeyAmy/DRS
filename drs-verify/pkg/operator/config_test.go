@@ -82,9 +82,9 @@ func TestFileMgmtWithoutKeyPathIsRejected(t *testing.T) {
 
 func TestInvalidStorageTierIsRejected(t *testing.T) {
 	cfg := validConfig()
-	cfg.StorageTier = 5
+	cfg.StorageTier = 6
 	if err := cfg.Validate(); err == nil {
-		t.Error("storage_tier > 4 should be rejected")
+		t.Error("storage_tier > 5 should be rejected")
 	}
 }
 

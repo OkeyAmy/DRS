@@ -89,21 +89,30 @@ pub fn evaluate_policy(policy: &Policy, args: &serde_json::Value) -> Result<(), 
 /// Checks that `child` policy does not escalate beyond `parent` policy.
 ///
 /// Implements §6.4 of the technical audit:
-/// - For each numeric upper bound in parent: if child has the same field,
-///   child[field] <= parent[field]. POLA — child cannot loosen an upper bound.
-/// - For each allowlist in parent: if child has the same field,
-///   child's list must be a subset of parent's list.
+/// - For each numeric upper bound in parent: child must inherit or tighten it.
+///   Omitting a parent-defined bound is escalation (implies unlimited).
+/// - For each allowlist in parent: child must inherit or narrow it.
+///   Omitting a parent-defined list is escalation (implies all permitted).
 /// - For each boolean restriction (false) in parent: child cannot set it to true.
 /// - Fields in child not in parent: always valid (child is adding restrictions).
 ///
 /// Capability checks are fail-closed: any error means capability is denied.
 pub fn check_policy_attenuation(parent: &Policy, child: &Policy) -> Result<(), DrsError> {
-    // max_cost_usd: child cannot raise the cost limit above parent's
-    if let (Some(parent_max), Some(child_max)) = (parent.max_cost_usd, child.max_cost_usd) {
-        if child_max > parent_max {
-            return Err(DrsError::PolicyViolation(format!(
-                "Child loosens upper bound for max_cost_usd. Parent: ${parent_max:.2}. Child: ${child_max:.2}."
-            )));
+    // max_cost_usd: child cannot raise or omit the cost limit
+    if let Some(parent_max) = parent.max_cost_usd {
+        match child.max_cost_usd {
+            None => {
+                return Err(DrsError::PolicyViolation(format!(
+                    "Child omits max_cost_usd but parent restricts it to ${parent_max:.2}; \
+                     child must explicitly inherit or tighten this limit."
+                )));
+            }
+            Some(child_max) if child_max > parent_max => {
+                return Err(DrsError::PolicyViolation(format!(
+                    "Child loosens upper bound for max_cost_usd. Parent: ${parent_max:.2}. Child: ${child_max:.2}."
+                )));
+            }
+            _ => {}
         }
     }
 
@@ -125,66 +134,101 @@ pub fn check_policy_attenuation(parent: &Policy, child: &Policy) -> Result<(), D
         }
     }
 
-    // max_calls: child cannot raise the call limit above parent's
-    if let (Some(parent_max), Some(child_max)) = (parent.max_calls, child.max_calls) {
-        if child_max > parent_max {
-            return Err(DrsError::PolicyViolation(format!(
-                "Child loosens upper bound for max_calls. Parent: {parent_max}. Child: {child_max}."
-            )));
+    // max_calls: child cannot raise or omit the call limit
+    if let Some(parent_max) = parent.max_calls {
+        match child.max_calls {
+            None => {
+                return Err(DrsError::PolicyViolation(format!(
+                    "Child omits max_calls but parent restricts it to {parent_max}; \
+                     child must explicitly inherit or tighten this limit."
+                )));
+            }
+            Some(child_max) if child_max > parent_max => {
+                return Err(DrsError::PolicyViolation(format!(
+                    "Child loosens upper bound for max_calls. Parent: {parent_max}. Child: {child_max}."
+                )));
+            }
+            _ => {}
         }
     }
 
-    // allowed_tools: child's list must be a subset of parent's list
-    if let (Some(parent_tools), Some(child_tools)) = (&parent.allowed_tools, &child.allowed_tools)
-    {
-        // If parent has a wildcard, any child list is a subset
+    // allowed_tools: child must inherit or narrow the parent's list
+    if let Some(parent_tools) = &parent.allowed_tools {
         if !parent_tools.iter().any(|t| t == "*") {
-            for tool in child_tools {
-                if tool != "*" && !parent_tools.contains(tool) {
-                    return Err(DrsError::PolicyViolation(format!(
-                        "Child adds '{tool}' to allowed_tools not permitted by parent."
-                    )));
-                }
-                // Child wildcard is only valid if parent has a wildcard (checked above)
-                if tool == "*" {
+            match &child.allowed_tools {
+                None => {
                     return Err(DrsError::PolicyViolation(
-                        "Child adds wildcard '*' to allowed_tools but parent does not allow all tools.".to_string(),
+                        "Child omits allowed_tools but parent restricts it; \
+                         child must explicitly list permitted tools."
+                            .to_string(),
                     ));
+                }
+                Some(child_tools) => {
+                    for tool in child_tools {
+                        if tool == "*" {
+                            return Err(DrsError::PolicyViolation(
+                                "Child adds wildcard '*' to allowed_tools but parent does not allow all tools.".to_string(),
+                            ));
+                        }
+                        if !parent_tools.contains(tool) {
+                            return Err(DrsError::PolicyViolation(format!(
+                                "Child adds '{tool}' to allowed_tools not permitted by parent."
+                            )));
+                        }
+                    }
                 }
             }
         }
     }
 
-    // allowed_resources: child's list must be a subset of parent's list
-    if let (Some(parent_res), Some(child_res)) =
-        (&parent.allowed_resources, &child.allowed_resources)
-    {
+    // allowed_resources: child must inherit or narrow the parent's list
+    if let Some(parent_res) = &parent.allowed_resources {
         if !parent_res.iter().any(|r| r == "*") {
-            for res in child_res {
-                if res != "*" && !parent_res.contains(res) {
-                    return Err(DrsError::PolicyViolation(format!(
-                        "Child adds '{res}' to allowed_resources not permitted by parent."
-                    )));
-                }
-                if res == "*" {
+            match &child.allowed_resources {
+                None => {
                     return Err(DrsError::PolicyViolation(
-                        "Child adds wildcard '*' to allowed_resources but parent does not allow all.".to_string(),
+                        "Child omits allowed_resources but parent restricts it; \
+                         child must explicitly list permitted resources."
+                            .to_string(),
                     ));
+                }
+                Some(child_res) => {
+                    for res in child_res {
+                        if res == "*" {
+                            return Err(DrsError::PolicyViolation(
+                                "Child adds wildcard '*' to allowed_resources but parent does not allow all.".to_string(),
+                            ));
+                        }
+                        if !parent_res.contains(res) {
+                            return Err(DrsError::PolicyViolation(format!(
+                                "Child adds '{res}' to allowed_resources not permitted by parent."
+                            )));
+                        }
+                    }
                 }
             }
         }
     }
 
-    // allowed_data_classes: child's list must be a subset of parent's list
-    if let (Some(parent_cls), Some(child_cls)) =
-        (&parent.allowed_data_classes, &child.allowed_data_classes)
-    {
+    // allowed_data_classes: child must inherit or narrow the parent's list
+    if let Some(parent_cls) = &parent.allowed_data_classes {
         if !parent_cls.iter().any(|c| c == "*") {
-            for cls in child_cls {
-                if cls != "*" && !parent_cls.contains(cls) {
-                    return Err(DrsError::PolicyViolation(format!(
-                        "Child adds '{cls}' to allowed_data_classes not permitted by parent."
-                    )));
+            match &child.allowed_data_classes {
+                None => {
+                    return Err(DrsError::PolicyViolation(
+                        "Child omits allowed_data_classes but parent restricts it; \
+                         child must explicitly list permitted data classes."
+                            .to_string(),
+                    ));
+                }
+                Some(child_cls) => {
+                    for cls in child_cls {
+                        if cls == "*" || !parent_cls.contains(cls) {
+                            return Err(DrsError::PolicyViolation(format!(
+                                "Child adds '{cls}' to allowed_data_classes not permitted by parent."
+                            )));
+                        }
+                    }
                 }
             }
         }

@@ -4,8 +4,9 @@ DRS chains can be verified by anyone, without contacting the operator, without a
 
 ## What you need
 
-- The DRS bundle (the JWT strings)
-- The `drs verify` CLI (from `@drs/sdk`) or a running drs-verify instance
+- the DRS bundle (the JWT strings)
+- the `drs verify` CLI from `@okeyamy/drs-sdk`
+- access to a `drs-verify` instance you trust, including one you run yourself
 
 ## What you do NOT need
 
@@ -24,44 +25,26 @@ did:key:z6Mk{base58btc(multicodec_prefix + public_key_bytes)}
 
 Anyone with the DID can derive the public key and verify the signature. No registry lookup, no HTTP request, no trust anchor beyond the public key.
 
-## Offline verification
-
-All blocks except F (revocation) can be run offline:
-
-```bash
-pnpm exec drs verify bundle.json --offline
-```
-
-The `--offline` flag skips Block F (Bitstring Status List lookup). All cryptographic, structural, policy, and temporal checks run locally with no network calls.
-
-Use `--offline` when:
-- You have no network access
-- You are verifying historical evidence (revocation status is not relevant for a past action)
-- You distrust the network path to the status list server
-
-## Full online verification
+## Verification
 
 ```bash
 DRS_VERIFY_URL=http://your-drs-verify-instance:8080 pnpm exec drs verify bundle.json
 ```
 
-Or spin up your own drs-verify instance and point at it:
+Or run your own verifier and point the CLI at it:
 
 ```bash
 cd drs-verify && go run ./cmd/server &
 pnpm exec drs verify bundle.json
 ```
 
-## Checking signatures manually
+## Signature model
 
-If you want to verify a signature without the CLI tools, every DRS JWT is a standard EdDSA JWT. Any JWT library that supports `alg: EdDSA` can verify it:
+Each DRS JWT is an EdDSA JWT. The issuer DID encodes the Ed25519 public key:
 
-```bash
-# Decode and verify using jwt.io or any EdDSA-capable tool
-# The DID in the "iss" field encodes the public key:
-# did:key:z6Mk{base58(0xed01 + pub_key_bytes)}
-
-# Extract pub key from DID:
-echo "did:key:z6Mk..." | pnpm exec drs resolve-did
-# {"public_key_hex": "0102030405..."}
+```text
+did:key:z6Mk{base58btc(0xed01 + public_key_bytes)}
 ```
+
+That lets any verifier derive the public key from the DID without contacting the
+original operator.

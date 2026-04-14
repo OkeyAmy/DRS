@@ -34,10 +34,9 @@ This block defeats chain splicing: substituting any DR changes its bytes, which 
 For each JWT in the bundle:
 1. Parse JWT header — must be `{"alg":"EdDSA","typ":"JWT"}`
 2. Resolve the issuer DID to its Ed25519 public key (LRU-cached)
-3. Verify the EdDSA signature over `base64url(header).base64url(payload)`
-4. Enforce `S < L` (strict mode — rejects signature malleability)
+3. Verify the Ed25519 signature over `base64url(header).base64url(payload)`
 
-**Fail condition:** Any signature invalid, any DID unresolvable, any `S ≥ L`.
+**Fail condition:** any signature invalid or any DID unresolvable.
 
 > **Security:** The multicodec prefix check when resolving `did:key` DIDs uses `crypto/subtle.ConstantTimeCompare` in Go and `subtle::ConstantTimeEq` in Rust. Using `bytes.Equal` or `==` leaks timing information.
 
@@ -52,8 +51,10 @@ Policies are evaluated **conjunctively** — all policies must pass:
 - `args.estimated_cost_usd` must be ≤ `policy.max_cost_usd` (if set) at every level
 - `args.pii_access` must be `false` if `policy.pii_access` is `false` at any level
 
-Sub-DR attenuation check:
+Sub-DR attenuation and temporal nesting checks:
 - Each sub-DR's `policy` must be a subset of its parent's `policy`
+- Child `nbf` must not be earlier than parent `nbf`
+- Child `exp` must not outlive parent `exp` when both are set
 - Any escalation (wider tool list, higher cost limit, `pii_access: true` when parent has `false`) fails this block
 
 **Fail condition:** Any argument exceeds any policy constraint, or any sub-DR escalates permissions.
@@ -66,10 +67,8 @@ Sub-DR attenuation check:
 
 - `now ≥ receipt.nbf` for every receipt
 - `now ≤ receipt.exp` for every receipt where `exp` is not null
-- Sub-DR `nbf ≥ parent nbf`
-- Sub-DR `exp ≤ parent exp` (when both are set)
 
-**Fail condition:** Any receipt is expired, not yet valid, or has invalid temporal nesting.
+**Fail condition:** any receipt is expired or not yet valid.
 
 ---
 
@@ -77,14 +76,16 @@ Sub-DR attenuation check:
 
 **What:** No receipt has been revoked via either the remote Bitstring Status List or the local revocation store.
 
-For each **delegation receipt** with a `drs_status_list_index` (the invocation receipt is not checked for revocation):
+For each delegation receipt with a `drs_status_list_index`:
 
-1. **Remote check** — Fetch the W3C Bitstring Status List from `STATUS_LIST_BASE_URL` (configurable TTL cache, default 5 minutes, with `sync.Once` concurrency guard). Bit `1` = revoked.
-2. **Local check** — Query the in-memory local revocation store. Entries are added immediately via `POST /admin/revoke`. This store does not survive process restart.
+1. **Remote check** — only if `STATUS_LIST_BASE_URL` is configured.
+2. **Local check** — query the in-memory local revocation store.
 
-Both checks run for every receipt. Either alone is sufficient to fail verification.
+If the remote status cache is not configured, that part is skipped. Local
+revocation still runs.
 
-**Fail condition:** Any receipt's `drs_status_list_index` is marked as revoked in either source, **or** the remote status list check returns an error (fail-closed — an unavailable status list blocks verification).
+**Fail condition:** any receipt is marked revoked, or a configured remote
+revocation check errors.
 
 > The `sync.Once` guard prevents double-fetch race conditions: when the remote cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result.
 
@@ -112,7 +113,7 @@ verify_chain(bundle) → Result<VerifiedChain, VerifyError>:
   # Block C
   for (jwt, payload) in receipts + invocation:
     pub_key = resolve_did(payload.iss)  # LRU cached, constant-time prefix check
-    if not ed25519_verify_strict(jwt, pub_key): return Err(SIGNATURE_INVALID)
+    if not ed25519_verify(jwt, pub_key): return Err(SIGNATURE_INVALID)
 
   # Block D
   for dr in drs:
@@ -125,14 +126,10 @@ verify_chain(bundle) → Result<VerifiedChain, VerifyError>:
   for dr in drs:
     if now < dr.nbf: return Err(RECEIPT_NOT_YET_VALID)
     if dr.exp != null and now > dr.exp: return Err(RECEIPT_EXPIRED)
-  for i in 1..len(drs):
-    if drs[i].nbf < drs[i-1].nbf: return Err(TEMPORAL_BOUNDS_VIOLATION)
-    if both have exp and drs[i].exp > drs[i-1].exp: return Err(TEMPORAL_BOUNDS_VIOLATION)
-
   # Block F
   for dr in drs:
     if dr.drs_status_list_index != null:
-      if remote_status_list.is_revoked(dr.drs_status_list_index):
+      if remote_status_list_configured and remote_status_list.is_revoked(dr.drs_status_list_index):
         return Err(RECEIPT_REVOKED)
       if local_revocation_store.is_revoked(dr.drs_status_list_index):
         return Err(RECEIPT_REVOKED)
@@ -149,5 +146,5 @@ At 10,000 requests/second on the Go verification server:
 | Policy check per level | O(1) avg | Hash-set intersection in capability index |
 | DID resolution | O(1) amortised | LRU cache, 10,000 entry cap, 1-hour TTL |
 | Status list check | O(1) amortised | 5-min TTL, `sync.Once` guard |
-| Ed25519 verify | ~0.1ms/sig | `ed25519-dalek 2.x` |
+| Ed25519 verify | implementation-dependent | Go uses `crypto/ed25519` |
 | Total per request (2-hop chain) | ~0.8ms p99 | |

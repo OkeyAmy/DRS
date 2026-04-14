@@ -1,13 +1,14 @@
 # CLI Commands
 
-The `drs` CLI is included in `@drs/sdk`. Install globally:
+The `drs` CLI is included in `@okeyamy/drs-sdk`.
 
 ```bash
-pnpm add -g @drs/sdk
+pnpm add -g @okeyamy/drs-sdk
 drs --help
 ```
 
-Or use without global install via:
+Or run it without a global install:
+
 ```bash
 pnpm exec drs <command>
 ```
@@ -16,16 +17,14 @@ pnpm exec drs <command>
 
 ## drs verify
 
-Verify a DRS bundle against drs-verify.
+Verify a bundle against a running `drs-verify` service.
 
 ```bash
-drs verify <bundle-file> [options]
+drs verify [--include-timestamps] <bundle.json>
 ```
 
-| Option | Description |
-|---|---|
-| `--url <url>` | drs-verify base URL (default: `$DRS_VERIFY_URL`) |
-| `--offline` | Skip Block F (revocation check) — runs all other blocks locally |
+The CLI reads the verifier base URL from `DRS_VERIFY_URL`. If unset, it uses
+`http://localhost:8080`.
 
 **Examples:**
 
@@ -33,38 +32,44 @@ drs verify <bundle-file> [options]
 # Verify against local drs-verify
 DRS_VERIFY_URL=http://localhost:8080 drs verify bundle.json
 
-# Offline verification (no revocation check)
-drs verify bundle.json --offline
-
-# Verify and show all block results
-drs verify bundle.json --verbose
+# Ask the server to retrieve and verify RFC 3161 timestamp tokens
+drs verify --include-timestamps bundle.json
 ```
 
-**Exit codes:** `0` = valid, `1` = invalid, `2` = error (malformed input, server unreachable)
+**Exit codes:** `0` = valid, `1` = invalid or command error.
 
 ---
 
 ## drs audit
 
-Print the full human-readable audit trail for a bundle.
+Print a human-readable audit trail for a bundle file.
 
 ```bash
-drs audit <bundle-file>
+drs audit <bundle.json>
 ```
 
-Shows: issuer/audience for each receipt, policy at each level, consent record, temporal bounds, chain hashes, and invocation arguments.
+Current output includes:
+
+- bundle version
+- receipt count
+- `iss`, `aud`, `cmd`, `exp` for each receipt
+- `iss`, `cmd`, `tool_server` for the invocation
+
+It does not currently export regulatory evidence packages or retrieve bundles by
+invocation ID.
 
 ---
 
 ## drs policy
 
-Display the policy from a delegation receipt.
+Translate a policy JSON file or a JSON document with a top-level `policy` field.
 
 ```bash
-drs policy <bundle-file> [--receipt <index>]
+drs policy <receipt.json>
 ```
 
-`--receipt 0` shows the root DR's policy. `--receipt 1` shows the first sub-DR's policy. Default: shows all.
+The command does not support `--receipt`. If you want the policy from a bundle,
+extract one receipt payload first or save the policy to its own JSON file.
 
 ---
 
@@ -73,43 +78,28 @@ drs policy <bundle-file> [--receipt <index>]
 Translate a policy JSON object to plain English.
 
 ```bash
-drs translate <policy-file> [--locale <locale>]
+drs translate <policy.json>
 ```
-
-```bash
-echo '{"allowed_tools":["web_search"],"max_cost_usd":50,"pii_access":false}' \
-  | drs translate --locale en-GB
-```
-
-Output:
-```
-Research Agent wants permission to:
-✓  Search the web
-✗  Cannot access personal data
-✗  Cannot spend more than £50.00
-```
-
-Supported locales: `en-GB`, `en-US`, `fr-FR`, `de-DE` (others fall back to `en-US`).
 
 ---
 
 ## drs keygen
 
-Generate a new Ed25519 keypair.
+Generate a new Ed25519 keypair for development or testing.
 
 ```bash
-drs keygen [--output <file>]
+drs keygen
 ```
 
-Without `--output`: prints private key (base64url) and DID to stdout.
+Current output:
 
-With `--output keypair.json`: writes:
-```json
-{
-  "private_key": "<base64url 32 bytes>",
-  "did": "did:key:z6Mk...",
-  "created_at": "2026-03-30T10:00:00Z"
-}
+```text
+Ed25519 keypair generated.
+
+DID          : did:key:z6Mk...
+Public key   : <hex>
+Private key  : <hex>
 ```
 
-> **Security:** The private key is printed to stdout or written to the output file in plaintext. Use HSM or KMS for production keys — the `keygen` command is for development only.
+> **Security:** the private key is printed in plaintext hex. Do not commit it.
+> Use a proper KMS or HSM for production keys.

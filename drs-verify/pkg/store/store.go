@@ -1,10 +1,13 @@
 // Package store defines the DR Store interface and implementations.
 //
-// Tiers:
-//   0 — Memory: in-process LRU, ephemeral, fastest
-//   1 — Filesystem: local disk, survives process restart, 48h TTL
+// Tiers (see docs/storage-tiers.md for the canonical reference):
 //
-// Higher tiers (S3, WORM, on-chain) are out of scope for this version.
+//	0 — Session:     In-process memory (LRU), session lifetime only      [implemented]
+//	1 — Ephemeral:   Local filesystem, 48h TTL                           [implemented]
+//	2 — Durable:     S3-compatible object store                          [roadmap]
+//	3 — Compliant:   WORM + RFC 3161 timestamp anchor, 7yr retention     [implemented: pkg/anchor/tier3store.go]
+//	4 — Timestamped: Tier 3 + per-DR RFC 3161 TSToken                    [implemented: pkg/anchor/rfc3161.go]
+//	5 — On-Chain:    Tier 3 + Ethereum mainnet hash anchor               [roadmap]
 package store
 
 import "errors"

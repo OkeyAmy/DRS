@@ -3,23 +3,15 @@
 ## Requirements
 
 - Node.js 20+
-- pnpm (required — do not use npm or yarn)
+- pnpm
 
 ## Install
 
 ```bash
-pnpm add @drs/sdk
+pnpm add @okeyamy/drs-sdk
 ```
 
-## Optional: browser-side verification
-
-For client-side verification in browser environments, also install the WASM package:
-
-```bash
-pnpm add @drs/wasm
-```
-
-`@drs/sdk` detects `@drs/wasm` at runtime. If absent, the SDK's `VerifyClient` falls back to calling drs-verify over HTTP. If present, `initWasm()` loads the WASM module for local verification.
+Repository: `https://github.com/OkeyAmy/DRS`
 
 ## TypeScript configuration
 
@@ -39,31 +31,57 @@ pnpm add @drs/wasm
 pnpm exec drs keygen
 ```
 
-Expected:
-```
-Private key (keep secret): <base64url 32 bytes>
-DID:                        did:key:z6Mk...
+Expected output includes:
+
+```text
+Ed25519 keypair generated.
+
+DID          : did:key:z6Mk...
+Public key   : <hex>
+Private key  : <hex>
 ```
 
 ## What's in the package
 
-| Export path | Contents |
-|---|---|
-| `@drs/sdk` (main) | `issueRootDelegation`, `issueSubDelegation`, `issueInvocation`, `buildBundle`, `serialiseBundle`, `parseBundle`, `computeChainHash`, `checkPolicyAttenuation`, `translatePolicy` |
-| `@drs/sdk/verify` | `VerifyClient` — HTTP client for drs-verify |
-| `@drs/sdk/wasm` | `initWasm`, `getWasmModule`, `isWasmReady` |
-| `@drs/sdk/types` | All TypeScript interfaces |
+The published package exports from the root entry only. Import from
+`@okeyamy/drs-sdk`, not subpaths.
+
+If you are wiring middleware guides from this docs site, use package names and
+paths exactly as shown in each page. Do not switch to legacy aliases.
+
+```ts
+import {
+  issueRootDelegation,
+  issueSubDelegation,
+  issueInvocation,
+  buildBundle,
+  serialiseBundle,
+  parseBundle,
+  computeChainHash,
+  checkPolicyAttenuation,
+  translatePolicy,
+  VerifyClient,
+  initWasm,
+  getWasmModule,
+  isWasmReady,
+} from "@okeyamy/drs-sdk";
+```
+
+## Browser / WASM notes
+
+The SDK includes a WASM loader, but browser/WASM verification is still an
+explicit integration path:
+
+- `VerifyClient` talks to a running `drs-verify` HTTP service
+- `initWasm()` / `getWasmModule()` are available if you wire in a WASM build
+- there is no published standalone `@drs/wasm` package in this repo today
 
 ## Building the WASM package yourself
 
-If you are developing locally or want to use unreleased drs-core changes:
+If you are developing locally and want to experiment with the WASM build:
 
 ```bash
 cd drs-core
 wasm-pack build --target web --features wasm
 # Output: drs-core/pkg/
-
-# Link it locally
-cd drs-core/pkg && pnpm link --global
-cd drs-sdk && pnpm link --global @drs/wasm
 ```

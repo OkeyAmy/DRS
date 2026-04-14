@@ -1,0 +1,22 @@
+{
+  "suite": "revocation",
+  "version": "4.0",
+  "description": "Revocation status vectors. Conformance tests configure a local store with revoked indices and verify lookup.",
+  "vectors": [
+    {
+      "id": "rev-001-not-revoked",
+      "status_list_index": 0,
+      "is_revoked": false
+    },
+    {
+      "id": "rev-002-revoked",
+      "status_list_index": 42,
+      "is_revoked": true
+    },
+    {
+      "id": "rev-003-not-revoked-high-idx",
+      "status_list_index": 9999,
+      "is_revoked": false
+    }
+  ]
+}

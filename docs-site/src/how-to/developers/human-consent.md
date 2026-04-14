@@ -8,12 +8,15 @@ The `policy` field in a DR is machine-readable JSON. A user who clicks "Allow" o
 
 The `drs_consent.policy_hash` is the SHA-256 of the **human-readable text** the user actually saw. Auditors can verify that the consent UI displayed legible information, not raw JSON.
 
+Important: compute the hash from the exact rendered text shown to the user
+after localization and formatting.
+
 ## Generating the human-readable text
 
 Use the SDK's `translatePolicy` function:
 
 ```typescript
-import { translatePolicy } from '@drs/sdk';
+import { translatePolicy } from '@okeyamy/drs-sdk';
 
 const humanText = translatePolicy({
   allowed_tools: ['web_search', 'write_file'],
@@ -38,7 +41,7 @@ echo '{"allowed_tools":["web_search"],"max_cost_usd":50}' | pnpm exec drs transl
 ## Computing the policy hash
 
 ```typescript
-import { computeChainHash } from '@drs/sdk';
+import { computeChainHash } from '@okeyamy/drs-sdk';
 
 // Hash the text the user saw — not the policy JSON
 const policyHash = computeChainHash(humanText);
@@ -48,7 +51,7 @@ const policyHash = computeChainHash(humanText);
 ## Building the consent record
 
 ```typescript
-import { issueRootDelegation, computeChainHash, translatePolicy } from '@drs/sdk';
+import { issueRootDelegation, computeChainHash, translatePolicy } from '@okeyamy/drs-sdk';
 
 const policy = {
   allowed_tools: ['web_search'],
@@ -62,7 +65,7 @@ const humanText = translatePolicy(policy, { locale: 'en-GB' });
 // 2. Show humanText in your consent UI
 // await showConsentDialog(humanText);  — user clicks Allow
 
-// 3. Record their consent
+// 3. Record their consent using the exact same text for policy_hash
 const rootDR = await issueRootDelegation({
   // ... other params ...
   policy,

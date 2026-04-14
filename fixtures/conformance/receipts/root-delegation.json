@@ -1,0 +1,53 @@
+{
+  "suite": "receipt-root-delegation",
+  "version": "4.0",
+  "note": "CONFORMANCE TEST KEY ONLY — not for production use",
+  "keys": {
+    "alice": {
+      "seed_hex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+      "pub_hex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "did": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw"
+    },
+    "bob": {
+      "seed_hex": "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb",
+      "pub_hex": "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+      "did": "did:key:z6MkiaMbhXHNA4eJVCCj8dbzKzTgYDKf6crKgHVHid1F1WCT"
+    },
+    "charlie": {
+      "seed_hex": "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7",
+      "pub_hex": "fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025",
+      "did": "did:key:z6MkwSD8dBdqcXQzKJZQFPy2hh2izzxskndKCjdmC2dBpfME"
+    }
+  },
+  "payload": {
+    "iss": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+    "sub": "did:key:z6MktwupdmLXVVqTzCw4i46r4uGyosGXRnR3XjN4Zq7oMMsw",
+    "aud": "did:key:z6MkiaMbhXHNA4eJVCCj8dbzKzTgYDKf6crKgHVHid1F1WCT",
+    "drs_v": "4.0",
+    "drs_type": "delegation-receipt",
+    "cmd": "/mcp/tools/call",
+    "policy": {
+      "max_cost_usd": 10,
+      "pii_access": false,
+      "write_access": false,
+      "allowed_tools": [
+        "web_search",
+        "file_read"
+      ]
+    },
+    "nbf": 1700000000,
+    "exp": 1800000000,
+    "iat": 1700000001,
+    "jti": "dr:conformance-root-001",
+    "drs_root_type": "human",
+    "drs_consent": {
+      "method": "explicit-ui-click",
+      "timestamp": "2026-01-01T00:00:00Z",
+      "session_id": "conformance-session-001",
+      "policy_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "locale": "en-GB"
+    }
+  },
+  "jwt": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJkaWQ6a2V5Ono2TWtpYU1iaFhITkE0ZUpWQ0NqOGRiekt6VGdZREtmNmNyS2dIVkhpZDFGMVdDVCIsImNtZCI6Ii9tY3AvdG9vbHMvY2FsbCIsImRyc19jb25zZW50Ijp7ImxvY2FsZSI6ImVuLUdCIiwibWV0aG9kIjoiZXhwbGljaXQtdWktY2xpY2siLCJwb2xpY3lfaGFzaCI6InNoYTI1NjowMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwIiwic2Vzc2lvbl9pZCI6ImNvbmZvcm1hbmNlLXNlc3Npb24tMDAxIiwidGltZXN0YW1wIjoiMjAyNi0wMS0wMVQwMDowMDowMFoifSwiZHJzX3Jvb3RfdHlwZSI6Imh1bWFuIiwiZHJzX3R5cGUiOiJkZWxlZ2F0aW9uLXJlY2VpcHQiLCJkcnNfdiI6IjQuMCIsImV4cCI6MTgwMDAwMDAwMCwiaWF0IjoxNzAwMDAwMDAxLCJpc3MiOiJkaWQ6a2V5Ono2TWt0d3VwZG1MWFZWcVR6Q3c0aTQ2cjR1R3lvc0dYUm5SM1hqTjRacTdvTU1zdyIsImp0aSI6ImRyOmNvbmZvcm1hbmNlLXJvb3QtMDAxIiwibmJmIjoxNzAwMDAwMDAwLCJwb2xpY3kiOnsiYWxsb3dlZF90b29scyI6WyJ3ZWJfc2VhcmNoIiwiZmlsZV9yZWFkIl0sIm1heF9jb3N0X3VzZCI6MTAsInBpaV9hY2Nlc3MiOmZhbHNlLCJ3cml0ZV9hY2Nlc3MiOmZhbHNlfSwic3ViIjoiZGlkOmtleTp6Nk1rdHd1cGRtTFhWVnFUekN3NGk0NnI0dUd5b3NHWFJuUjNYak40WnE3b01Nc3cifQ.p2mnf8HjWTJZ1SJ9XtsMN-eJ3S1BS1XcaFjypcCMoFvY2kBoSZq_UAMRPvt9Xnxyvye9Fs2BCci6ZrFyRwBhDQ",
+  "chain_hash": "sha256:42a831b8e604fbe9cf6dcac4d9810f93410d1f11c4e51fe11410067864ced1cf"
+}

@@ -1,0 +1,124 @@
+{
+  "suite": "policy-attenuation-fail",
+  "version": "4.0",
+  "description": "Parent-child policy pairs that must fail attenuation check. expected_keyword identifies which field caused the violation.",
+  "vectors": [
+    {
+      "id": "pol-fail-001-cost-escalation",
+      "parent": {
+        "max_cost_usd": 10
+      },
+      "child": {
+        "max_cost_usd": 20
+      },
+      "expected_keyword": "max_cost_usd"
+    },
+    {
+      "id": "pol-fail-002-pii-escalation",
+      "parent": {
+        "pii_access": false
+      },
+      "child": {
+        "pii_access": true
+      },
+      "expected_keyword": "pii_access"
+    },
+    {
+      "id": "pol-fail-003-write-escalation",
+      "parent": {
+        "write_access": false
+      },
+      "child": {
+        "write_access": true
+      },
+      "expected_keyword": "write_access"
+    },
+    {
+      "id": "pol-fail-004-tool-not-in-parent",
+      "parent": {
+        "allowed_tools": [
+          "web_search"
+        ]
+      },
+      "child": {
+        "allowed_tools": [
+          "web_search",
+          "delete_database"
+        ]
+      },
+      "expected_keyword": "allowed_tools"
+    },
+    {
+      "id": "pol-fail-005-child-wildcard-tools",
+      "parent": {
+        "allowed_tools": [
+          "web_search"
+        ]
+      },
+      "child": {
+        "allowed_tools": [
+          "*"
+        ]
+      },
+      "expected_keyword": "allowed_tools"
+    },
+    {
+      "id": "pol-fail-006-max-calls-escalation",
+      "parent": {
+        "max_calls": 10
+      },
+      "child": {
+        "max_calls": 20
+      },
+      "expected_keyword": "max_calls"
+    },
+    {
+      "id": "pol-fail-007-resource-not-in-parent",
+      "parent": {
+        "allowed_resources": [
+          "mcp://tools/a"
+        ]
+      },
+      "child": {
+        "allowed_resources": [
+          "mcp://tools/a",
+          "mcp://tools/b"
+        ]
+      },
+      "expected_keyword": "allowed_resources"
+    },
+    {
+      "id": "pol-fail-008-data-class-not-in-parent",
+      "parent": {
+        "allowed_data_classes": [
+          "public"
+        ]
+      },
+      "child": {
+        "allowed_data_classes": [
+          "public",
+          "confidential"
+        ]
+      },
+      "expected_keyword": "allowed_data_classes"
+    },
+    {
+      "id": "pol-fail-009-child-omits-cost",
+      "parent": {
+        "max_cost_usd": 10
+      },
+      "child": {},
+      "expected_keyword": "max_cost_usd"
+    },
+    {
+      "id": "pol-fail-010-child-omits-tools",
+      "parent": {
+        "allowed_tools": [
+          "web_search"
+        ]
+      },
+      "child": {},
+      "expected_keyword": "allowed_tools"
+    }
+  ]
+}

@@ -1,0 +1,158 @@
+name: Conformance Suite
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'fixtures/conformance/**'
+      - 'drs-core/**'
+      - 'drs-sdk/**'
+      - 'drs-verify/**'
+      - 'packages/**'
+      - '.github/workflows/conformance.yml'
+  pull_request:
+    paths:
+      - 'fixtures/conformance/**'
+      - 'drs-core/**'
+      - 'drs-sdk/**'
+      - 'drs-verify/**'
+      - 'packages/**'
+      - '.github/workflows/conformance.yml'
+  workflow_dispatch:
+
+jobs:
+  rust:
+    name: Rust (drs-core) — full test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            drs-core/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('drs-core/Cargo.lock') }}
+
+      - name: Run all tests (includes conformance)
+        working-directory: drs-core
+        run: cargo test -- --nocapture
+
+  go:
+    name: Go (drs-verify) — full test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: drs-verify/go.sum
+
+      - name: Run all tests (includes conformance)
+        working-directory: drs-verify
+        run: go test ./... -v
+
+  typescript-sdk:
+    name: TypeScript (drs-sdk) — full test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: drs-sdk
+        run: pnpm install
+
+      - name: Run all tests (includes conformance)
+        working-directory: drs-sdk
+        run: npx vitest run
+
+  typescript-mcp-client:
+    name: TypeScript (drs-mcp-client)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: packages/drs-mcp-client
+        run: pnpm install
+
+      - name: Run tests
+        working-directory: packages/drs-mcp-client
+        run: npx vitest run
+
+  typescript-mcp-server:
+    name: TypeScript (drs-mcp-server)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: packages/drs-mcp-server
+        run: pnpm install
+
+      - name: Run tests
+        working-directory: packages/drs-mcp-server
+        run: npx vitest run
+
+  fixture-integrity:
+    name: Fixture integrity check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute fixture checksum
+        run: |
+          find fixtures/conformance -name '*.json' -type f | sort | xargs sha256sum > /tmp/fixture-checksums.txt
+          cat /tmp/fixture-checksums.txt
+
+      - name: Verify fixtures are valid JSON
+        run: |
+          ERRORS=0
+          for f in $(find fixtures/conformance -name '*.json' -type f); do
+            if ! python3 -m json.tool "$f" > /dev/null 2>&1; then
+              echo "INVALID JSON: $f"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "$ERRORS fixture file(s) contain invalid JSON"
+            exit 1
+          fi
+          echo "All fixture files are valid JSON"

@@ -1,0 +1,59 @@
+{
+  "suite": "temporal-validity",
+  "version": "4.0",
+  "description": "Temporal validity test vectors. exp=null means no expiry (standing delegation).",
+  "vectors": [
+    {
+      "id": "temp-001-valid-within-window",
+      "nbf": 1000000,
+      "exp": 2000000,
+      "now": 1500000,
+      "valid": true
+    },
+    {
+      "id": "temp-002-not-yet-valid",
+      "nbf": 2000000,
+      "exp": 3000000,
+      "now": 1500000,
+      "valid": false,
+      "expected_code": "NOT_YET_VALID"
+    },
+    {
+      "id": "temp-003-expired",
+      "nbf": 1000000,
+      "exp": 1500000,
+      "now": 2000000,
+      "valid": false,
+      "expected_code": "EXPIRED"
+    },
+    {
+      "id": "temp-004-exact-nbf-boundary",
+      "nbf": 1500000,
+      "exp": 2000000,
+      "now": 1500000,
+      "valid": true
+    },
+    {
+      "id": "temp-005-exact-exp-boundary",
+      "nbf": 1000000,
+      "exp": 1500000,
+      "now": 1500000,
+      "valid": true
+    },
+    {
+      "id": "temp-006-null-exp-valid",
+      "nbf": 1000000,
+      "exp": null,
+      "now": 9999999999,
+      "valid": true
+    },
+    {
+      "id": "temp-007-just-expired",
+      "nbf": 1000000,
+      "exp": 1500000,
+      "now": 1500001,
+      "valid": false,
+      "expected_code": "EXPIRED"
+    }
+  ]
+}

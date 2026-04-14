@@ -1,0 +1,105 @@
+{
+  "suite": "policy-attenuation-pass",
+  "version": "4.0",
+  "description": "Parent-child policy pairs that must pass attenuation check (child does not escalate).",
+  "vectors": [
+    {
+      "id": "pol-pass-001-identical",
+      "parent": {
+        "max_cost_usd": 10,
+        "pii_access": false,
+        "write_access": false
+      },
+      "child": {
+        "max_cost_usd": 10,
+        "pii_access": false,
+        "write_access": false
+      }
+    },
+    {
+      "id": "pol-pass-002-tighter-cost",
+      "parent": {
+        "max_cost_usd": 10
+      },
+      "child": {
+        "max_cost_usd": 5
+      }
+    },
+    {
+      "id": "pol-pass-003-subset-tools",
+      "parent": {
+        "allowed_tools": [
+          "web_search",
+          "file_read",
+          "summarise"
+        ]
+      },
+      "child": {
+        "allowed_tools": [
+          "web_search"
+        ]
+      }
+    },
+    {
+      "id": "pol-pass-004-child-adds-restriction",
+      "parent": {
+        "max_cost_usd": 50
+      },
+      "child": {
+        "max_cost_usd": 10,
+        "pii_access": false
+      }
+    },
+    {
+      "id": "pol-pass-005-wildcard-parent-tools",
+      "parent": {
+        "allowed_tools": [
+          "*"
+        ]
+      },
+      "child": {
+        "allowed_tools": [
+          "web_search",
+          "file_read"
+        ]
+      }
+    },
+    {
+      "id": "pol-pass-006-tighter-max-calls",
+      "parent": {
+        "max_calls": 100
+      },
+      "child": {
+        "max_calls": 50
+      }
+    },
+    {
+      "id": "pol-pass-007-subset-resources",
+      "parent": {
+        "allowed_resources": [
+          "mcp://tools/a",
+          "mcp://tools/b"
+        ]
+      },
+      "child": {
+        "allowed_resources": [
+          "mcp://tools/a"
+        ]
+      }
+    },
+    {
+      "id": "pol-pass-008-subset-data-classes",
+      "parent": {
+        "allowed_data_classes": [
+          "public",
+          "internal"
+        ]
+      },
+      "child": {
+        "allowed_data_classes": [
+          "public"
+        ]
+      }
+    }
+  ]
+}

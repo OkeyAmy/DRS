@@ -5,7 +5,7 @@ This tutorial walks through issuing a root delegation receipt and a sub-delegati
 ## Prerequisites
 
 - Node.js 20+ and pnpm
-- `@drs/sdk` installed: `pnpm add @drs/sdk`
+- `@okeyamy/drs-sdk` installed: `pnpm add @okeyamy/drs-sdk`
 
 ## Step 1: Generate two keypairs
 
@@ -26,9 +26,9 @@ pnpm exec drs keygen
 Create `issue-demo.ts`:
 
 ```typescript
-import { issueRootDelegation, computeChainHash } from '@drs/sdk';
+import { issueRootDelegation, computeChainHash } from '@okeyamy/drs-sdk';
 
-const humanKey = Uint8Array.from(Buffer.from('HUMAN_PRIVATE_KEY', 'base64url'));
+const humanKey = Uint8Array.from(Buffer.from('HUMAN_PRIVATE_KEY_HEX', 'hex'));
 const now = Math.floor(Date.now() / 1000);
 
 const rootDR = await issueRootDelegation({
@@ -69,9 +69,9 @@ pnpm exec tsx issue-demo.ts
 The agent narrows the policy before delegating further:
 
 ```typescript
-import { issueSubDelegation } from '@drs/sdk';
+import { issueSubDelegation } from '@okeyamy/drs-sdk';
 
-const agentKey = Uint8Array.from(Buffer.from('AGENT_PRIVATE_KEY', 'base64url'));
+const agentKey = Uint8Array.from(Buffer.from('AGENT_PRIVATE_KEY_HEX', 'hex'));
 
 const parentPolicy = {
   allowed_tools: ['web_search', 'write_file'],

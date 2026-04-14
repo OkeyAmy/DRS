@@ -6,7 +6,7 @@ This tutorial builds on [Issue Your First Delegation](./01-issue-first-delegatio
 
 - Go 1.22+ with `drs-verify` source
 - The `rootDR` and `subDR` JWTs from Tutorial 1
-- `@drs/sdk` installed
+- `@okeyamy/drs-sdk` installed
 
 ## Step 1: Start drs-verify
 
@@ -19,10 +19,10 @@ go run ./cmd/server
 ## Step 2: Issue an invocation receipt
 
 ```typescript
-import { issueInvocation, computeChainHash, buildBundle, serialiseBundle } from '@drs/sdk';
+import { issueInvocation, computeChainHash, buildBundle, serialiseBundle } from '@okeyamy/drs-sdk';
 import { writeFileSync } from 'fs';
 
-const agentKey = Uint8Array.from(Buffer.from('SUBAGENT_PRIVATE_KEY', 'base64url'));
+const agentKey = Uint8Array.from(Buffer.from('SUBAGENT_PRIVATE_KEY_HEX', 'hex'));
 
 const invocation = await issueInvocation({
   signingKey:  agentKey,
@@ -57,15 +57,11 @@ console.log('Bundle written to bundle.json');
 DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
 ```
 
-Expected output:
+Expected output begins with:
 ```
-✓ Bundle verified
-  Chain depth:    2
-  Root principal: did:key:z6MkHUMAN...
-  Subject:        did:key:z6MkHUMAN...
-  Command:        /mcp/tools/call
-  Policy result:  pass
-  Blocks:         A✓ B✓ C✓ D✓ E✓ F✓
+✓ Chain verified
+  Root principal : did:key:z6MkHUMAN...
+  Chain depth    : 2
 ```
 
 ## Step 4: Verify via HTTP API directly
@@ -79,11 +75,11 @@ curl -s -X POST http://localhost:8080/verify \
 ```json
 {
   "valid": true,
-  "chain_depth": 2,
-  "root_principal": "did:key:z6MkHUMAN...",
-  "subject": "did:key:z6MkHUMAN...",
-  "command": "/mcp/tools/call",
-  "policy_result": "pass"
+  "context": {
+    "root_principal": "did:key:z6MkHUMAN...",
+    "chain_depth": 2,
+    "root_type": "human"
+  }
 }
 ```
 
@@ -100,8 +96,7 @@ DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify tampered.json
 Expected:
 ```
 ✗ Verification failed
-  Block:  B (structural integrity)
-  Error:  CHAIN_HASH_MISMATCH — prev_dr_hash mismatch at chain index 1
+  Code       : CHAIN_HASH_MISMATCH
 ```
 
 ## Step 6: Print the full audit trail
@@ -110,7 +105,8 @@ Expected:
 pnpm exec drs audit bundle.json
 ```
 
-This prints a human-readable breakdown of every receipt in the chain: issuers, audiences, policies, temporal bounds, and consent records.
+This prints the current compact audit breakdown: bundle version, receipt count,
+key receipt fields, and the invocation's issuer / command / tool server.
 
 ## Next steps
 

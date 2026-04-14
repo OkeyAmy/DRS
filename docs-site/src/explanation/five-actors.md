@@ -25,7 +25,7 @@ The `drs_consent` field in the root DR records evidence of this consent: the met
 
 ## 2. Developer
 
-Integrates DRS into MCP tool servers or agent runtimes. Interacts with the TypeScript SDK (`@drs/sdk`) and the drs-verify HTTP API.
+Integrates DRS into MCP tool servers or agent runtimes. Interacts with the TypeScript SDK (`@okeyamy/drs-sdk`) and the drs-verify HTTP API.
 
 **What they do:**
 - Call `issueRootDelegation` / `issueSubDelegation` from the SDK
@@ -73,9 +73,8 @@ Reconstructs delegation chains after the fact to produce evidence for regulators
 
 **What they do:**
 ```bash
-drs audit retrieve --inv-jti "inv:7h5c4d3e-..."
-drs verify evidence.json
-drs audit export --inv-jti "inv:7h5c4d3e-..." --format eu-ai-act
+drs verify bundle.json
+drs audit bundle.json
 ```
 
 **Key concern:** Can I prove what happened to a standard that satisfies EU AI Act Article 12?

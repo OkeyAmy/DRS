@@ -1,0 +1,117 @@
+{
+  "suite": "jcs-canonicalization",
+  "version": "4.0",
+  "description": "RFC 8785 JCS canonicalization test vectors. Input is an arbitrary JSON value. Expected is the canonical serialization.",
+  "vectors": [
+    {
+      "id": "jcs-001-integer",
+      "input": 1,
+      "expected": "1"
+    },
+    {
+      "id": "jcs-002-string",
+      "input": "hello",
+      "expected": "\"hello\""
+    },
+    {
+      "id": "jcs-003-null",
+      "input": null,
+      "expected": "null"
+    },
+    {
+      "id": "jcs-004-true",
+      "input": true,
+      "expected": "true"
+    },
+    {
+      "id": "jcs-005-false",
+      "input": false,
+      "expected": "false"
+    },
+    {
+      "id": "jcs-006-sorted-keys",
+      "input": {
+        "z": 26,
+        "m": 13,
+        "a": 1
+      },
+      "expected": "{\"a\":1,\"m\":13,\"z\":26}"
+    },
+    {
+      "id": "jcs-007-nested-keys",
+      "input": {
+        "outer": {
+          "z": 2,
+          "a": 1
+        },
+        "a": 0
+      },
+      "expected": "{\"a\":0,\"outer\":{\"a\":1,\"z\":2}}"
+    },
+    {
+      "id": "jcs-008-array-preserved",
+      "input": [
+        3,
+        1,
+        4,
+        1,
+        5,
+        9
+      ],
+      "expected": "[3,1,4,1,5,9]"
+    },
+    {
+      "id": "jcs-009-empty-object",
+      "input": {},
+      "expected": "{}"
+    },
+    {
+      "id": "jcs-010-empty-array",
+      "input": [],
+      "expected": "[]"
+    },
+    {
+      "id": "jcs-011-mixed-types",
+      "input": {
+        "b": true,
+        "a": [
+          1,
+          "two",
+          null
+        ],
+        "c": {
+          "d": false
+        }
+      },
+      "expected": "{\"a\":[1,\"two\",null],\"b\":true,\"c\":{\"d\":false}}"
+    },
+    {
+      "id": "jcs-012-string-escaping",
+      "input": {
+        "msg": "hello \"world\""
+      },
+      "expected": "{\"msg\":\"hello \\\"world\\\"\"}"
+    },
+    {
+      "id": "jcs-013-deeply-nested",
+      "input": {
+        "c": {
+          "b": {
+            "a": 1
+          }
+        }
+      },
+      "expected": "{\"c\":{\"b\":{\"a\":1}}}"
+    },
+    {
+      "id": "jcs-014-float",
+      "input": 1.5,
+      "expected": "1.5"
+    },
+    {
+      "id": "jcs-015-negative",
+      "input": -42,
+      "expected": "-42"
+    }
+  ]
+}

@@ -23,8 +23,8 @@ cargo install wasm-pack
 ## Clone and build
 
 ```bash
-git clone https://github.com/yourorg/drs
-cd drs
+git clone https://github.com/OkeyAmy/DRS
+cd DRS
 
 # Rust core
 cd drs-core

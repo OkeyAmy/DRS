@@ -1,99 +1,101 @@
 # Architecture
 
-DRS uses a three-language stack. Each language handles the layer it is genuinely best suited for. This is not aesthetic preference — it is a consequence of the performance and correctness requirements of each layer.
+DRS uses a three-language stack. The three layers are peer implementations with
+different primary roles; the Go verifier does not call Rust at runtime.
 
 ## The three layers
 
 ```
 ┌──────────────────────────────────────────────┐
-│  TypeScript SDK  (@drs/sdk)                   │
-│  Issuance path only. Low-frequency.           │
-│  issueRootDelegation, issueSubDelegation,     │
-│  buildBundle, CLI tools                       │
-│  Delegates crypto to WASM or HTTP             │
+│  TypeScript SDK  (@okeyamy/drs-sdk)           │
+│  issuance, bundle assembly, CLI               │
+│  optional HTTP verification client            │
 └───────────────────┬──────────────────────────┘
-                    │  WASM (drs-core compiled for browser)
-                    │  HTTP (VerifyClient → drs-verify)
+                    │  optional WASM for browser/runtime use
+                    │  HTTP to drs-verify
 ┌───────────────────▼──────────────────────────┐
-│  Go Middleware  (drs-verify)                  │
-│  Verification path. High-frequency.           │
-│  verify_chain (6 blocks), MCP/A2A middleware  │
-│  LRU DID resolver, status list cache          │
-│  Single static binary, goroutine-based        │
+│  Go verifier  (drs-verify)                    │
+│  verification server, middleware, revocation  │
+│  resolver cache, health/readiness, storage    │
 └───────────────────┬──────────────────────────┘
-                    │  Rust crate (native library)
-                    │  WASM (browser target)
+                    │  shared protocol contract
+                    │  conformance vectors
 ┌───────────────────▼──────────────────────────┐
-│  Rust Core  (drs-core)                        │
-│  Ed25519 sign/verify, SHA-256, JCS (RFC 8785) │
-│  Capability index (O(1) policy check)         │
-│  DID key resolution, chain hash computation   │
-│  Zero GC. Stack-allocated. Deterministic.     │
+│  Rust core  (drs-core)                        │
+│  crypto primitives, JCS, chain hash, policy   │
+│  reference implementation for ambiguous cases │
 └──────────────────────────────────────────────┘
 ```
 
 ## Why Rust for the core
 
-Ed25519 signature verification requires deterministic, constant-time operations. V8 (JavaScript/TypeScript) cannot guarantee either:
-- GC pauses of 50–1500ms are common under load
-- V8 does not guarantee constant-time execution of arithmetic
+Rust is the lowest-level implementation and the internal reference when a
+conformance vector is ambiguous. It provides:
 
-Rust's `ed25519-dalek 2.x` provides:
-- RUSTSEC-2022-0093 patched (batch verification side-channel fixed)
-- `verify_strict()` enforcing `S < L` — rejects signature malleability
-- `subtle::ConstantTimeEq` for security-sensitive comparisons
-- Compiles to native library (used by Go via CGO) and WASM (used in browsers)
+- `ed25519-dalek 2.x` for strict cryptographic operations
+- `serde-json-canonicalizer` for RFC 8785 JCS
+- deterministic, low-level primitives suitable for WASM export
 
-The v2 architecture used TypeScript for verification and hit all of these problems in implementation.
+Rust is important for protocol correctness, but it is not linked into
+`drs-verify` through CGO.
 
 ## Why Go for verification
 
-The verification server handles thousands of concurrent requests. Go's goroutine model gives concurrent request handling without the complexity of async Rust, while the GC is predictable enough for the latency requirements:
+The Go service is the production verification path today. It handles:
 
-- `sync.Once` prevents double-fetch race conditions in the Bitstring Status List cache
-- `hashicorp/golang-lru/v2` — LRU with hard cap of 10,000 entries (~640KB)
+- `verify.Chain()` (Blocks A-F)
+- `MCPMiddleware` / `A2AMiddleware`
+- DID resolution with LRU caching
+- Bitstring Status List caching with `sync.Once`
+- health and readiness endpoints
+- storage and local revocation
+
+Key implementation details:
+
+- `crypto/ed25519` for signature verification
 - `crypto/subtle.ConstantTimeCompare` for DID multicodec prefix checks
-- `CGO_ENABLED=0 go build` — single static binary, no runtime dependencies
-- `/healthz` and `/readyz` endpoints for Kubernetes readiness probes
+- `CGO_ENABLED=0 go build` for a single static binary
 
 ## Why TypeScript for the SDK
 
-Delegation issuance is low-frequency (human sets up a session, agent runtime boots). The developer experience matters more than raw performance. TypeScript gives:
-- Native npm ecosystem integration — one `pnpm add @drs/sdk`
-- IDE autocompletion and type safety
-- Browser compatibility for consent UIs
-- Matches the existing tech stack of most MCP server developers
+Issuance is developer-facing and low-frequency. TypeScript provides:
 
-TypeScript never handles verification — that path runs in Go or Rust.
+- ergonomic npm distribution: `pnpm add @okeyamy/drs-sdk`
+- strong typing for policies, receipts, and bundles
+- browser-friendly UI integration for consent flows
+- the CLI used for local development and testing
+
+The SDK also includes `VerifyClient`, which sends bundles to a running
+`drs-verify` instance over HTTP. Local WASM verification exists as a separate,
+explicit capability; it is not an automatic fallback inside `VerifyClient`.
 
 ## JCS canonicalisation
 
-All JWTs in DRS are canonicalised with RFC 8785 (JSON Canonicalization Scheme) before signing. This ensures two logically equivalent objects always produce identical JWT bytes, regardless of which implementation created them.
+All signed JSON in DRS is canonicalised with RFC 8785 before signing. The rules
+are:
 
-The rules:
-- Object keys sorted recursively by Unicode code point
-- No whitespace
-- IEEE 754 shortest number representation
+- object keys sorted recursively
+- no insignificant whitespace
+- canonical JSON number formatting
 
 ```typescript
-// WRONG — does not sort nested object keys:
+// WRONG
 const payload = JSON.stringify(obj);
 
-// CORRECT — RFC 8785 JCS:
-const payload = jcsSerialise(obj);  // from drs-sdk/src/sdk/issue.ts
+// CORRECT
+const payload = jcsSerialise(obj);
 ```
 
-The Rust implementation uses `serde-json-canonicalizer`. The TypeScript implementation has an inline `jcsSerialise()` function. Both must produce identical output for the same logical object — this is tested in the cross-implementation test suite.
+In the TypeScript SDK, `jcsSerialise` lives in `drs-sdk/src/sdk/jcs.ts`. The
+Rust and TypeScript outputs are checked against shared conformance vectors.
 
 ## WASM build
 
 ```bash
 cd drs-core
 wasm-pack build --target web --features wasm
-# Output: drs-core/pkg/ — publish as @drs/wasm
+# Output: drs-core/pkg/
 ```
 
-The `@drs/wasm` package is an optional peer dependency of `@drs/sdk`. The WASM loader (`src/wasm/loader.ts`) is:
-- **Idempotent:** `initWasm()` can be called multiple times safely
-- **Lazy:** the WASM binary is not fetched until `initWasm()` is awaited
-- **Graceful:** if `@drs/wasm` is not installed, a clear error is thrown
+The browser/WASM path is explicit: callers initialize it themselves via the
+loader in `drs-sdk/src/wasm/loader.ts`.

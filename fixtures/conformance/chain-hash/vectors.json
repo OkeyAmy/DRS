@@ -1,0 +1,22 @@
+{
+  "suite": "chain-hash",
+  "version": "4.0",
+  "description": "Chain hash computation: SHA-256 of raw JWT bytes, formatted as \"sha256:{hex}\".",
+  "vectors": [
+    {
+      "id": "hash-001",
+      "input": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ0ZXN0In0.signature",
+      "expected": "sha256:0dfb40a135667221ab508c597b9e4bc252222f70459a5dd9a93f8a2e43c9b9e8"
+    },
+    {
+      "id": "hash-002",
+      "input": "header.payload.sig",
+      "expected": "sha256:7cd1a4f86efa8b153b99ee0186131978f4955727c46e1a1d6928819c5049275e"
+    },
+    {
+      "id": "hash-003",
+      "input": "a.b.c",
+      "expected": "sha256:845e30448809e2bc8958eb025bfc795235d13b077a53d0c3abbd2385170dc9b8"
+    }
+  ]
+}

@@ -100,3 +100,7 @@ package-lock.json
 
 .remember/
 docs/security_audit_report_2026-04-08.md
+docs/v1-vs-drs-architecture-review.md
+docs/v1-drs.md
+v1/
+.omx/

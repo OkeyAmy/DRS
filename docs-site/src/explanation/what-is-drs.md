@@ -29,7 +29,10 @@ CVE-2025-55241 (Azure AD, March 2025) demonstrated this in production. The IETF 
 1. **Delegation Receipt (DR):** A signed JWT issued by each delegator. Contains the command, policy constraints, temporal bounds, and a SHA-256 hash of the previous DR.
 2. **Chain:** The linked sequence of DRs from the human root to the invoking agent. Each `prev_dr_hash` field links back, creating a tamper-evident chain.
 3. **Invocation Receipt:** A signed JWT recording the actual tool call arguments, the full chain of DR hashes, and the tool server's DID.
-4. **Bundle:** The invocation receipt plus all DRs, transmitted as a base64url-encoded JSON object in the `X-DRS-Bundle` HTTP header.
+4. **Bundle:** The invocation receipt plus all DRs. On HTTP-terminated routes it
+   travels as a base64url-encoded JSON object in the `X-DRS-Bundle` header. On
+   pure JSON-RPC MCP flows it can travel in `params._meta["X-DRS-Bundle"]` with
+   the same base64url encoding.
 
 ## What DRS is not
 
@@ -42,6 +45,6 @@ DRS is frequently confused with systems it is adjacent to but distinct from:
 | OpenTelemetry | Distributed tracing | Observability vs. authorisation provenance |
 | Langfuse / Arize | LLM observability | Logs vs. cryptographic proofs |
 | Agentic JWT | JWT profile for agent identity | Identity vs. delegation chain receipts |
-| Blockchain audit logs | Immutable event log | DRS receipts work without blockchain (on-chain is optional tier 4) |
+| Blockchain audit logs | Immutable event log | DRS receipts work without blockchain (on-chain is optional Tier 5) |
 
 For a detailed comparison, see [DRS vs Alternatives](../reference/comparison.md).

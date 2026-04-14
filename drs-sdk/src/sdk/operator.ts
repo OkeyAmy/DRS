@@ -45,8 +45,8 @@ export interface OperatorConfig {
   renewal_rules: RenewalRules;
   /** Escalation path for out-of-policy requests. */
   escalation: Escalation;
-  /** DR Store tier: 0=memory, 1=filesystem, 2=S3, 3=WORM, 4=on-chain. */
-  storage_tier: 0 | 1 | 2 | 3 | 4;
+  /** DR Store tier: 0=Session(memory), 1=Ephemeral(filesystem), 2=Durable(S3), 3=Compliant(WORM+RFC3161), 4=Timestamped(Tier3+TSToken), 5=On-Chain(Ethereum). See docs/storage-tiers.md. */
+  storage_tier: 0 | 1 | 2 | 3 | 4 | 5;
 }
 
 /**
@@ -75,8 +75,8 @@ export function validateOperatorConfig(cfg: OperatorConfig): void {
   if (cfg.renewal_rules.session_ttl_hours < 0) {
     throw new DrsError("INVALID_OPERATOR_CONFIG", "session_ttl_hours must be >= 0.");
   }
-  if (![0, 1, 2, 3, 4].includes(cfg.storage_tier)) {
-    throw new DrsError("INVALID_OPERATOR_CONFIG", `storage_tier must be 0–4, got ${cfg.storage_tier}.`);
+  if (![0, 1, 2, 3, 4, 5].includes(cfg.storage_tier)) {
+    throw new DrsError("INVALID_OPERATOR_CONFIG", `storage_tier must be 0–5, got ${cfg.storage_tier}.`);
   }
 }
 

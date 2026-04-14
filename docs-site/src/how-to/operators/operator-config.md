@@ -25,14 +25,14 @@ Machine-to-machine deployments (no live human in the delegation loop) use an `Op
     "supervisor_did": "did:key:z6MkSupervisor...",
     "fallback": "deny"
   },
-  "storage_tier": 2
+  "storage_tier": 1
 }
 ```
 
 Load in TypeScript:
 
 ```typescript
-import { parseOperatorConfig } from '@drs/sdk';
+import { parseOperatorConfig } from '@okeyamy/drs-sdk';
 import { readFileSync } from 'fs';
 
 const cfg = parseOperatorConfig(
@@ -51,6 +51,10 @@ const cfg = parseOperatorConfig(
 | `"gcp-kms"` | GCP Cloud KMS — requires `DRS_GCP_KEY_NAME` env var |
 
 > **Security:** Never use `"file"` or `"env"` in production with keys that have regulatory significance. Use `"aws-kms"` or `"gcp-kms"` for production operator keys. See [Key Management](./key-management.md).
+
+> **Implementation note:** these values are accepted by the configuration model.
+> Full KMS integration work is separate from config parsing and should be treated
+> as production-hardening work rather than assumed runtime support.
 
 ## Root type
 
