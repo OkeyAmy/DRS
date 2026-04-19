@@ -62,6 +62,11 @@ type Config struct {
 	// NonceStoreTTLSecs is the TTL in seconds for nonce store entries.
 	// Should match or exceed the maximum expected exp window. Default: 3600 (1 hour).
 	NonceStoreTTLSecs int64
+
+	// TSARootCertPEM is the PEM-encoded root CA certificate(s) trusted for
+	// RFC 3161 timestamp verification. Empty means system roots are used.
+	// Set via TSA_ROOT_CERT_PEM env var.
+	TSARootCertPEM string
 }
 
 // Load reads all configuration from environment variables.
@@ -107,6 +112,8 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("NONCE_STORE_TTL_SECS: %w", err)
 	}
 
+	tsaRootCertPEM := os.Getenv("TSA_ROOT_CERT_PEM")
+
 	return Config{
 		ListenAddr:             listenAddr,
 		DidCacheSize:           didCacheSize,
@@ -121,6 +128,7 @@ func Load() (Config, error) {
 		ServerIdentity:         serverIdentity,
 		NonceStoreMaxEntries:   nonceMax,
 		NonceStoreTTLSecs:      nonceTTL,
+		TSARootCertPEM:         tsaRootCertPEM,
 	}, nil
 }
 

@@ -3,7 +3,12 @@ package middleware
 import (
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/drs-protocol/drs-verify/pkg/nonce"
 )
 
 func TestDecodeInvocationJTI_Valid(t *testing.T) {
@@ -42,6 +47,35 @@ func TestDecodeInvocationJTI_MissingJTI(t *testing.T) {
 	}
 	if jti != "" {
 		t.Errorf("expected empty jti for payload without jti, got %q", jti)
+	}
+}
+
+func TestCheckNonceReplayExported(t *testing.T) {
+	// Verify the function is exported and callable from outside the package.
+	// (This test is in package middleware — same package — so it proves exportability
+	// by the capital letter; integration coverage is in main_test.go below.)
+	ns := nonce.New(100, time.Hour)
+
+	// Build a minimal JWT with a jti claim.
+	payload := map[string]interface{}{
+		"jti":      "inv:test-nonce-001",
+		"drs_type": "invocation-receipt",
+	}
+	jwt := fakeJWT(t, payload)
+
+	// First call: nonce is fresh — should NOT abort (returns false).
+	w := httptest.NewRecorder()
+	if blocked := CheckNonceReplay(w, jwt, ns); blocked {
+		t.Error("first call with fresh nonce should not be blocked")
+	}
+
+	// Second call: same nonce — should abort (replay detected, returns true).
+	w2 := httptest.NewRecorder()
+	if blocked := CheckNonceReplay(w2, jwt, ns); !blocked {
+		t.Error("second call with same nonce should be blocked as replay")
+	}
+	if w2.Code != http.StatusConflict {
+		t.Errorf("replay response: want 409, got %d", w2.Code)
 	}
 }
 

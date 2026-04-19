@@ -11,11 +11,14 @@
 package verify
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -31,7 +34,33 @@ const (
 	expectedDRSVersion = "4.0"
 	expectedDRType     = "delegation-receipt"
 	expectedInvType    = "invocation-receipt"
+	// maxChainDepth is the maximum number of delegation receipts allowed in a
+	// single bundle. 16 hops is more than any legitimate delegation chain needs.
+	// This bounds CPU work per request independently of rate limiting.
+	maxChainDepth = 16
 )
+
+// jwtHeader holds the minimum fields needed to validate a JWT header.
+type jwtHeader struct {
+	Alg string `json:"alg"`
+}
+
+// decodeJWTHeader base64url-decodes the JWT header (parts[0]) into a jwtHeader.
+func decodeJWTHeader(jwt string) (jwtHeader, error) {
+	parts := strings.SplitN(jwt, ".", 4)
+	if len(parts) != 3 {
+		return jwtHeader{}, fmt.Errorf("expected 3 dot-separated JWT parts, got %d", len(parts))
+	}
+	headerBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return jwtHeader{}, fmt.Errorf("JWT header base64 decode: %w", err)
+	}
+	var hdr jwtHeader
+	if err := json.Unmarshal(headerBytes, &hdr); err != nil {
+		return jwtHeader{}, fmt.Errorf("JWT header JSON unmarshal: %w", err)
+	}
+	return hdr, nil
+}
 
 // Deps bundles the I/O dependencies needed for Block C, Block F, and DR storage.
 type Deps struct {
@@ -48,17 +77,27 @@ type Deps struct {
 	// Timestamp failures are reported in VerificationResult.Timestamps but do not
 	// fail the overall chain verification.
 	IncludeTimestamps bool
+	// TSARootPool is the set of trusted root CA certificates for RFC 3161
+	// timestamp token verification. When nil, system roots are used.
+	// Set via TSA_ROOT_CERT_PEM env var parsed in main().
+	TSARootPool *x509.CertPool
 }
 
 // Chain verifies a DRS chain bundle through all six blocks.
 // Returns a VerificationResult — never panics.
-func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
+func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.VerificationResult {
 	// ── Block A: Completeness ────────────────────────────────────────────────
 
 	if len(bundle.Receipts) == 0 {
 		return types.Invalid("EMPTY_CHAIN",
 			"bundle.receipts is empty — at least one delegation receipt is required.",
 			"Ensure the chain bundle includes all delegation receipts from root to leaf.")
+	}
+	if len(bundle.Receipts) > maxChainDepth {
+		return types.Invalid("CHAIN_TOO_DEEP",
+			fmt.Sprintf("bundle has %d receipts; maximum allowed chain depth is %d.",
+				len(bundle.Receipts), maxChainDepth),
+			"Reduce the delegation chain depth. Legitimate chains rarely exceed 4 hops.")
 	}
 	if bundle.Invocation == "" {
 		return types.Invalid("MISSING_INVOCATION",
@@ -191,14 +230,14 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 	// ── Block C: Cryptographic Validity ─────────────────────────────────────
 
 	for i, jwt := range bundle.Receipts {
-		if err := verifyJWTSignature(jwt, receipts[i].Iss, deps.Resolver); err != nil {
+		if err := verifyJWTSignature(ctx, jwt, receipts[i].Iss, deps.Resolver); err != nil {
 			code, suggestion := classifySignatureError(err)
 			return types.Invalid(code,
 				fmt.Sprintf("receipt[%d] signature check failed: %v", i, err),
 				suggestion)
 		}
 	}
-	if err := verifyJWTSignature(bundle.Invocation, invocation.Iss, deps.Resolver); err != nil {
+	if err := verifyJWTSignature(ctx, bundle.Invocation, invocation.Iss, deps.Resolver); err != nil {
 		code, suggestion := classifySignatureError(err)
 		if code == "INVALID_SIGNATURE" {
 			code = "INVALID_INVOCATION_SIGNATURE"
@@ -310,7 +349,7 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 	if deps.Revocation != nil {
 		for i, r := range receipts {
 			if r.DrsStatusListIndex != nil {
-				revoked, err := deps.Revocation.IsRevoked(*r.DrsStatusListIndex)
+				revoked, err := deps.Revocation.IsRevoked(ctx, *r.DrsStatusListIndex)
 				if err != nil {
 					return types.Invalid("REVOCATION_CHECK_FAILED",
 						fmt.Sprintf("receipt[%d] revocation check failed: %v", i, err),
@@ -340,11 +379,14 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 	// Tier 3 timestamping. Non-fatal: store failures are logged but do not
 	// invalidate the verification. Must run before timestamp verification so
 	// that Tier3Store can create .tst tokens that are then immediately verifiable.
+	var storeWarnings []string
 	if deps.Store != nil {
 		for _, jwt := range bundle.Receipts {
 			hash := computeChainHash(jwt)
 			if err := deps.Store.Put(hash, jwt); err != nil {
-				_ = err
+				log.Printf("store: Put failed for hash %s: %v", hash, err)
+				storeWarnings = append(storeWarnings,
+					fmt.Sprintf("receipt %s could not be persisted: %v", hash, err))
 			}
 		}
 	}
@@ -372,7 +414,7 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 				continue
 			}
 			jwtHash := sha256.Sum256([]byte(jwt))
-			genTime, err := anchor.VerifyTimestamp([]byte(tokenStr), jwtHash[:])
+			genTime, err := anchor.VerifyTimestampTrusted([]byte(tokenStr), jwtHash[:], deps.TSARootPool)
 			if err != nil {
 				timestamps = append(timestamps, types.TimestampResult{
 					Index: i,
@@ -408,6 +450,7 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 		SessionID:     sessionID,
 	})
 	result.Timestamps = timestamps
+	result.StoreWarnings = storeWarnings
 	return result
 }
 
@@ -435,8 +478,16 @@ func decodeJWTPayload(jwt string, dst interface{}) error {
 
 // verifyJWTSignature resolves the issuer DID and verifies the JWT's Ed25519 signature.
 // Uses Go stdlib crypto/ed25519 — no CGO required.
-func verifyJWTSignature(jwt string, issuerDID string, res *resolver.Resolver) error {
-	pubKeyBytes, err := res.Resolve(issuerDID)
+func verifyJWTSignature(ctx context.Context, jwt string, issuerDID string, res *resolver.Resolver) error {
+	hdr, err := decodeJWTHeader(jwt)
+	if err != nil {
+		return fmt.Errorf("JWT header decode failed: %w", err)
+	}
+	if hdr.Alg != "EdDSA" {
+		return fmt.Errorf("unsupported JWT algorithm %q: DRS receipts must use EdDSA", hdr.Alg)
+	}
+
+	pubKeyBytes, err := res.Resolve(ctx, issuerDID)
 	if err != nil {
 		return fmt.Errorf("DID resolution failed: %w", err)
 	}

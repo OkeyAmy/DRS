@@ -1,6 +1,7 @@
 package revocation
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -50,7 +51,9 @@ func AdminRevokeHandler(store *LocalRevocationStore, token string) http.Handler 
 			return
 		}
 
-		if r.Header.Get("Authorization") != "Bearer "+token {
+		expected := "Bearer " + token
+		actual := r.Header.Get("Authorization")
+		if subtle.ConstantTimeCompare([]byte(expected), []byte(actual)) != 1 {
 			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 			return
 		}

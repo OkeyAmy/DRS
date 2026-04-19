@@ -3,6 +3,7 @@ package store_test
 import (
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,5 +143,55 @@ func TestFilesystemStoreCreatesDir(t *testing.T) {
 
 // pad returns a 60-character suffix to fill out a 64-char hex digest.
 func pad() string {
-	return "0000000000000000000000000000000000000000000000000000000000"
+	return "000000000000000000000000000000000000000000000000000000000000"
+}
+
+func TestFilesystemStorePathTraversal(t *testing.T) {
+	dir := t.TempDir()
+	s, err := store.NewFilesystemStore(dir, 0)
+	if err != nil {
+		t.Fatalf("NewFilesystemStore: %v", err)
+	}
+
+	malicious := []string{
+		"sha256:../../../../etc/passwd",
+		"sha256:../evil",
+		"sha256:abc",             // too short — not 64 hex chars
+		"sha256:" + strings.Repeat("a", 63), // 63 chars — one short
+		"sha256:" + strings.Repeat("G", 64), // uppercase — not hex
+		"sha256:" + strings.Repeat("a", 65), // too long
+	}
+
+	for _, hash := range malicious {
+		if err := s.Put(hash, "jwt"); err == nil {
+			t.Errorf("Put(%q) should have returned an error", hash)
+		}
+		if _, err := s.Get(hash); err == nil {
+			t.Errorf("Get(%q) should have returned an error", hash)
+		}
+		if err := s.Delete(hash); err == nil {
+			t.Errorf("Delete(%q) should have returned an error", hash)
+		}
+	}
+}
+
+func TestFilesystemStoreValidHash(t *testing.T) {
+	dir := t.TempDir()
+	s, err := store.NewFilesystemStore(dir, 0)
+	if err != nil {
+		t.Fatalf("NewFilesystemStore: %v", err)
+	}
+
+	// exactly 64 lowercase hex chars is valid
+	valid := "sha256:" + strings.Repeat("a1", 32)
+	if err := s.Put(valid, "test.jwt"); err != nil {
+		t.Fatalf("Put with valid hash: %v", err)
+	}
+	got, err := s.Get(valid)
+	if err != nil {
+		t.Fatalf("Get with valid hash: %v", err)
+	}
+	if got != "test.jwt" {
+		t.Errorf("Get returned %q, want %q", got, "test.jwt")
+	}
 }

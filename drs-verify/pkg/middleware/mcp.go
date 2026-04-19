@@ -58,11 +58,11 @@ func mcpMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler,
 		}
 
 		// Nonce replay check — before expensive chain verification.
-		if checkNonceReplay(w, bundle.Invocation, nonceStore) {
+		if CheckNonceReplay(w, bundle.Invocation, nonceStore) {
 			return
 		}
 
-		result := verify.Chain(bundle, deps)
+		result := verify.Chain(r.Context(), bundle, deps)
 		if !result.Valid {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)

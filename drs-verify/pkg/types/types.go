@@ -109,10 +109,11 @@ type TimestampResult struct {
 
 // VerificationResult is always returned by verifyChain — never panics.
 type VerificationResult struct {
-	Valid      bool                 `json:"valid"`
-	Context    *VerificationContext `json:"context,omitempty"`
-	Error      *VerificationError   `json:"error,omitempty"`
-	Timestamps []TimestampResult    `json:"timestamps,omitempty"`
+	Valid         bool                 `json:"valid"`
+	Context       *VerificationContext `json:"context,omitempty"`
+	Error         *VerificationError   `json:"error,omitempty"`
+	Timestamps    []TimestampResult    `json:"timestamps,omitempty"`
+	StoreWarnings []string             `json:"store_warnings,omitempty"`
 }
 
 // Valid constructs a successful VerificationResult.

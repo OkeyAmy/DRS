@@ -5,6 +5,7 @@ package policy
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/drs-protocol/drs-verify/pkg/types"
 )
@@ -24,7 +25,10 @@ func Evaluate(pol types.Policy, args map[string]interface{}) error {
 		if costRaw, ok := args["estimated_cost_usd"]; ok {
 			cost, ok := toFloat64(costRaw)
 			if !ok {
-				return fmt.Errorf("estimated_cost_usd must be a number")
+				return fmt.Errorf("estimated_cost_usd must be a finite non-negative number")
+			}
+			if cost < 0 {
+				return fmt.Errorf("estimated_cost_usd must be non-negative, got %v", cost)
 			}
 			if cost > *pol.MaxCostUSD {
 				return fmt.Errorf("cost limit exceeded: max $%.2f, provided $%.2f", *pol.MaxCostUSD, cost)
@@ -236,16 +240,21 @@ func contains(list []string, item string) bool {
 }
 
 func toFloat64(v interface{}) (float64, bool) {
+	var f float64
 	switch n := v.(type) {
 	case float64:
-		return n, true
+		f = n
 	case float32:
-		return float64(n), true
+		f = float64(n)
 	case int:
-		return float64(n), true
+		f = float64(n)
 	case int64:
-		return float64(n), true
+		f = float64(n)
 	default:
 		return 0, false
 	}
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0, false
+	}
+	return f, true
 }

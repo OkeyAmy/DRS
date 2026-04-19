@@ -9,6 +9,7 @@
 package main
 
 import (
+	"crypto/x509"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -72,12 +73,24 @@ func main() {
 		log.Printf("drs-verify: Tier 0 memory store (no STORE_DIR configured)")
 	}
 
+	var tsaRootPool *x509.CertPool
+	if cfg.TSARootCertPEM != "" {
+		tsaRootPool = x509.NewCertPool()
+		if !tsaRootPool.AppendCertsFromPEM([]byte(cfg.TSARootCertPEM)) {
+			log.Fatalf("TSA_ROOT_CERT_PEM: no valid certificates found in PEM data")
+		}
+		log.Printf("drs-verify: RFC 3161 trust anchored to custom root pool")
+	} else {
+		log.Printf("drs-verify: RFC 3161 trust uses system roots (set TSA_ROOT_CERT_PEM to override)")
+	}
+
 	deps := verify.Deps{
 		Resolver:        res,
 		Revocation:      statusCache,
 		LocalRevocation: localRev,
 		Store:           drStore,
 		ServerIdentity:  cfg.ServerIdentity,
+		TSARootPool:     tsaRootPool,
 	}
 
 	nonceStore := nonce.New(cfg.NonceStoreMaxEntries, time.Duration(cfg.NonceStoreTTLSecs)*time.Second)
@@ -118,10 +131,15 @@ func main() {
 			return
 		}
 
+		// Nonce replay check — before expensive chain verification.
+		if middleware.CheckNonceReplay(w, req.Invocation, nonceStore) {
+			return
+		}
+
 		reqDeps := deps
 		reqDeps.IncludeTimestamps = req.IncludeTimestamps
 
-		result := verify.Chain(req.ChainBundle, reqDeps)
+		result := verify.Chain(r.Context(), req.ChainBundle, reqDeps)
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(result); err != nil {
