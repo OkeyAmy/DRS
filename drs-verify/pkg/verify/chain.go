@@ -79,7 +79,7 @@ type Deps struct {
 
 // Chain verifies a DRS chain bundle through all six blocks.
 // Returns a VerificationResult — never panics.
-func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
+func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.VerificationResult {
 	// ── Block A: Completeness ────────────────────────────────────────────────
 
 	if len(bundle.Receipts) == 0 {
@@ -224,14 +224,14 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 	// ── Block C: Cryptographic Validity ─────────────────────────────────────
 
 	for i, jwt := range bundle.Receipts {
-		if err := verifyJWTSignature(jwt, receipts[i].Iss, deps.Resolver); err != nil {
+		if err := verifyJWTSignature(ctx, jwt, receipts[i].Iss, deps.Resolver); err != nil {
 			code, suggestion := classifySignatureError(err)
 			return types.Invalid(code,
 				fmt.Sprintf("receipt[%d] signature check failed: %v", i, err),
 				suggestion)
 		}
 	}
-	if err := verifyJWTSignature(bundle.Invocation, invocation.Iss, deps.Resolver); err != nil {
+	if err := verifyJWTSignature(ctx, bundle.Invocation, invocation.Iss, deps.Resolver); err != nil {
 		code, suggestion := classifySignatureError(err)
 		if code == "INVALID_SIGNATURE" {
 			code = "INVALID_INVOCATION_SIGNATURE"
@@ -343,7 +343,7 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 	if deps.Revocation != nil {
 		for i, r := range receipts {
 			if r.DrsStatusListIndex != nil {
-				revoked, err := deps.Revocation.IsRevoked(context.Background(), *r.DrsStatusListIndex)
+				revoked, err := deps.Revocation.IsRevoked(ctx, *r.DrsStatusListIndex)
 				if err != nil {
 					return types.Invalid("REVOCATION_CHECK_FAILED",
 						fmt.Sprintf("receipt[%d] revocation check failed: %v", i, err),
@@ -468,7 +468,7 @@ func decodeJWTPayload(jwt string, dst interface{}) error {
 
 // verifyJWTSignature resolves the issuer DID and verifies the JWT's Ed25519 signature.
 // Uses Go stdlib crypto/ed25519 — no CGO required.
-func verifyJWTSignature(jwt string, issuerDID string, res *resolver.Resolver) error {
+func verifyJWTSignature(ctx context.Context, jwt string, issuerDID string, res *resolver.Resolver) error {
 	hdr, err := decodeJWTHeader(jwt)
 	if err != nil {
 		return fmt.Errorf("JWT header decode failed: %w", err)
@@ -477,7 +477,7 @@ func verifyJWTSignature(jwt string, issuerDID string, res *resolver.Resolver) er
 		return fmt.Errorf("unsupported JWT algorithm %q: DRS receipts must use EdDSA", hdr.Alg)
 	}
 
-	pubKeyBytes, err := res.Resolve(context.Background(), issuerDID)
+	pubKeyBytes, err := res.Resolve(ctx, issuerDID)
 	if err != nil {
 		return fmt.Errorf("DID resolution failed: %w", err)
 	}

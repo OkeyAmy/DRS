@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
@@ -125,7 +126,7 @@ func makeInvocation(iss, sub string, drChain []string, now int64, key testKey) s
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 func TestEmptyReceiptsReturnsError(t *testing.T) {
-	result := Chain(types.ChainBundle{BundleVersion: "4.0", Receipts: nil, Invocation: "x"}, testDeps(t))
+	result := Chain(context.Background(), types.ChainBundle{BundleVersion: "4.0", Receipts: nil, Invocation: "x"}, testDeps(t))
 	if result.Valid {
 		t.Error("expected invalid, got valid")
 	}
@@ -135,7 +136,7 @@ func TestEmptyReceiptsReturnsError(t *testing.T) {
 }
 
 func TestMissingInvocationReturnsError(t *testing.T) {
-	result := Chain(types.ChainBundle{BundleVersion: "4.0", Receipts: []string{"x"}, Invocation: ""}, testDeps(t))
+	result := Chain(context.Background(), types.ChainBundle{BundleVersion: "4.0", Receipts: []string{"x"}, Invocation: ""}, testDeps(t))
 	if result.Valid {
 		t.Error("expected invalid, got valid")
 	}
@@ -159,7 +160,7 @@ func TestValidSingleReceiptChainPasses(t *testing.T) {
 		Invocation:    invJWT,
 	}
 
-	result := Chain(bundle, testDeps(t))
+	result := Chain(context.Background(), bundle, testDeps(t))
 	if !result.Valid {
 		t.Errorf("expected valid, got error: %+v", result.Error)
 	}
@@ -187,7 +188,7 @@ func TestValidTwoReceiptChainPasses(t *testing.T) {
 		Invocation:    invJWT,
 	}
 
-	result := Chain(bundle, testDeps(t))
+	result := Chain(context.Background(), bundle, testDeps(t))
 	if !result.Valid {
 		t.Errorf("expected valid, got error: %+v", result.Error)
 	}
@@ -220,7 +221,7 @@ func TestForgedSignatureIsRejected(t *testing.T) {
 		Invocation:    invJWT,
 	}
 
-	result := Chain(bundle, testDeps(t))
+	result := Chain(context.Background(), bundle, testDeps(t))
 	if result.Valid {
 		t.Error("expected invalid for forged signature, got valid")
 	}
@@ -253,7 +254,7 @@ func TestExpiredReceiptIsRejected(t *testing.T) {
 		Invocation:    invJWT,
 	}
 
-	result := Chain(bundle, testDeps(t))
+	result := Chain(context.Background(), bundle, testDeps(t))
 	if result.Valid {
 		t.Error("expected invalid for expired receipt, got valid")
 	}
@@ -282,7 +283,7 @@ func TestChainBreakIsRejected(t *testing.T) {
 		Invocation:    invJWT,
 	}
 
-	result := Chain(bundle, testDeps(t))
+	result := Chain(context.Background(), bundle, testDeps(t))
 	if result.Valid {
 		t.Error("expected invalid for chain break, got valid")
 	}
@@ -353,7 +354,7 @@ func TestLocalRevocationBlocksChain(t *testing.T) {
 		LocalRevocation: localRev,
 	}
 
-	result := Chain(bundle, deps)
+	result := Chain(context.Background(), bundle, deps)
 
 	if result.Valid {
 		t.Fatal("expected invalid result for revoked receipt, got valid")
@@ -388,7 +389,7 @@ func TestVerifiedReceiptsAreStoredOnSuccess(t *testing.T) {
 	deps := testDeps(t)
 	deps.Store = mem
 
-	result := Chain(bundle, deps)
+	result := Chain(context.Background(), bundle, deps)
 	if !result.Valid {
 		t.Fatalf("expected valid chain, got error: %+v", result.Error)
 	}
@@ -435,7 +436,7 @@ func TestStoreNotCalledOnFailedVerification(t *testing.T) {
 	deps := testDeps(t)
 	deps.Store = mem
 
-	result := Chain(bundle, deps)
+	result := Chain(context.Background(), bundle, deps)
 	if result.Valid {
 		t.Fatal("expected invalid for forged signature")
 	}
@@ -483,7 +484,7 @@ func TestVerifyJWTSignatureAlgCheck(t *testing.T) {
 	for _, tc := range cases {
 		t.Run("alg="+tc.alg, func(t *testing.T) {
 			jwt := signJWTWithAlg(tc.alg)
-			err := verifyJWTSignature(jwt, k.did, res)
+			err := verifyJWTSignature(context.Background(), jwt, k.did, res)
 			if tc.wantErr && err == nil {
 				t.Errorf("alg=%q: expected error, got nil", tc.alg)
 			}
@@ -511,7 +512,7 @@ func TestChainDepthLimit(t *testing.T) {
 		Receipts:      receipts,
 	}
 
-	result := Chain(bundle, deps)
+	result := Chain(context.Background(), bundle, deps)
 	if result.Valid {
 		t.Fatal("expected invalid result for depth > 16")
 	}
@@ -535,7 +536,7 @@ func TestChainDepthLimitBoundary(t *testing.T) {
 		Invocation:    "a.b.c",
 		Receipts:      receipts,
 	}
-	result := Chain(bundle, deps)
+	result := Chain(context.Background(), bundle, deps)
 	if result.Error != nil && result.Error.Code == "CHAIN_TOO_DEEP" {
 		t.Error("16-receipt bundle must not trigger CHAIN_TOO_DEEP")
 	}
@@ -543,3 +544,18 @@ func TestChainDepthLimitBoundary(t *testing.T) {
 
 // int64Ptr is used in other test files; kept here to avoid re-declaration.
 var _ = int64Ptr
+
+// TestChainCancelledContext verifies that a cancelled context does not cause
+// Chain to panic. Any result (valid or invalid) is acceptable.
+func TestChainCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel before the call
+
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Invocation:    "a.b.c",
+		Receipts:      []string{"a.b.c"},
+	}
+	result := Chain(ctx, bundle, testDeps(t))
+	_ = result // must not panic; any result is acceptable
+}

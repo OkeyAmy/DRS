@@ -1,6 +1,7 @@
 package verify
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -141,7 +142,7 @@ func TestConformanceFullChainBundle(t *testing.T) {
 	}
 
 	deps := testDeps(t)
-	result := Chain(fixture.Bundle, deps)
+	result := Chain(context.Background(), fixture.Bundle, deps)
 
 	if result.Valid != fixture.ExpectedResult.Valid {
 		var errMsg string
@@ -234,7 +235,7 @@ func TestConformanceReceiptSignatures(t *testing.T) {
 				t.Fatalf("parse fixture: %v", err)
 			}
 
-			err := verifyJWTSignature(fix.Jwt, fix.Payload.Iss, deps.Resolver)
+			err := verifyJWTSignature(context.Background(), fix.Jwt, fix.Payload.Iss, deps.Resolver)
 			if err != nil {
 				t.Errorf("signature verification failed: %v", err)
 			}

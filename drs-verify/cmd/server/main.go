@@ -121,7 +121,7 @@ func main() {
 		reqDeps := deps
 		reqDeps.IncludeTimestamps = req.IncludeTimestamps
 
-		result := verify.Chain(req.ChainBundle, reqDeps)
+		result := verify.Chain(r.Context(), req.ChainBundle, reqDeps)
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(result); err != nil {

@@ -49,7 +49,7 @@ func a2aMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler,
 			return
 		}
 
-		result := verify.Chain(bundle, deps)
+		result := verify.Chain(r.Context(), bundle, deps)
 		if !result.Valid {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
