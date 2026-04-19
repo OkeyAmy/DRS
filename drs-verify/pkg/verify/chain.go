@@ -17,6 +17,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -373,11 +374,14 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 	// Tier 3 timestamping. Non-fatal: store failures are logged but do not
 	// invalidate the verification. Must run before timestamp verification so
 	// that Tier3Store can create .tst tokens that are then immediately verifiable.
+	var storeWarnings []string
 	if deps.Store != nil {
 		for _, jwt := range bundle.Receipts {
 			hash := computeChainHash(jwt)
 			if err := deps.Store.Put(hash, jwt); err != nil {
-				_ = err
+				log.Printf("store: Put failed for hash %s: %v", hash, err)
+				storeWarnings = append(storeWarnings,
+					fmt.Sprintf("receipt %s could not be persisted: %v", hash, err))
 			}
 		}
 	}
@@ -441,6 +445,7 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 		SessionID:     sessionID,
 	})
 	result.Timestamps = timestamps
+	result.StoreWarnings = storeWarnings
 	return result
 }
 

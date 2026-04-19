@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -558,4 +559,49 @@ func TestChainCancelledContext(t *testing.T) {
 	}
 	result := Chain(ctx, bundle, testDeps(t))
 	_ = result // must not panic; any result is acceptable
+}
+
+// failStore always returns an error on Put.
+type failStore struct{}
+
+func (f *failStore) Put(hash, jwt string) error      { return fmt.Errorf("disk full") }
+func (f *failStore) Get(hash string) (string, error) { return "", store.ErrNotFound }
+func (f *failStore) Delete(hash string) error        { return nil }
+
+// TestChainStoreWarningsOnPutFailure verifies that store.Put errors are surfaced
+// as StoreWarnings in the VerificationResult, and that store failures do not
+// invalidate the chain (store errors are non-fatal).
+func TestChainStoreWarningsOnPutFailure(t *testing.T) {
+	deps := testDeps(t)
+	deps.Store = &failStore{}
+
+	// Build a minimal single-hop valid chain using the existing test helpers.
+	now := time.Now().Unix()
+	root := newTestKey(t)
+	agent := newTestKey(t)
+
+	_, drJWT := makeReceipt(root.did, root.did, agent.did, now, nil, root)
+	drHash := computeChainHash(drJWT)
+	invJWT := makeInvocation(agent.did, root.did, []string{drHash}, now, agent)
+
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Invocation:    invJWT,
+		Receipts:      []string{drJWT},
+	}
+
+	result := Chain(context.Background(), bundle, deps)
+
+	// Chain must still be valid — store failure must not invalidate verification.
+	if !result.Valid {
+		t.Fatalf("expected valid result even with store failure, got: %v", result.Error)
+	}
+
+	// StoreWarnings must be populated.
+	if len(result.StoreWarnings) == 0 {
+		t.Error("expected StoreWarnings to be non-empty when store.Put fails")
+	}
+	if !strings.Contains(result.StoreWarnings[0], "could not be persisted") {
+		t.Errorf("StoreWarnings content unexpected: %v", result.StoreWarnings)
+	}
 }
