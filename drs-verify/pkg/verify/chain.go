@@ -448,6 +448,7 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 		LeafPolicy:    last.Policy,
 		ChainDepth:    len(receipts),
 		SessionID:     sessionID,
+		CorrelationID: root.CorrelationID,
 	})
 	result.Timestamps = timestamps
 	result.StoreWarnings = storeWarnings

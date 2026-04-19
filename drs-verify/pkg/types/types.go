@@ -2,6 +2,8 @@
 // Field names and JSON tags must exactly match the Rust types in drs-core/src/types.rs.
 package types
 
+import "encoding/json"
+
 // Policy represents capability constraints attached to a delegation receipt.
 //
 // max_calls is INFORMATIONAL ONLY — it is carried in the policy and validated
@@ -55,6 +57,15 @@ type DelegationReceipt struct {
 	DrsRootType        *string             `json:"drs_root_type,omitempty"`
 	DrsRegulatory      *RegulatoryMetadata `json:"drs_regulatory,omitempty"`
 	DrsStatusListIndex *uint64             `json:"drs_status_list_index,omitempty"`
+
+	// CorrelationID links this delegation to a parent session or workflow.
+	// Carried for tracing and audit — the verifier does not enforce format.
+	CorrelationID *string `json:"correlation_id,omitempty"`
+
+	// Budget is an opaque JSON object for the tool server to enforce.
+	// The verifier does not interpret or enforce budget values.
+	// Example: {"max_tokens": 1000, "max_cost_usd": 5.0}
+	Budget json.RawMessage `json:"budget,omitempty"`
 }
 
 // InvocationReceipt is a signed JWT payload representing the agent's action.
@@ -72,6 +83,10 @@ type InvocationReceipt struct {
 
 	ResultHash       *string `json:"result_hash,omitempty"`
 	PolicyEvaluation *string `json:"policy_evaluation,omitempty"`
+
+	// CorrelationID links this invocation to the originating session.
+	// Should match the CorrelationID on the root DelegationReceipt when set.
+	CorrelationID *string `json:"correlation_id,omitempty"`
 }
 
 // ChainBundle is the input to the verifier — all JWTs in a delegation chain.
@@ -90,6 +105,9 @@ type VerificationContext struct {
 	LeafPolicy    Policy              `json:"leaf_policy"`
 	ChainDepth    int                 `json:"chain_depth"`
 	SessionID     *string             `json:"session_id,omitempty"`
+
+	// CorrelationID is the correlation_id from the root DelegationReceipt, if set.
+	CorrelationID *string `json:"correlation_id,omitempty"`
 }
 
 // VerificationError carries a machine-readable error code and human suggestion.
