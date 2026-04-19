@@ -650,3 +650,63 @@ func TestChainStoreWarningsOnPutFailure(t *testing.T) {
 		t.Errorf("StoreWarnings content unexpected: %v", result.StoreWarnings)
 	}
 }
+
+func TestStrictEd25519RejectsNonCanonicalS(t *testing.T) {
+	// Build a signature with S >= L (the Ed25519 group order).
+	// Go's stdlib ed25519.Verify accepts this; our strict verifier must not.
+	k := newTestKey(t)
+
+	headerJSON, _ := json.Marshal(map[string]string{"alg": "EdDSA", "typ": "JWT"})
+	payloadJSON, _ := json.Marshal(map[string]interface{}{
+		"iss": k.did,
+		"exp": int64(9999999999),
+	})
+	h := base64.RawURLEncoding.EncodeToString(headerJSON)
+	p := base64.RawURLEncoding.EncodeToString(payloadJSON)
+	msg := h + "." + p
+
+	validSig := ed25519.Sign(k.prv, []byte(msg))
+
+	// Add L to S (bytes 32-63, little-endian) to produce a non-canonical scalar.
+	L := [32]byte{
+		0xed, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58,
+		0xd6, 0x9c, 0xf7, 0xa2, 0xde, 0xf9, 0xde, 0x14,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10,
+	}
+	nonCanonicalSig := make([]byte, 64)
+	copy(nonCanonicalSig, validSig)
+	carry := uint16(0)
+	for i := 0; i < 32; i++ {
+		sum := uint16(nonCanonicalSig[32+i]) + uint16(L[i]) + carry
+		nonCanonicalSig[32+i] = byte(sum)
+		carry = sum >> 8
+	}
+
+	nonCanonicalJWT := msg + "." + base64.RawURLEncoding.EncodeToString(nonCanonicalSig)
+
+	res, err := resolver.New(10, time.Hour)
+	if err != nil {
+		t.Fatalf("resolver.New: %v", err)
+	}
+	err = verifyJWTSignature(context.Background(), nonCanonicalJWT, k.did, res)
+	if err == nil {
+		t.Error("strict verifier must reject non-canonical S (S >= L), got nil error")
+	}
+}
+
+func TestStrictEd25519AcceptsValidSignatures(t *testing.T) {
+	k := newTestKey(t)
+	res, err := resolver.New(10, time.Hour)
+	if err != nil {
+		t.Fatalf("resolver.New: %v", err)
+	}
+
+	jwt := signJWT(k.prv, map[string]interface{}{
+		"iss": k.did,
+		"exp": int64(9999999999),
+	})
+	if err := verifyJWTSignature(context.Background(), jwt, k.did, res); err != nil {
+		t.Errorf("strict verifier rejected a valid canonical signature: %v", err)
+	}
+}
