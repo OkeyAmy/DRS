@@ -36,16 +36,19 @@ func decodeInvocationJTI(jwt string) (string, error) {
 	return p.Jti, nil
 }
 
-// checkNonceReplay extracts the invocation JTI and checks it against the nonce
+// CheckNonceReplay extracts the invocation JTI and checks it against the nonce
 // store. Writes an error response and returns true if the request should be
 // aborted (replay detected, store exhausted, or missing JTI). Returns false
 // if the request should proceed.
+//
+// Exported so the /verify endpoint in cmd/server/main.go can use the same
+// replay protection as the MCP and A2A middleware.
 //
 // Note: the nonce is consumed before verify.Chain runs. If verification
 // subsequently fails, the JTI cannot be reused — the client must generate a
 // new invocation. This is a deliberate trade-off: rejecting replays before
 // expensive cryptographic verification prevents CPU exhaustion attacks.
-func checkNonceReplay(w http.ResponseWriter, invocationJWT string, ns *nonce.Store) bool {
+func CheckNonceReplay(w http.ResponseWriter, invocationJWT string, ns *nonce.Store) bool {
 	if ns == nil {
 		return false
 	}

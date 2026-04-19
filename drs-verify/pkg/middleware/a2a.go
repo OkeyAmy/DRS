@@ -45,7 +45,7 @@ func a2aMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler,
 		}
 
 		// Nonce replay check — before expensive chain verification.
-		if checkNonceReplay(w, bundle.Invocation, nonceStore) {
+		if CheckNonceReplay(w, bundle.Invocation, nonceStore) {
 			return
 		}
 

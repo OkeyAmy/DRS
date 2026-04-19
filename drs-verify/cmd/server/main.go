@@ -131,6 +131,11 @@ func main() {
 			return
 		}
 
+		// Nonce replay check — before expensive chain verification.
+		if middleware.CheckNonceReplay(w, req.Invocation, nonceStore) {
+			return
+		}
+
 		reqDeps := deps
 		reqDeps.IncludeTimestamps = req.IncludeTimestamps
 
