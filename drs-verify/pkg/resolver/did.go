@@ -376,7 +376,6 @@ func (r *Resolver) resolveDidWeb(ctx context.Context, did string) ([ed25519Publi
 		}
 		if private {
 			slog.Warn("did:web SSRF blocked", "did", did, "host", u.Hostname())
-			cs.recordFailure(r.cbThreshold, r.cbCooldown)
 			return zero, fmt.Errorf("did:web host %q resolves to a private or reserved address", u.Hostname())
 		}
 	}
