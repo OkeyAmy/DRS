@@ -651,9 +651,47 @@ func TestChainStoreWarningsOnPutFailure(t *testing.T) {
 	}
 }
 
+func TestStrictEd25519FunctionRejectsNonCanonicalS(t *testing.T) {
+	// Direct unit test for strictVerifyEd25519 itself — calls the function with
+	// crafted byte slices, independent of ed25519.Verify (which also rejects
+	// non-canonical S in Go 1.13+, so the integration path below is defense-in-depth).
+	L := [32]byte{
+		0xed, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58,
+		0xd6, 0x9c, 0xf7, 0xa2, 0xde, 0xf9, 0xde, 0x14,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10,
+	}
+	// S == L: non-canonical, must be rejected.
+	sig := make([]byte, 64)
+	copy(sig[32:], L[:])
+	if err := strictVerifyEd25519(sig); err == nil {
+		t.Error("S == L must be rejected, got nil error")
+	}
+	// S = L+1: clearly non-canonical.
+	sig2 := make([]byte, 64)
+	copy(sig2[32:], L[:])
+	sig2[32] += 1
+	if err := strictVerifyEd25519(sig2); err == nil {
+		t.Error("S > L must be rejected, got nil error")
+	}
+	// S = 0: canonical, must be accepted.
+	sig3 := make([]byte, 64)
+	if err := strictVerifyEd25519(sig3); err != nil {
+		t.Errorf("S = 0 must be accepted, got: %v", err)
+	}
+	// S = L-1: largest canonical value, must be accepted.
+	sig4 := make([]byte, 64)
+	copy(sig4[32:], L[:])
+	sig4[32] -= 1
+	if err := strictVerifyEd25519(sig4); err != nil {
+		t.Errorf("S = L-1 must be accepted, got: %v", err)
+	}
+}
+
 func TestStrictEd25519RejectsNonCanonicalS(t *testing.T) {
-	// Build a signature with S >= L (the Ed25519 group order).
-	// Go's stdlib ed25519.Verify accepts this; our strict verifier must not.
+	// Integration path: verifyJWTSignature must reject a JWT with S >= L.
+	// In Go 1.13+, ed25519.Verify itself rejects non-canonical S; this test
+	// confirms the full verification path correctly surfaces an error.
 	k := newTestKey(t)
 
 	headerJSON, _ := json.Marshal(map[string]string{"alg": "EdDSA", "typ": "JWT"})
