@@ -10,24 +10,26 @@
 package revocation
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 )
 
 // StatusCache caches a remote Bitstring Status List with TTL-based refresh.
 type StatusCache struct {
-	mu          sync.RWMutex
-	once        sync.Once
-	refreshMu   sync.Mutex  // serialises TTL-triggered refreshes; prevents cache stampede
-	bitstring   []byte
-	fetchedAt   time.Time
-	ttl         time.Duration
-	baseURL     string
-	httpClient  *http.Client
+	mu         sync.RWMutex
+	once       sync.Once
+	refreshMu  sync.Mutex // serialises TTL-triggered refreshes; prevents cache stampede
+	bitstring  []byte
+	fetchedAt  time.Time
+	ttl        time.Duration
+	baseURL    string
+	httpClient *http.Client
 }
 
 // New creates a StatusCache that fetches from baseURL with the given TTL.
@@ -42,18 +44,20 @@ func New(baseURL string, ttl time.Duration) *StatusCache {
 // IsRevoked returns true if the credential at the given statusListIndex is revoked.
 // On the first call it fetches the status list (sync.Once prevents double-fetch).
 // On subsequent calls it returns the cached value unless TTL has expired.
-func (s *StatusCache) IsRevoked(statusListIndex uint64) (bool, error) {
+func (s *StatusCache) IsRevoked(ctx context.Context, statusListIndex uint64) (bool, error) {
 	var initErr error
 
-	// First fetch — protected by sync.Once to prevent double-fetch race condition
+	// First fetch — protected by sync.Once to prevent double-fetch race condition.
+	// Uses context.Background() intentionally: if the first caller's context is
+	// cancelled we must not poison the once guard for all future callers.
 	s.once.Do(func() {
-		initErr = s.refresh()
+		initErr = s.refresh(context.Background())
 	})
 	if initErr != nil {
 		return false, fmt.Errorf("revocation: initial status list fetch failed: %w", initErr)
 	}
 
-	// Check if TTL has expired; refresh if so
+	// Check if TTL has expired; refresh if so.
 	s.mu.RLock()
 	expired := time.Since(s.fetchedAt) > s.ttl
 	s.mu.RUnlock()
@@ -68,7 +72,9 @@ func (s *StatusCache) IsRevoked(statusListIndex uint64) (bool, error) {
 		stillExpired := time.Since(s.fetchedAt) > s.ttl
 		s.mu.RUnlock()
 		if stillExpired {
-			if err := s.refresh(); err != nil {
+			// Background refresh: use context.Background() — a cancelled request ctx
+			// must not abort a cache write that other requests depend on.
+			if err := s.refresh(context.Background()); err != nil {
 				// Log the error but serve stale data rather than blocking verification.
 				// A monitoring alert should fire on persistent fetch failures.
 				log.Printf("revocation: status list refresh failed (serving stale data): %v", err)
@@ -97,7 +103,7 @@ func (s *StatusCache) Ready() bool {
 func (s *StatusCache) WarmUp() error {
 	var err error
 	s.once.Do(func() {
-		err = s.refresh()
+		err = s.refresh(context.Background())
 	})
 	return err
 }
@@ -105,7 +111,7 @@ func (s *StatusCache) WarmUp() error {
 // refresh fetches the current status list from the remote endpoint.
 // Only publishes the new bitstring if the entire body was read successfully.
 // On failure, the previous known-good snapshot (if any) is preserved.
-func (s *StatusCache) refresh() error {
+func (s *StatusCache) refresh(ctx context.Context) error {
 	if s.baseURL == "" {
 		s.mu.Lock()
 		s.bitstring = []byte{}
@@ -114,7 +120,11 @@ func (s *StatusCache) refresh() error {
 		return nil
 	}
 
-	resp, err := s.httpClient.Get(s.baseURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.baseURL, nil)
+	if err != nil {
+		return fmt.Errorf("building request for %s: %w", s.baseURL, err)
+	}
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("HTTP GET %s: %w", s.baseURL, err)
 	}
@@ -124,13 +134,27 @@ func (s *StatusCache) refresh() error {
 		return fmt.Errorf("HTTP GET %s returned %d", s.baseURL, resp.StatusCode)
 	}
 
-	buf, err := io.ReadAll(resp.Body)
+	const maxStatusListBytes = 1 << 20 // 1 MiB
+	limited := io.LimitReader(resp.Body, int64(maxStatusListBytes)+1)
+	buf, err := io.ReadAll(limited)
 	if err != nil {
-		return fmt.Errorf("reading status list body from %s: %w", s.baseURL, err)
+		return fmt.Errorf("status list from %s truncated or unreadable: %w", s.baseURL, err)
 	}
-
+	if len(buf) > maxStatusListBytes {
+		return fmt.Errorf("status list from %s exceeds %d byte limit", s.baseURL, maxStatusListBytes)
+	}
 	if len(buf) == 0 {
 		return fmt.Errorf("status list from %s is empty", s.baseURL)
+	}
+
+	// Reject truncated responses: if Content-Length is present and non-negative,
+	// it must match the number of bytes received.
+	if clStr := resp.Header.Get("Content-Length"); clStr != "" {
+		cl, parseErr := strconv.ParseInt(clStr, 10, 64)
+		if parseErr == nil && cl >= 0 && int64(len(buf)) != cl {
+			return fmt.Errorf("status list from %s truncated: Content-Length %d, read %d bytes",
+				s.baseURL, cl, len(buf))
+		}
 	}
 
 	s.mu.Lock()

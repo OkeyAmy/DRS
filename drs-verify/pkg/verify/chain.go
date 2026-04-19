@@ -343,7 +343,7 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 	if deps.Revocation != nil {
 		for i, r := range receipts {
 			if r.DrsStatusListIndex != nil {
-				revoked, err := deps.Revocation.IsRevoked(*r.DrsStatusListIndex)
+				revoked, err := deps.Revocation.IsRevoked(context.Background(), *r.DrsStatusListIndex)
 				if err != nil {
 					return types.Invalid("REVOCATION_CHECK_FAILED",
 						fmt.Sprintf("receipt[%d] revocation check failed: %v", i, err),
