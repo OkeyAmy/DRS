@@ -14,6 +14,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -76,6 +77,10 @@ type Deps struct {
 	// Timestamp failures are reported in VerificationResult.Timestamps but do not
 	// fail the overall chain verification.
 	IncludeTimestamps bool
+	// TSARootPool is the set of trusted root CA certificates for RFC 3161
+	// timestamp token verification. When nil, system roots are used.
+	// Set via TSA_ROOT_CERT_PEM env var parsed in main().
+	TSARootPool *x509.CertPool
 }
 
 // Chain verifies a DRS chain bundle through all six blocks.
@@ -409,7 +414,7 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 				continue
 			}
 			jwtHash := sha256.Sum256([]byte(jwt))
-			genTime, err := anchor.VerifyTimestamp([]byte(tokenStr), jwtHash[:])
+			genTime, err := anchor.VerifyTimestampTrusted([]byte(tokenStr), jwtHash[:], deps.TSARootPool)
 			if err != nil {
 				timestamps = append(timestamps, types.TimestampResult{
 					Index: i,
