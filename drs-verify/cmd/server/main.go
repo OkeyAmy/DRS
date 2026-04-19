@@ -29,6 +29,10 @@ import (
 )
 
 func main() {
+	// Pre-init: use a default text handler until configuration is loaded.
+	// This ensures any config-load failure is logged through slog, not fmt/log.
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})))
+
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("config load failed", "error", err)
