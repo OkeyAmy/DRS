@@ -446,5 +446,53 @@ func TestStoreNotCalledOnFailedVerification(t *testing.T) {
 	}
 }
 
+// TestVerifyJWTSignatureAlgCheck verifies that verifyJWTSignature rejects JWTs
+// whose alg header is anything other than "EdDSA".
+func TestVerifyJWTSignatureAlgCheck(t *testing.T) {
+	k := newTestKey(t)
+	res, err := resolver.New(10, time.Hour)
+	if err != nil {
+		t.Fatalf("resolver.New: %v", err)
+	}
+
+	// signJWTWithAlg signs a minimal payload using an explicit alg header value.
+	signJWTWithAlg := func(alg string) string {
+		headerJSON, _ := json.Marshal(map[string]string{"alg": alg, "typ": "JWT"})
+		payloadJSON, _ := json.Marshal(map[string]interface{}{
+			"iss": k.did,
+			"exp": int64(9999999999),
+		})
+		h := base64.RawURLEncoding.EncodeToString(headerJSON)
+		p := base64.RawURLEncoding.EncodeToString(payloadJSON)
+		msg := h + "." + p
+		sig := ed25519.Sign(k.prv, []byte(msg))
+		return msg + "." + base64.RawURLEncoding.EncodeToString(sig)
+	}
+
+	cases := []struct {
+		alg     string
+		wantErr bool
+	}{
+		{"EdDSA", false},
+		{"HS256", true},
+		{"RS256", true},
+		{"none", true},
+		{"", true},
+	}
+
+	for _, tc := range cases {
+		t.Run("alg="+tc.alg, func(t *testing.T) {
+			jwt := signJWTWithAlg(tc.alg)
+			err := verifyJWTSignature(jwt, k.did, res)
+			if tc.wantErr && err == nil {
+				t.Errorf("alg=%q: expected error, got nil", tc.alg)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("alg=%q: unexpected error: %v", tc.alg, err)
+			}
+		})
+	}
+}
+
 // int64Ptr is used in other test files; kept here to avoid re-declaration.
 var _ = int64Ptr

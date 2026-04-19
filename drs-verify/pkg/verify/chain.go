@@ -33,6 +33,28 @@ const (
 	expectedInvType    = "invocation-receipt"
 )
 
+// jwtHeader holds the minimum fields needed to validate a JWT header.
+type jwtHeader struct {
+	Alg string `json:"alg"`
+}
+
+// decodeJWTHeader base64url-decodes the JWT header (parts[0]) into a jwtHeader.
+func decodeJWTHeader(jwt string) (jwtHeader, error) {
+	parts := strings.SplitN(jwt, ".", 4)
+	if len(parts) != 3 {
+		return jwtHeader{}, fmt.Errorf("expected 3 dot-separated JWT parts, got %d", len(parts))
+	}
+	headerBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return jwtHeader{}, fmt.Errorf("JWT header base64 decode: %w", err)
+	}
+	var hdr jwtHeader
+	if err := json.Unmarshal(headerBytes, &hdr); err != nil {
+		return jwtHeader{}, fmt.Errorf("JWT header JSON unmarshal: %w", err)
+	}
+	return hdr, nil
+}
+
 // Deps bundles the I/O dependencies needed for Block C, Block F, and DR storage.
 type Deps struct {
 	Resolver          *resolver.Resolver
@@ -436,6 +458,14 @@ func decodeJWTPayload(jwt string, dst interface{}) error {
 // verifyJWTSignature resolves the issuer DID and verifies the JWT's Ed25519 signature.
 // Uses Go stdlib crypto/ed25519 — no CGO required.
 func verifyJWTSignature(jwt string, issuerDID string, res *resolver.Resolver) error {
+	hdr, err := decodeJWTHeader(jwt)
+	if err != nil {
+		return fmt.Errorf("JWT header decode failed: %w", err)
+	}
+	if hdr.Alg != "EdDSA" {
+		return fmt.Errorf("unsupported JWT algorithm %q: DRS receipts must use EdDSA", hdr.Alg)
+	}
+
 	pubKeyBytes, err := res.Resolve(issuerDID)
 	if err != nil {
 		return fmt.Errorf("DID resolution failed: %w", err)
