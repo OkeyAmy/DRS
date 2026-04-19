@@ -49,6 +49,48 @@ type resolveResult struct {
 	err error
 }
 
+// circuitState tracks per-DID failure history for the circuit breaker.
+type circuitState struct {
+	mu        sync.Mutex
+	failures  int       // consecutive failure count
+	openUntil time.Time // non-zero when circuit is open
+}
+
+// isOpen returns true if the circuit is open and the cooldown has not elapsed.
+// When the cooldown has elapsed, resets to closed and allows one probe.
+func (s *circuitState) isOpen(now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.openUntil.IsZero() {
+		return false
+	}
+	if now.After(s.openUntil) {
+		// Cooldown elapsed — allow one probe through, reset circuit.
+		s.openUntil = time.Time{}
+		return false
+	}
+	return true
+}
+
+// recordSuccess resets the circuit.
+func (s *circuitState) recordSuccess() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failures = 0
+	s.openUntil = time.Time{}
+}
+
+// recordFailure increments failure count and opens circuit if threshold is reached.
+func (s *circuitState) recordFailure(threshold int, cooldown time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failures++
+	if s.failures >= threshold {
+		s.openUntil = time.Now().Add(cooldown)
+		slog.Warn("did:web circuit opened", "consecutive_failures", s.failures)
+	}
+}
+
 // Resolver resolves did:key and did:web DIDs to Ed25519 public key bytes.
 //
 // Concurrency design:
@@ -58,6 +100,8 @@ type resolveResult struct {
 //   - Per-key singleflight deduplication ensures that concurrent cache misses
 //     for the same DID result in a single resolution (and a single HTTP fetch
 //     for did:web), not N parallel ones.
+//   - circuitMu guards the circuitStates map. Each circuitState has its own
+//     mutex so contention on one DID does not block others.
 type Resolver struct {
 	cacheMu    sync.Mutex
 	cache      *lru.Cache[string, cacheEntry]
@@ -67,6 +111,15 @@ type Resolver struct {
 	// inflight deduplicates concurrent cache misses for the same DID.
 	inflightMu sync.Mutex
 	inflight   map[string]*inflightEntry
+
+	// Circuit breaker state — one entry per did:web DID.
+	circuitMu     sync.Mutex
+	circuitStates map[string]*circuitState
+	cbThreshold   int
+	cbCooldown    time.Duration
+
+	// allowPrivateHosts disables SSRF protection. Only set in tests.
+	allowPrivateHosts bool
 }
 
 // inflightEntry tracks a single in-progress resolution.
@@ -83,11 +136,39 @@ func New(cacheSize int, ttl time.Duration) (*Resolver, error) {
 		return nil, fmt.Errorf("resolver: failed to create LRU cache: %w", err)
 	}
 	return &Resolver{
-		cache:      c,
-		ttl:        ttl,
-		httpClient: &http.Client{Timeout: didWebFetchTimeout},
-		inflight:   make(map[string]*inflightEntry),
+		cache:         c,
+		ttl:           ttl,
+		httpClient:    &http.Client{Timeout: didWebFetchTimeout},
+		inflight:      make(map[string]*inflightEntry),
+		circuitStates: make(map[string]*circuitState),
+		cbThreshold:   5,
+		cbCooldown:    60 * time.Second,
 	}, nil
+}
+
+// NewWithCircuitBreaker creates a Resolver with circuit breaker protection for
+// did:web endpoints. threshold is the number of consecutive failures before
+// the circuit opens. cooldown is how long to wait before attempting a probe.
+func NewWithCircuitBreaker(cacheSize int, ttl time.Duration, threshold int, cooldown time.Duration) (*Resolver, error) {
+	r, err := New(cacheSize, ttl)
+	if err != nil {
+		return nil, err
+	}
+	r.cbThreshold = threshold
+	r.cbCooldown = cooldown
+	return r, nil
+}
+
+// getCircuitState returns the circuitState for the given DID, creating it if absent.
+func (r *Resolver) getCircuitState(did string) *circuitState {
+	r.circuitMu.Lock()
+	defer r.circuitMu.Unlock()
+	if cs, ok := r.circuitStates[did]; ok {
+		return cs
+	}
+	cs := &circuitState{}
+	r.circuitStates[did] = cs
+	return cs
 }
 
 // privateRanges is the set of IP ranges that must not be reachable via did:web.
@@ -268,49 +349,79 @@ func resolveDidKey(did string) ([ed25519PublicKeyBytes]byte, error) {
 func (r *Resolver) resolveDidWeb(ctx context.Context, did string) ([ed25519PublicKeyBytes]byte, error) {
 	var zero [ed25519PublicKeyBytes]byte
 
+	// Circuit breaker: fail fast for recently-broken did:web endpoints.
+	cs := r.getCircuitState(did)
+	if cs.isOpen(time.Now()) {
+		return zero, fmt.Errorf("did:web circuit open for %q — endpoint was recently unreachable", did)
+	}
+
 	docURL, err := didWebDocumentURL(did)
 	if err != nil {
+		cs.recordFailure(r.cbThreshold, r.cbCooldown)
 		return zero, err
 	}
 
 	// SSRF protection: resolve the hostname and reject private/reserved ranges.
-	u, err := url.Parse(docURL)
-	if err != nil {
-		return zero, fmt.Errorf("did:web URL parse failed: %w", err)
-	}
-	private, err := isPrivateHost(ctx, u.Hostname())
-	if err != nil {
-		return zero, fmt.Errorf("did:web SSRF check failed: %w", err)
-	}
-	if private {
-		slog.Warn("did:web SSRF blocked", "did", did, "host", u.Hostname())
-		return zero, fmt.Errorf("did:web host %q resolves to a private or reserved address", u.Hostname())
+	// Bypassed only in tests via allowPrivateHosts.
+	if !r.allowPrivateHosts {
+		u, err := url.Parse(docURL)
+		if err != nil {
+			cs.recordFailure(r.cbThreshold, r.cbCooldown)
+			return zero, fmt.Errorf("did:web URL parse failed: %w", err)
+		}
+		private, err := isPrivateHost(ctx, u.Hostname())
+		if err != nil {
+			cs.recordFailure(r.cbThreshold, r.cbCooldown)
+			return zero, fmt.Errorf("did:web SSRF check failed: %w", err)
+		}
+		if private {
+			slog.Warn("did:web SSRF blocked", "did", did, "host", u.Hostname())
+			cs.recordFailure(r.cbThreshold, r.cbCooldown)
+			return zero, fmt.Errorf("did:web host %q resolves to a private or reserved address", u.Hostname())
+		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, docURL, nil)
+	// Build the fetch URL for tests: allow http:// when the URL already starts with http://
+	// (httptest servers use http, not https). In production, didWebDocumentURL always
+	// returns https://, so this branch is never reached outside tests.
+	fetchURL := docURL
+	if r.allowPrivateHosts && strings.HasPrefix(docURL, "https://") {
+		// Rewrite https → http so httptest servers (plain HTTP) are reachable.
+		fetchURL = "http://" + docURL[len("https://"):]
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fetchURL, nil)
 	if err != nil {
+		cs.recordFailure(r.cbThreshold, r.cbCooldown)
 		return zero, fmt.Errorf("did:web request build failed: %w", err)
 	}
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
-		return zero, fmt.Errorf("did:web fetch failed for %s: %w", docURL, err)
+		cs.recordFailure(r.cbThreshold, r.cbCooldown)
+		return zero, fmt.Errorf("did:web fetch failed for %s: %w", fetchURL, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return zero, fmt.Errorf("did:web fetch failed: HTTP %d from %s", resp.StatusCode, docURL)
+		cs.recordFailure(r.cbThreshold, r.cbCooldown)
+		return zero, fmt.Errorf("did:web fetch failed: HTTP %d from %s", resp.StatusCode, fetchURL)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		cs.recordFailure(r.cbThreshold, r.cbCooldown)
 		return zero, fmt.Errorf("did:web document read failed: %w", err)
 	}
 
 	key, extractErr := extractEd25519FromDIDDocument(body)
-	if extractErr == nil {
-		slog.Debug("did:web resolved", "did", did, "url", docURL)
+	if extractErr != nil {
+		cs.recordFailure(r.cbThreshold, r.cbCooldown)
+		return zero, extractErr
 	}
-	return key, extractErr
+
+	cs.recordSuccess()
+	slog.Debug("did:web resolved", "did", did, "url", fetchURL)
+	return key, nil
 }
 
 // didWebDocumentURL converts a did:web DID to its DID document HTTPS URL.

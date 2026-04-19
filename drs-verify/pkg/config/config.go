@@ -86,6 +86,15 @@ type Config struct {
 	// that appends client IPs to X-Forwarded-For.
 	// Set via TRUST_PROXY=true.
 	TrustProxy bool
+
+	// CircuitBreakerThreshold is the number of consecutive did:web failures before
+	// the circuit opens for that DID. Default: 5. Set via CIRCUIT_BREAKER_THRESHOLD.
+	CircuitBreakerThreshold int
+
+	// CircuitBreakerCooldownSecs is the number of seconds to wait before allowing
+	// a probe request through an open circuit. Default: 60.
+	// Set via CIRCUIT_BREAKER_COOLDOWN_SECS.
+	CircuitBreakerCooldownSecs int64
 }
 
 // Load reads all configuration from environment variables.
@@ -144,6 +153,15 @@ func Load() (Config, error) {
 	}
 	trustProxy := os.Getenv("TRUST_PROXY") == "true"
 
+	cbThreshold, err := getEnvInt("CIRCUIT_BREAKER_THRESHOLD", 5)
+	if err != nil {
+		return Config{}, fmt.Errorf("CIRCUIT_BREAKER_THRESHOLD: %w", err)
+	}
+	cbCooldown, err := getEnvInt64("CIRCUIT_BREAKER_COOLDOWN_SECS", 60)
+	if err != nil {
+		return Config{}, fmt.Errorf("CIRCUIT_BREAKER_COOLDOWN_SECS: %w", err)
+	}
+
 	return Config{
 		ListenAddr:             listenAddr,
 		DidCacheSize:           didCacheSize,
@@ -160,9 +178,11 @@ func Load() (Config, error) {
 		NonceStoreMaxEntries:   nonceMax,
 		NonceStoreTTLSecs:      nonceTTL,
 		TSARootCertPEM:         tsaRootCertPEM,
-		RateLimitPerIP:         rateLimitPerIP,
-		RateLimitGlobal:        rateLimitGlobal,
-		TrustProxy:             trustProxy,
+		RateLimitPerIP:             rateLimitPerIP,
+		RateLimitGlobal:            rateLimitGlobal,
+		TrustProxy:                 trustProxy,
+		CircuitBreakerThreshold:    cbThreshold,
+		CircuitBreakerCooldownSecs: cbCooldown,
 	}, nil
 }
 

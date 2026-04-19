@@ -62,7 +62,12 @@ func main() {
 	}
 	slog.SetDefault(slog.New(handler))
 
-	res, err := resolver.New(cfg.DidCacheSize, time.Duration(cfg.DidCacheTTLSecs)*time.Second)
+	res, err := resolver.NewWithCircuitBreaker(
+		cfg.DidCacheSize,
+		time.Duration(cfg.DidCacheTTLSecs)*time.Second,
+		cfg.CircuitBreakerThreshold,
+		time.Duration(cfg.CircuitBreakerCooldownSecs)*time.Second,
+	)
 	if err != nil {
 		slog.Error("resolver init failed", "error", err)
 		os.Exit(1)
