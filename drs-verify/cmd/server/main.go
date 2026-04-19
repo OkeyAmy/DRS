@@ -131,10 +131,11 @@ func main() {
 		"max_entries", cfg.NonceStoreMaxEntries,
 		"ttl_secs", cfg.NonceStoreTTLSecs)
 
-	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitPerIP, cfg.RateLimitGlobal)
+	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitPerIP, cfg.RateLimitGlobal, cfg.TrustProxy)
 	slog.Info("rate limiting enabled",
 		"per_ip_rps", cfg.RateLimitPerIP,
-		"global_rps", cfg.RateLimitGlobal)
+		"global_rps", cfg.RateLimitGlobal,
+		"trust_proxy", cfg.TrustProxy)
 
 	mux := http.NewServeMux()
 

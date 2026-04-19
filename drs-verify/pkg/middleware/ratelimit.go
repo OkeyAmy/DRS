@@ -20,16 +20,18 @@ const (
 
 // RateLimiter enforces per-IP and global request rate limits.
 type RateLimiter struct {
-	global    *rate.Limiter
-	perIPMu   sync.Mutex
-	perIP     *lru.Cache[string, *rate.Limiter]
-	perIPRate rate.Limit
+	global     *rate.Limiter
+	perIPMu    sync.Mutex
+	perIP      *lru.Cache[string, *rate.Limiter]
+	perIPRate  rate.Limit
+	trustProxy bool
 }
 
 // NewRateLimiter creates a RateLimiter with per-IP and global token buckets.
 // perIPRPS and globalRPS are sustained requests per second; burst is set equal
 // to the per-IP rate (minimum 1) for the per-IP limiter, and 2× for global.
-func NewRateLimiter(perIPRPS, globalRPS float64) *RateLimiter {
+// trustProxy controls whether X-Forwarded-For is trusted for IP extraction.
+func NewRateLimiter(perIPRPS, globalRPS float64, trustProxy bool) *RateLimiter {
 	cache, _ := lru.New[string, *rate.Limiter](ipLimiterCacheSize)
 	burst := int(perIPRPS)
 	if burst < 1 {
@@ -40,9 +42,10 @@ func NewRateLimiter(perIPRPS, globalRPS float64) *RateLimiter {
 		globalBurst = 1
 	}
 	return &RateLimiter{
-		global:    rate.NewLimiter(rate.Limit(globalRPS), globalBurst),
-		perIP:     cache,
-		perIPRate: rate.Limit(perIPRPS),
+		global:     rate.NewLimiter(rate.Limit(globalRPS), globalBurst),
+		perIP:      cache,
+		perIPRate:  rate.Limit(perIPRPS),
+		trustProxy: trustProxy,
 	}
 }
 
@@ -56,19 +59,19 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		ip := clientIP(r)
+		ip := clientIP(r, rl.trustProxy)
 
-		// Check global limiter first — cheapest path.
-		if !rl.global.Allow() {
-			slog.Warn("global rate limit exceeded", "ip", ip, "path", r.URL.Path)
+		// Check per-IP limiter first — avoids consuming the global token on IP-level rejections.
+		limiter := rl.getOrCreateIPLimiter(ip)
+		if !limiter.Allow() {
+			slog.Warn("per-IP rate limit exceeded", "ip", ip, "path", r.URL.Path)
 			rejectTooManyRequests(w)
 			return
 		}
 
-		// Check per-IP limiter.
-		limiter := rl.getOrCreateIPLimiter(ip)
-		if !limiter.Allow() {
-			slog.Warn("per-IP rate limit exceeded", "ip", ip, "path", r.URL.Path)
+		// Check global limiter — only reached if per-IP check passed.
+		if !rl.global.Allow() {
+			slog.Warn("global rate limit exceeded", "ip", ip, "path", r.URL.Path)
 			rejectTooManyRequests(w)
 			return
 		}
@@ -93,15 +96,19 @@ func (rl *RateLimiter) getOrCreateIPLimiter(ip string) *rate.Limiter {
 	return l
 }
 
-// clientIP extracts the real client IP, honouring X-Forwarded-For when set.
-func clientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Take the leftmost (original client) IP from the chain.
-		if idx := strings.IndexByte(xff, ','); idx != -1 {
-			xff = strings.TrimSpace(xff[:idx])
-		}
-		if net.ParseIP(strings.TrimSpace(xff)) != nil {
-			return strings.TrimSpace(xff)
+// clientIP extracts the client IP for rate limiting.
+// When trustProxy is true, the rightmost IP in X-Forwarded-For is used
+// (appended by the trusted proxy, not attacker-controlled).
+// When trustProxy is false (default), r.RemoteAddr is always used.
+func clientIP(r *http.Request, trustProxy bool) string {
+	if trustProxy {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			// The rightmost entry is appended by the trusted proxy — use it.
+			parts := strings.Split(xff, ",")
+			rightmost := strings.TrimSpace(parts[len(parts)-1])
+			if net.ParseIP(rightmost) != nil {
+				return rightmost
+			}
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)

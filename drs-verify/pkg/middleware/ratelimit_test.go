@@ -7,7 +7,7 @@ import (
 )
 
 func TestRateLimiterAllowsNormalTraffic(t *testing.T) {
-	rl := NewRateLimiter(100, 1000)
+	rl := NewRateLimiter(100, 1000, false)
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -23,7 +23,7 @@ func TestRateLimiterAllowsNormalTraffic(t *testing.T) {
 
 func TestRateLimiterRejectsExcessiveRequests(t *testing.T) {
 	// 1 req/sec per IP, burst of 1 — second request must be rejected
-	rl := NewRateLimiter(1, 1000)
+	rl := NewRateLimiter(1, 1000, false)
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -50,7 +50,7 @@ func TestRateLimiterRejectsExcessiveRequests(t *testing.T) {
 
 func TestRateLimiterHealthBypass(t *testing.T) {
 	// /healthz and /readyz must bypass rate limiting
-	rl := NewRateLimiter(1, 1)
+	rl := NewRateLimiter(1, 1, false)
 	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -63,5 +63,55 @@ func TestRateLimiterHealthBypass(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Errorf("healthz request %d: expected 200, got %d", i, w.Code)
 		}
+	}
+}
+
+func TestClientIPTrustProxy(t *testing.T) {
+	tests := []struct {
+		name       string
+		remoteAddr string
+		xff        string
+		trustProxy bool
+		wantIP     string
+	}{
+		{
+			name:       "no XFF, trustProxy false",
+			remoteAddr: "1.2.3.4:5000",
+			wantIP:     "1.2.3.4",
+		},
+		{
+			name:       "XFF present, trustProxy false — must use RemoteAddr",
+			remoteAddr: "1.2.3.4:5000",
+			xff:        "9.9.9.9",
+			trustProxy: false,
+			wantIP:     "1.2.3.4",
+		},
+		{
+			name:       "XFF present, trustProxy true — use rightmost",
+			remoteAddr: "10.0.0.1:5000",
+			xff:        "9.9.9.9, 5.5.5.5",
+			trustProxy: true,
+			wantIP:     "5.5.5.5",
+		},
+		{
+			name:       "XFF single value, trustProxy true",
+			remoteAddr: "10.0.0.1:5000",
+			xff:        "9.9.9.9",
+			trustProxy: true,
+			wantIP:     "9.9.9.9",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/verify", nil)
+			req.RemoteAddr = tt.remoteAddr
+			if tt.xff != "" {
+				req.Header.Set("X-Forwarded-For", tt.xff)
+			}
+			got := clientIP(req, tt.trustProxy)
+			if got != tt.wantIP {
+				t.Errorf("clientIP = %q, want %q", got, tt.wantIP)
+			}
+		})
 	}
 }

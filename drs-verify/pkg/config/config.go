@@ -79,6 +79,13 @@ type Config struct {
 	// RateLimitGlobal is the sustained requests/second allowed across all IPs.
 	// Default: 1000. Set via RATE_LIMIT_GLOBAL.
 	RateLimitGlobal float64
+
+	// TrustProxy controls whether X-Forwarded-For is trusted for IP extraction.
+	// When false (default), r.RemoteAddr is always used for rate limiting.
+	// Set to true only when the service runs behind a trusted reverse proxy
+	// that appends client IPs to X-Forwarded-For.
+	// Set via TRUST_PROXY=true.
+	TrustProxy bool
 }
 
 // Load reads all configuration from environment variables.
@@ -135,6 +142,7 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("RATE_LIMIT_GLOBAL: %w", err)
 	}
+	trustProxy := os.Getenv("TRUST_PROXY") == "true"
 
 	return Config{
 		ListenAddr:             listenAddr,
@@ -154,6 +162,7 @@ func Load() (Config, error) {
 		TSARootCertPEM:         tsaRootCertPEM,
 		RateLimitPerIP:         rateLimitPerIP,
 		RateLimitGlobal:        rateLimitGlobal,
+		TrustProxy:             trustProxy,
 	}, nil
 }
 
