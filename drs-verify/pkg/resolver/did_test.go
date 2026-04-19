@@ -1,7 +1,10 @@
 package resolver
 
 import (
+	"context"
 	"encoding/base64"
+	"net"
+	"strings"
 	"testing"
 	"time"
 )
@@ -106,11 +109,11 @@ func TestCacheHitReturnsSameKey(t *testing.T) {
 	}
 	did := encodeDIDKey(ed25519TestKey)
 
-	k1, err := r.Resolve(did)
+	k1, err := r.Resolve(context.Background(), did)
 	if err != nil {
 		t.Fatalf("first resolve failed: %v", err)
 	}
-	k2, err := r.Resolve(did)
+	k2, err := r.Resolve(context.Background(), did)
 	if err != nil {
 		t.Fatalf("second resolve (cache hit) failed: %v", err)
 	}
@@ -128,14 +131,14 @@ func TestExpiredCacheEntryIsEvicted(t *testing.T) {
 	did := encodeDIDKey(ed25519TestKey)
 
 	// First call populates cache
-	_, err = r.Resolve(did)
+	_, err = r.Resolve(context.Background(), did)
 	if err != nil {
 		t.Fatalf("first resolve failed: %v", err)
 	}
 	time.Sleep(time.Millisecond) // ensure TTL expires
 
 	// Second call must re-resolve without error
-	_, err = r.Resolve(did)
+	_, err = r.Resolve(context.Background(), did)
 	if err != nil {
 		t.Fatalf("resolve after TTL expiry failed: %v", err)
 	}
@@ -261,7 +264,7 @@ func TestResolveDispatch_UnsupportedMethodReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	_, err = r.Resolve("did:ethr:0xABCD")
+	_, err = r.Resolve(context.Background(), "did:ethr:0xABCD")
 	if err == nil {
 		t.Fatal("expected error for unsupported DID method, got nil")
 	}
@@ -281,7 +284,7 @@ func TestConcurrentDidKeyResolutionsDoNotBlock(t *testing.T) {
 	for i := 0; i < goroutines; i++ {
 		go func() {
 			did := encodeDIDKey(ed25519TestKey)
-			_, resolveErr := r.Resolve(did)
+			_, resolveErr := r.Resolve(context.Background(), did)
 			errs <- resolveErr
 		}()
 	}
@@ -311,7 +314,7 @@ func TestSingleflightDeduplicatesConcurrentMisses(t *testing.T) {
 
 	for i := 0; i < goroutines; i++ {
 		go func() {
-			key, resolveErr := r.Resolve(did)
+			key, resolveErr := r.Resolve(context.Background(), did)
 			ch <- result{key: key, err: resolveErr}
 		}()
 	}
@@ -323,5 +326,65 @@ func TestSingleflightDeduplicatesConcurrentMisses(t *testing.T) {
 		} else if res.key != ed25519TestKey {
 			t.Errorf("unexpected key: got %x, want %x", res.key, ed25519TestKey)
 		}
+	}
+}
+
+// ── SSRF protection ───────────────────────────────────────────────────────────
+
+func TestIsPrivateIP(t *testing.T) {
+	cases := []struct {
+		ip      string
+		private bool
+	}{
+		{"127.0.0.1", true},
+		{"127.0.0.2", true},
+		{"169.254.169.254", true}, // AWS IMDS
+		{"10.0.0.1", true},
+		{"10.255.255.255", true},
+		{"172.16.0.1", true},
+		{"172.31.255.255", true},
+		{"192.168.1.1", true},
+		{"::1", true},
+		{"fc00::1", true},
+		{"fe80::1", true},
+		{"8.8.8.8", false},
+		{"1.1.1.1", false},
+		{"93.184.216.34", false}, // example.com
+	}
+	for _, tc := range cases {
+		ip := net.ParseIP(tc.ip)
+		if ip == nil {
+			t.Fatalf("ParseIP(%q) returned nil", tc.ip)
+		}
+		got := isPrivateIP(ip)
+		if got != tc.private {
+			t.Errorf("isPrivateIP(%q) = %v, want %v", tc.ip, got, tc.private)
+		}
+	}
+}
+
+func TestResolveDidWebSSRFLocalhost(t *testing.T) {
+	res, err := New(10, time.Hour)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	_, err = res.Resolve(context.Background(), "did:web:localhost")
+	if err == nil {
+		t.Fatal("expected error for did:web:localhost (SSRF), got nil")
+	}
+	if !strings.Contains(err.Error(), "private") && !strings.Contains(err.Error(), "reserved") {
+		t.Errorf("error should mention private/reserved address, got: %v", err)
+	}
+}
+
+func TestResolveDidWebSSRFLinkLocal(t *testing.T) {
+	res, err := New(10, time.Hour)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	// 169.254.169.254 is an IP literal — LookupHost returns it as-is
+	_, err = res.Resolve(context.Background(), "did:web:169.254.169.254")
+	if err == nil {
+		t.Fatal("expected error for did:web:169.254.169.254, got nil")
 	}
 }

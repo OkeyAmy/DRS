@@ -11,6 +11,7 @@
 package verify
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
@@ -476,7 +477,7 @@ func verifyJWTSignature(jwt string, issuerDID string, res *resolver.Resolver) er
 		return fmt.Errorf("unsupported JWT algorithm %q: DRS receipts must use EdDSA", hdr.Alg)
 	}
 
-	pubKeyBytes, err := res.Resolve(issuerDID)
+	pubKeyBytes, err := res.Resolve(context.Background(), issuerDID)
 	if err != nil {
 		return fmt.Errorf("DID resolution failed: %w", err)
 	}

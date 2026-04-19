@@ -9,11 +9,13 @@
 package resolver
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -87,6 +89,66 @@ func New(cacheSize int, ttl time.Duration) (*Resolver, error) {
 	}, nil
 }
 
+// privateRanges is the set of IP ranges that must not be reachable via did:web.
+// Parsed once at init time; panic on invalid CIDR is intentional (programmer error).
+var privateRanges = func() []*net.IPNet {
+	cidrs := []string{
+		"127.0.0.0/8",    // loopback
+		"::1/128",        // IPv6 loopback
+		"169.254.0.0/16", // link-local (AWS IMDS, Azure IMDS)
+		"fe80::/10",      // IPv6 link-local
+		"10.0.0.0/8",     // RFC 1918 private
+		"172.16.0.0/12",  // RFC 1918 private
+		"192.168.0.0/16", // RFC 1918 private
+		"fc00::/7",       // IPv6 unique local
+		"100.64.0.0/10",  // RFC 6598 shared address space (carrier-grade NAT)
+		"0.0.0.0/8",      // "this" network
+	}
+	out := make([]*net.IPNet, 0, len(cidrs))
+	for _, cidr := range cidrs {
+		_, block, err := net.ParseCIDR(cidr)
+		if err != nil {
+			panic(fmt.Sprintf("resolver: invalid private CIDR %q: %v", cidr, err))
+		}
+		out = append(out, block)
+	}
+	return out
+}()
+
+// isPrivateIP returns true if ip falls within any of the blocked private ranges.
+func isPrivateIP(ip net.IP) bool {
+	for _, block := range privateRanges {
+		if block.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// isPrivateHost resolves host to IP addresses and returns true if any resolve
+// to a private or reserved range. Defends against SSRF via did:web.
+// The DNS lookup uses ctx so it respects request cancellation.
+func isPrivateHost(ctx context.Context, host string) (bool, error) {
+	// Strip port if present — net.LookupHost does not accept host:port.
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	addrs, err := net.DefaultResolver.LookupHost(ctx, host)
+	if err != nil {
+		return false, fmt.Errorf("did:web host resolution failed for %q: %w", host, err)
+	}
+	for _, addr := range addrs {
+		ip := net.ParseIP(addr)
+		if ip == nil {
+			continue
+		}
+		if isPrivateIP(ip) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // Resolve resolves a DID to its raw Ed25519 public key bytes.
 //
 // Supported methods:
@@ -97,7 +159,7 @@ func New(cacheSize int, ttl time.Duration) (*Resolver, error) {
 // Cache hits are served under a brief lock (constant-time).
 // Cache misses are resolved outside the lock and deduplicated per-DID
 // via singleflight to prevent N parallel fetches for the same DID.
-func (r *Resolver) Resolve(did string) ([ed25519PublicKeyBytes]byte, error) {
+func (r *Resolver) Resolve(ctx context.Context, did string) ([ed25519PublicKeyBytes]byte, error) {
 	// Fast path: brief lock for cache lookup only
 	r.cacheMu.Lock()
 	if entry, ok := r.cache.Get(did); ok {
@@ -115,14 +177,18 @@ func (r *Resolver) Resolve(did string) ([ed25519PublicKeyBytes]byte, error) {
 	r.inflightMu.Lock()
 	if e, ok := r.inflight[did]; ok {
 		r.inflightMu.Unlock()
-		<-e.done
-		return e.res.key, e.res.err
+		select {
+		case <-ctx.Done():
+			return [ed25519PublicKeyBytes]byte{}, ctx.Err()
+		case <-e.done:
+			return e.res.key, e.res.err
+		}
 	}
 	e := &inflightEntry{done: make(chan struct{})}
 	r.inflight[did] = e
 	r.inflightMu.Unlock()
 
-	key, err := r.resolveUncached(did)
+	key, err := r.resolveUncached(ctx, did)
 	e.res = resolveResult{key: key, err: err}
 	close(e.done)
 
@@ -140,12 +206,12 @@ func (r *Resolver) Resolve(did string) ([ed25519PublicKeyBytes]byte, error) {
 }
 
 // resolveUncached performs the actual resolution without holding any lock.
-func (r *Resolver) resolveUncached(did string) ([ed25519PublicKeyBytes]byte, error) {
+func (r *Resolver) resolveUncached(ctx context.Context, did string) ([ed25519PublicKeyBytes]byte, error) {
 	switch {
 	case strings.HasPrefix(did, didKeyPrefix):
 		return resolveDidKey(did)
 	case strings.HasPrefix(did, didWebPrefix):
-		return r.resolveDidWeb(did)
+		return r.resolveDidWeb(ctx, did)
 	default:
 		method := "unknown"
 		if parts := strings.SplitN(did, ":", 3); len(parts) >= 2 {
@@ -198,7 +264,7 @@ func resolveDidKey(did string) ([ed25519PublicKeyBytes]byte, error) {
 //   - did:web:example.com              → https://example.com/.well-known/did.json
 //   - did:web:example.com:users:alice  → https://example.com/users/alice/did.json
 //   - did:web:example.com%3A8443       → https://example.com:8443/.well-known/did.json
-func (r *Resolver) resolveDidWeb(did string) ([ed25519PublicKeyBytes]byte, error) {
+func (r *Resolver) resolveDidWeb(ctx context.Context, did string) ([ed25519PublicKeyBytes]byte, error) {
 	var zero [ed25519PublicKeyBytes]byte
 
 	docURL, err := didWebDocumentURL(did)
@@ -206,7 +272,24 @@ func (r *Resolver) resolveDidWeb(did string) ([ed25519PublicKeyBytes]byte, error
 		return zero, err
 	}
 
-	resp, err := r.httpClient.Get(docURL)
+	// SSRF protection: resolve the hostname and reject private/reserved ranges.
+	u, err := url.Parse(docURL)
+	if err != nil {
+		return zero, fmt.Errorf("did:web URL parse failed: %w", err)
+	}
+	private, err := isPrivateHost(ctx, u.Hostname())
+	if err != nil {
+		return zero, fmt.Errorf("did:web SSRF check failed: %w", err)
+	}
+	if private {
+		return zero, fmt.Errorf("did:web host %q resolves to a private or reserved address", u.Hostname())
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, docURL, nil)
+	if err != nil {
+		return zero, fmt.Errorf("did:web request build failed: %w", err)
+	}
+	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return zero, fmt.Errorf("did:web fetch failed for %s: %w", docURL, err)
 	}
