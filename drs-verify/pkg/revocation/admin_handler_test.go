@@ -203,3 +203,37 @@ func TestAdminRevokeHandler_OversizedBody_Returns400(t *testing.T) {
 		t.Fatalf("expected 400 Bad Request for oversized body, got %d", rec.Code)
 	}
 }
+
+func TestAdminRevokeTokenRejection(t *testing.T) {
+	store := NewLocalRevocationStore()
+	handler := AdminRevokeHandler(store, "correct-token-value")
+
+	cases := []struct {
+		name   string
+		auth   string
+		status int
+	}{
+		{"no auth header", "", http.StatusUnauthorized},
+		{"wrong token", "Bearer wrong-token-value", http.StatusUnauthorized},
+		{"partial match prefix", "Bearer correct-token-valu", http.StatusUnauthorized},
+		{"partial match suffix", "Bearer orrect-token-value", http.StatusUnauthorized},
+		{"bearer missing", "correct-token-value", http.StatusUnauthorized},
+		{"correct token", "Bearer correct-token-value", http.StatusOK},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := `{"status_list_index":1}`
+			req := httptest.NewRequest(http.MethodPost, "/admin/revoke", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			if tc.auth != "" {
+				req.Header.Set("Authorization", tc.auth)
+			}
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+			if w.Code != tc.status {
+				t.Errorf("auth=%q: got status %d, want %d", tc.auth, w.Code, tc.status)
+			}
+		})
+	}
+}
