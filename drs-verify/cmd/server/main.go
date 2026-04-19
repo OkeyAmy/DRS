@@ -131,6 +131,11 @@ func main() {
 		"max_entries", cfg.NonceStoreMaxEntries,
 		"ttl_secs", cfg.NonceStoreTTLSecs)
 
+	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitPerIP, cfg.RateLimitGlobal)
+	slog.Info("rate limiting enabled",
+		"per_ip_rps", cfg.RateLimitPerIP,
+		"global_rps", cfg.RateLimitGlobal)
+
 	mux := http.NewServeMux()
 
 	// Health endpoints (no auth required)
@@ -199,7 +204,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           mux,
+		Handler:           rateLimiter.Middleware(mux),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,

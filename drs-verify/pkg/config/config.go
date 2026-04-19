@@ -71,6 +71,14 @@ type Config struct {
 	// RFC 3161 timestamp verification. Empty means system roots are used.
 	// Set via TSA_ROOT_CERT_PEM env var.
 	TSARootCertPEM string
+
+	// RateLimitPerIP is the sustained requests/second allowed per source IP.
+	// Default: 100. Set via RATE_LIMIT_PER_IP.
+	RateLimitPerIP float64
+
+	// RateLimitGlobal is the sustained requests/second allowed across all IPs.
+	// Default: 1000. Set via RATE_LIMIT_GLOBAL.
+	RateLimitGlobal float64
 }
 
 // Load reads all configuration from environment variables.
@@ -119,6 +127,15 @@ func Load() (Config, error) {
 
 	tsaRootCertPEM := os.Getenv("TSA_ROOT_CERT_PEM")
 
+	rateLimitPerIP, err := getEnvFloat64("RATE_LIMIT_PER_IP", 100)
+	if err != nil {
+		return Config{}, fmt.Errorf("RATE_LIMIT_PER_IP: %w", err)
+	}
+	rateLimitGlobal, err := getEnvFloat64("RATE_LIMIT_GLOBAL", 1000)
+	if err != nil {
+		return Config{}, fmt.Errorf("RATE_LIMIT_GLOBAL: %w", err)
+	}
+
 	return Config{
 		ListenAddr:             listenAddr,
 		DidCacheSize:           didCacheSize,
@@ -135,6 +152,8 @@ func Load() (Config, error) {
 		NonceStoreMaxEntries:   nonceMax,
 		NonceStoreTTLSecs:      nonceTTL,
 		TSARootCertPEM:         tsaRootCertPEM,
+		RateLimitPerIP:         rateLimitPerIP,
+		RateLimitGlobal:        rateLimitGlobal,
 	}, nil
 }
 
@@ -165,6 +184,18 @@ func getEnvInt64(key string, def int64) (int64, error) {
 	n, err := strconv.ParseInt(v, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("must be an integer, got %q", v)
+	}
+	return n, nil
+}
+
+func getEnvFloat64(key string, def float64) (float64, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return def, nil
+	}
+	n, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return 0, fmt.Errorf("must be a number, got %q", v)
 	}
 	return n, nil
 }
