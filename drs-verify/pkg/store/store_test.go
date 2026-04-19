@@ -143,7 +143,7 @@ func TestFilesystemStoreCreatesDir(t *testing.T) {
 
 // pad returns a 60-character suffix to fill out a 64-char hex digest.
 func pad() string {
-	return "0000000000000000000000000000000000000000000000000000000000"
+	return "000000000000000000000000000000000000000000000000000000000000"
 }
 
 func TestFilesystemStorePathTraversal(t *testing.T) {
