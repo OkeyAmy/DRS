@@ -2,7 +2,7 @@ package anchor
 
 import (
 	"crypto/sha256"
-	"log"
+	"log/slog"
 
 	"github.com/drs-protocol/drs-verify/pkg/store"
 )
@@ -37,13 +37,13 @@ func (t *Tier3Store) Put(hash string, jwt string) error {
 	digest := sha256.Sum256([]byte(jwt))
 	token, err := t.tsa.Timestamp(digest[:])
 	if err != nil {
-		log.Printf("tier3: TSA timestamp failed for %s: %v", hash, err)
+		slog.Warn("tier3: TSA timestamp failed", "hash", hash, "error", err)
 		return nil
 	}
 
 	tokenKey := hash + ".tst"
 	if err := t.inner.Put(tokenKey, string(token)); err != nil {
-		log.Printf("tier3: failed to store timestamp token for %s: %v", hash, err)
+		slog.Warn("tier3: failed to store timestamp token", "hash", hash, "error", err)
 	}
 	return nil
 }
@@ -63,7 +63,7 @@ func (t *Tier3Store) Delete(hash string) error {
 
 	tokenKey := hash + ".tst"
 	if err := t.inner.Delete(tokenKey); err != nil {
-		log.Printf("tier3: failed to delete timestamp token for %s: %v", hash, err)
+		slog.Warn("tier3: failed to delete timestamp token", "hash", hash, "error", err)
 	}
 	return nil
 }

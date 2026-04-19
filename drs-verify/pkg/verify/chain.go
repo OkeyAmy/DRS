@@ -18,7 +18,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -384,7 +384,7 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 		for _, jwt := range bundle.Receipts {
 			hash := computeChainHash(jwt)
 			if err := deps.Store.Put(hash, jwt); err != nil {
-				log.Printf("store: Put failed for hash %s: %v", hash, err)
+				slog.Warn("store: Put failed", "hash", hash, "error", err)
 				storeWarnings = append(storeWarnings,
 					fmt.Sprintf("receipt %s could not be persisted: %v", hash, err))
 			}
