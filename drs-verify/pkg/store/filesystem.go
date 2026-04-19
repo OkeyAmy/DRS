@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -14,6 +15,10 @@ const (
 	filePermission = 0o600
 	dirPermission  = 0o700
 )
+
+// validHashRe matches exactly 64 lowercase hex characters — a SHA-256 digest.
+// Anything else (path separators, dots, uppercase, wrong length) is rejected.
+var validHashRe = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // FilesystemStore is a Tier-1 DR store backed by the local filesystem.
 //
@@ -43,7 +48,10 @@ func NewFilesystemStore(baseDir string, ttl time.Duration) (*FilesystemStore, er
 
 // Put writes a JWT to disk under its hash key.
 func (f *FilesystemStore) Put(hash string, jwt string) error {
-	path := f.hashPath(hash)
+	path, err := f.hashPath(hash)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(path), dirPermission); err != nil {
 		return fmt.Errorf("store: mkdir: %w", err)
 	}
@@ -56,7 +64,10 @@ func (f *FilesystemStore) Put(hash string, jwt string) error {
 // Get retrieves a JWT by chain hash. Returns ErrNotFound if absent or expired.
 // Expired files are deleted lazily.
 func (f *FilesystemStore) Get(hash string) (string, error) {
-	path := f.hashPath(hash)
+	path, err := f.hashPath(hash)
+	if err != nil {
+		return "", err
+	}
 
 	info, err := os.Stat(path)
 	if err != nil {
@@ -81,7 +92,10 @@ func (f *FilesystemStore) Get(hash string) (string, error) {
 
 // Delete removes an entry from disk. No-ops if absent.
 func (f *FilesystemStore) Delete(hash string) error {
-	path := f.hashPath(hash)
+	path, err := f.hashPath(hash)
+	if err != nil {
+		return err
+	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("store: delete: %w", err)
 	}
@@ -90,12 +104,12 @@ func (f *FilesystemStore) Delete(hash string) error {
 
 // hashPath maps a chain hash key to an absolute file path.
 // Strips the "sha256:" prefix before using the hex digest as a filename.
-func (f *FilesystemStore) hashPath(hash string) string {
+// Returns an error if the hash is not exactly 64 lowercase hex characters.
+func (f *FilesystemStore) hashPath(hash string) (string, error) {
 	name := strings.TrimPrefix(hash, "sha256:")
-	if len(name) < 4 {
-		// Fallback for very short or non-standard hashes
-		name = fmt.Sprintf("%064s", name)
+	if !validHashRe.MatchString(name) {
+		return "", fmt.Errorf("store: invalid hash %q: must be 64 lowercase hex characters", hash)
 	}
 	prefix := name[:4]
-	return filepath.Join(f.baseDir, prefix, name+".jwt")
+	return filepath.Join(f.baseDir, prefix, name+".jwt"), nil
 }
