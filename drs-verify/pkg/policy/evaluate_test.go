@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"math"
 	"testing"
 
 	"github.com/drs-protocol/drs-verify/pkg/types"
@@ -40,6 +41,39 @@ func TestWrongCostFieldNameIsIgnored(t *testing.T) {
 	p := pol(f64Ptr(1.0), nil, nil, nil)
 	if err := Evaluate(p, map[string]interface{}{"cost": 9999.0}); err != nil {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestEvaluateCostSpecialValues(t *testing.T) {
+	limit := 100.0
+	pol := types.Policy{MaxCostUSD: &limit}
+
+	cases := []struct {
+		name    string
+		cost    interface{}
+		wantErr bool
+	}{
+		{"NaN float64", math.NaN(), true},
+		{"positive Inf", math.Inf(1), true},
+		{"negative Inf", math.Inf(-1), true},
+		{"negative cost", -1.0, true},
+		{"zero cost", 0.0, false},
+		{"within limit", 50.0, false},
+		{"at limit", 100.0, false},
+		{"over limit", 100.01, true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := map[string]interface{}{"estimated_cost_usd": tc.cost}
+			err := Evaluate(pol, args)
+			if tc.wantErr && err == nil {
+				t.Errorf("Evaluate(%v): expected error, got nil", tc.cost)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("Evaluate(%v): expected nil error, got %v", tc.cost, err)
+			}
+		})
 	}
 }
 
