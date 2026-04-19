@@ -32,6 +32,10 @@ type Config struct {
 	// LOG_LEVEL: "debug" | "info" | "warn" | "error"
 	LogLevel string
 
+	// LogFormat controls output format: "text" (default) or "json".
+	// Set via LOG_FORMAT env var. Use "json" in production for log aggregators.
+	LogFormat string
+
 	// Bearer token required to call POST /admin/revoke.
 	// Empty means the admin endpoint is disabled (responds 503).
 	// Set via DRS_ADMIN_TOKEN — no default.
@@ -97,6 +101,7 @@ func Load() (Config, error) {
 	}
 
 	logLevel := getEnvOrDefault("LOG_LEVEL", "info")
+	logFormat := getEnvOrDefault("LOG_FORMAT", "text")
 	adminToken := os.Getenv("DRS_ADMIN_TOKEN")
 	tsaURL := os.Getenv("TSA_URL")
 	storeDir := os.Getenv("STORE_DIR")
@@ -122,6 +127,7 @@ func Load() (Config, error) {
 		StatusListBaseURL:      statusBaseURL,
 		MaxBodyBytes:           maxBodyBytes,
 		LogLevel:               logLevel,
+		LogFormat:              logFormat,
 		AdminToken:             adminToken,
 		TSAURL:                 tsaURL,
 		StoreDir:               storeDir,

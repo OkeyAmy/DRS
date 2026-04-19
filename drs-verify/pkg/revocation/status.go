@@ -13,7 +13,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"sync"
@@ -77,7 +77,7 @@ func (s *StatusCache) IsRevoked(ctx context.Context, statusListIndex uint64) (bo
 			if err := s.refresh(context.Background()); err != nil {
 				// Log the error but serve stale data rather than blocking verification.
 				// A monitoring alert should fire on persistent fetch failures.
-				log.Printf("revocation: status list refresh failed (serving stale data): %v", err)
+				slog.Warn("status list refresh failed, serving stale data", "error", err)
 			}
 		}
 		s.refreshMu.Unlock()

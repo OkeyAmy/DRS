@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -282,6 +283,7 @@ func (r *Resolver) resolveDidWeb(ctx context.Context, did string) ([ed25519Publi
 		return zero, fmt.Errorf("did:web SSRF check failed: %w", err)
 	}
 	if private {
+		slog.Warn("did:web SSRF blocked", "did", did, "host", u.Hostname())
 		return zero, fmt.Errorf("did:web host %q resolves to a private or reserved address", u.Hostname())
 	}
 
@@ -304,7 +306,11 @@ func (r *Resolver) resolveDidWeb(ctx context.Context, did string) ([ed25519Publi
 		return zero, fmt.Errorf("did:web document read failed: %w", err)
 	}
 
-	return extractEd25519FromDIDDocument(body)
+	key, extractErr := extractEd25519FromDIDDocument(body)
+	if extractErr == nil {
+		slog.Debug("did:web resolved", "did", did, "url", docURL)
+	}
+	return key, extractErr
 }
 
 // didWebDocumentURL converts a did:web DID to its DID document HTTPS URL.
