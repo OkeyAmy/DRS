@@ -494,5 +494,52 @@ func TestVerifyJWTSignatureAlgCheck(t *testing.T) {
 	}
 }
 
+// TestChainDepthLimit verifies that a bundle with more than 16 receipts is
+// rejected with CHAIN_TOO_DEEP before any cryptographic work is done.
+func TestChainDepthLimit(t *testing.T) {
+	deps := testDeps(t)
+
+	// Build a bundle with 17 receipts (one over the limit of 16).
+	// The receipts don't need to be cryptographically valid — Block A fires first.
+	receipts := make([]string, 17)
+	for i := range receipts {
+		receipts[i] = "a.b.c" // minimal 3-part JWT placeholder
+	}
+	bundle := types.ChainBundle{
+		BundleVersion: "1",
+		Invocation:    "a.b.c",
+		Receipts:      receipts,
+	}
+
+	result := Chain(bundle, deps)
+	if result.Valid {
+		t.Fatal("expected invalid result for depth > 16")
+	}
+	if result.Error == nil || result.Error.Code != "CHAIN_TOO_DEEP" {
+		t.Errorf("expected CHAIN_TOO_DEEP, got %v", result.Error)
+	}
+}
+
+// TestChainDepthLimitBoundary verifies that a bundle with exactly 16 receipts
+// does not trigger CHAIN_TOO_DEEP (it may fail for other reasons).
+func TestChainDepthLimitBoundary(t *testing.T) {
+	deps := testDeps(t)
+
+	// 16 receipts must NOT trigger CHAIN_TOO_DEEP.
+	receipts := make([]string, 16)
+	for i := range receipts {
+		receipts[i] = "a.b.c"
+	}
+	bundle := types.ChainBundle{
+		BundleVersion: "1",
+		Invocation:    "a.b.c",
+		Receipts:      receipts,
+	}
+	result := Chain(bundle, deps)
+	if result.Error != nil && result.Error.Code == "CHAIN_TOO_DEEP" {
+		t.Error("16-receipt bundle must not trigger CHAIN_TOO_DEEP")
+	}
+}
+
 // int64Ptr is used in other test files; kept here to avoid re-declaration.
 var _ = int64Ptr

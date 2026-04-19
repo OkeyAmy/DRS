@@ -31,6 +31,10 @@ const (
 	expectedDRSVersion = "4.0"
 	expectedDRType     = "delegation-receipt"
 	expectedInvType    = "invocation-receipt"
+	// maxChainDepth is the maximum number of delegation receipts allowed in a
+	// single bundle. 16 hops is more than any legitimate delegation chain needs.
+	// This bounds CPU work per request independently of rate limiting.
+	maxChainDepth = 16
 )
 
 // jwtHeader holds the minimum fields needed to validate a JWT header.
@@ -81,6 +85,12 @@ func Chain(bundle types.ChainBundle, deps Deps) types.VerificationResult {
 		return types.Invalid("EMPTY_CHAIN",
 			"bundle.receipts is empty — at least one delegation receipt is required.",
 			"Ensure the chain bundle includes all delegation receipts from root to leaf.")
+	}
+	if len(bundle.Receipts) > maxChainDepth {
+		return types.Invalid("CHAIN_TOO_DEEP",
+			fmt.Sprintf("bundle has %d receipts; maximum allowed chain depth is %d.",
+				len(bundle.Receipts), maxChainDepth),
+			"Reduce the delegation chain depth. Legitimate chains rarely exceed 4 hops.")
 	}
 	if bundle.Invocation == "" {
 		return types.Invalid("MISSING_INVOCATION",
