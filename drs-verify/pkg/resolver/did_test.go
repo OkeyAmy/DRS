@@ -3,8 +3,12 @@ package resolver
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -386,5 +390,114 @@ func TestResolveDidWebSSRFLinkLocal(t *testing.T) {
 	_, err = res.Resolve(context.Background(), "did:web:169.254.169.254")
 	if err == nil {
 		t.Fatal("expected error for did:web:169.254.169.254, got nil")
+	}
+}
+
+// ── Circuit breaker ───────────────────────────────────────────────────────────
+
+// buildTestDIDDocument returns a JSON DID document containing ed25519TestKey
+// as a JsonWebKey2020 verification method. The DID subject is derived from the
+// test server's Host header so the document is valid for the caller's DID.
+func buildTestDIDDocument(t *testing.T, r *http.Request) []byte {
+	t.Helper()
+	x := base64.RawURLEncoding.EncodeToString(ed25519TestKey[:])
+	doc := fmt.Sprintf(`{
+		"@context": ["https://www.w3.org/ns/did/v1"],
+		"id": "did:web:%s",
+		"verificationMethod": [{
+			"id": "did:web:%s#key-1",
+			"type": "JsonWebKey2020",
+			"controller": "did:web:%s",
+			"publicKeyJwk": {
+				"kty": "OKP",
+				"crv": "Ed25519",
+				"x": "%s"
+			}
+		}]
+	}`, r.Host, r.Host, r.Host, x)
+	return []byte(doc)
+}
+
+func TestCircuitBreakerOpensAfterThreshold(t *testing.T) {
+	// Server that always returns 500 — simulates a dead did:web endpoint.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	host := strings.TrimPrefix(srv.URL, "http://")
+	did := "did:web:" + strings.ReplaceAll(host, ":", "%3A")
+
+	res, err := NewWithCircuitBreaker(10, time.Hour, 3, 60*time.Second)
+	if err != nil {
+		t.Fatalf("NewWithCircuitBreaker: %v", err)
+	}
+	// Allow the test server (127.0.0.1) through the SSRF guard.
+	res.allowPrivateHosts = true
+
+	// First 3 attempts fail normally (circuit closed).
+	for i := 0; i < 3; i++ {
+		_, err := res.Resolve(context.Background(), did)
+		if err == nil {
+			t.Errorf("attempt %d: expected error, got nil", i)
+		}
+	}
+
+	// 4th attempt: circuit is open — must return error immediately (no HTTP call).
+	start := time.Now()
+	_, err = res.Resolve(context.Background(), did)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Error("open circuit: expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "circuit") && !strings.Contains(err.Error(), "open") {
+		t.Errorf("open circuit error should mention circuit/open, got: %v", err)
+	}
+	if elapsed > 50*time.Millisecond {
+		t.Errorf("open circuit should return immediately, took %v", elapsed)
+	}
+}
+
+func TestCircuitBreakerClosesAfterCooldown(t *testing.T) {
+	callCount := 0
+	var mu sync.Mutex
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		callCount++
+		cc := callCount
+		mu.Unlock()
+		if cc <= 2 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		// Third call (probe after cooldown): return a valid DID document.
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(buildTestDIDDocument(t, r))
+	}))
+	defer srv.Close()
+
+	host := strings.TrimPrefix(srv.URL, "http://")
+	did := "did:web:" + strings.ReplaceAll(host, ":", "%3A")
+
+	// 10ms cooldown for a fast test.
+	res, err := NewWithCircuitBreaker(10, time.Hour, 2, 10*time.Millisecond)
+	if err != nil {
+		t.Fatalf("NewWithCircuitBreaker: %v", err)
+	}
+	// Allow the test server (127.0.0.1) through the SSRF guard.
+	res.allowPrivateHosts = true
+
+	// 2 failures open the circuit.
+	for i := 0; i < 2; i++ {
+		res.Resolve(context.Background(), did) //nolint:errcheck
+	}
+
+	// Wait for cooldown.
+	time.Sleep(20 * time.Millisecond)
+
+	// Probe should succeed and close the circuit.
+	_, err = res.Resolve(context.Background(), did)
+	if err != nil {
+		t.Errorf("probe after cooldown: expected success, got %v", err)
 	}
 }

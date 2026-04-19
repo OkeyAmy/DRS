@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -66,6 +67,7 @@ func CheckNonceReplay(w http.ResponseWriter, invocationJWT string, ns *nonce.Sto
 	if err := ns.Check(jti); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		if errors.Is(err, nonce.ErrReplayDetected) {
+			slog.Warn("nonce replay detected", "jti", jti)
 			w.WriteHeader(http.StatusConflict)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"error":      "REPLAY_DETECTED",

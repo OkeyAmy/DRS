@@ -18,7 +18,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -384,7 +384,7 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 		for _, jwt := range bundle.Receipts {
 			hash := computeChainHash(jwt)
 			if err := deps.Store.Put(hash, jwt); err != nil {
-				log.Printf("store: Put failed for hash %s: %v", hash, err)
+				slog.Warn("store: Put failed", "hash", hash, "error", err)
 				storeWarnings = append(storeWarnings,
 					fmt.Sprintf("receipt %s could not be persisted: %v", hash, err))
 			}
@@ -448,6 +448,7 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 		LeafPolicy:    last.Policy,
 		ChainDepth:    len(receipts),
 		SessionID:     sessionID,
+		CorrelationID: root.CorrelationID,
 	})
 	result.Timestamps = timestamps
 	result.StoreWarnings = storeWarnings
@@ -507,7 +508,46 @@ func verifyJWTSignature(ctx context.Context, jwt string, issuerDID string, res *
 	if !ed25519.Verify(pubKey, []byte(signingInput), sigBytes) {
 		return fmt.Errorf("Ed25519 signature verification failed")
 	}
+	// Strict S-range check: reject non-canonical signatures that Go's stdlib
+	// accepts but ed25519-dalek verify_strict rejects. Ensures cross-layer parity.
+	if err := strictVerifyEd25519(sigBytes); err != nil {
+		return fmt.Errorf("Ed25519 strict check failed: %w", err)
+	}
 	return nil
+}
+
+// edGroupOrder is the Ed25519 group order L in little-endian bytes.
+// L = 2^252 + 27742317777372353535851937790883648493
+var edGroupOrder = [32]byte{
+	0xed, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58,
+	0xd6, 0x9c, 0xf7, 0xa2, 0xde, 0xf9, 0xde, 0x14,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10,
+}
+
+// strictVerifyEd25519 checks that the scalar S in an Ed25519 signature is
+// canonical (S < L, the group order). Go's stdlib ed25519.Verify accepts
+// non-canonical S values; ed25519-dalek verify_strict does not. This check
+// closes the cross-implementation gap without external dependencies.
+//
+// Must be called only after ed25519.Verify returns true.
+func strictVerifyEd25519(sig []byte) error {
+	if len(sig) != ed25519.SignatureSize {
+		return fmt.Errorf("invalid signature length: %d", len(sig))
+	}
+	// S occupies bytes 32–63 (little-endian). Compare from most-significant
+	// byte (index 31) downward to determine whether S < L.
+	for i := 31; i >= 0; i-- {
+		if sig[32+i] > edGroupOrder[i] {
+			return fmt.Errorf("non-canonical Ed25519 signature scalar: S >= group order L")
+		}
+		if sig[32+i] < edGroupOrder[i] {
+			return nil // S < L — canonical
+		}
+		// bytes equal at this position; continue to less-significant byte
+	}
+	// S == L exactly — also non-canonical (must be strictly less than L)
+	return fmt.Errorf("non-canonical Ed25519 signature scalar: S == group order L")
 }
 
 // classifySignatureError maps a verifyJWTSignature error to a VerificationResult error code.

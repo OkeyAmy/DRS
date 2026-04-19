@@ -11,8 +11,9 @@ package main
 import (
 	"crypto/x509"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/drs-protocol/drs-verify/pkg/anchor"
@@ -28,14 +29,48 @@ import (
 )
 
 func main() {
+	// Pre-init: use a default text handler until configuration is loaded.
+	// This ensures any config-load failure is logged through slog, not fmt/log.
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})))
+
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		slog.Error("config load failed", "error", err)
+		os.Exit(1)
 	}
 
-	res, err := resolver.New(cfg.DidCacheSize, time.Duration(cfg.DidCacheTTLSecs)*time.Second)
+	// Parse log level
+	var logLevel slog.Level
+	switch cfg.LogLevel {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "warn":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	default:
+		logLevel = slog.LevelInfo
+	}
+
+	// Init structured logger
+	opts := &slog.HandlerOptions{Level: logLevel}
+	var handler slog.Handler
+	if cfg.LogFormat == "json" {
+		handler = slog.NewJSONHandler(os.Stdout, opts)
+	} else {
+		handler = slog.NewTextHandler(os.Stdout, opts)
+	}
+	slog.SetDefault(slog.New(handler))
+
+	res, err := resolver.NewWithCircuitBreaker(
+		cfg.DidCacheSize,
+		time.Duration(cfg.DidCacheTTLSecs)*time.Second,
+		cfg.CircuitBreakerThreshold,
+		time.Duration(cfg.CircuitBreakerCooldownSecs)*time.Second,
+	)
 	if err != nil {
-		log.Fatalf("resolver: %v", err)
+		slog.Error("resolver init failed", "error", err)
+		os.Exit(1)
 	}
 
 	var statusCache *revocation.StatusCache
@@ -43,9 +78,9 @@ func main() {
 		statusCache = revocation.New(cfg.StatusListBaseURL,
 			time.Duration(cfg.StatusListCacheTTLSecs)*time.Second)
 		if err := statusCache.WarmUp(); err != nil {
-			log.Printf("drs-verify: status list warm-up failed (will retry on first request): %v", err)
+			slog.Warn("status list warm-up failed", "error", err)
 		} else {
-			log.Printf("drs-verify: status list warm-up successful")
+			slog.Info("status list warm-up successful")
 		}
 	}
 
@@ -55,33 +90,36 @@ func main() {
 	if cfg.StoreDir != "" {
 		fsStore, err := store.NewFilesystemStore(cfg.StoreDir, 0)
 		if err != nil {
-			log.Fatalf("store: %v", err)
+			slog.Error("store init failed", "error", err)
+			os.Exit(1)
 		}
 		if cfg.TSAURL != "" {
 			drStore = anchor.NewTier3Store(fsStore, anchor.NewTSAClient(cfg.TSAURL))
-			log.Printf("drs-verify: Tier 3 store enabled (TSA: %s)", cfg.TSAURL)
+			slog.Info("store initialized", "tier", 3, "tsa_url", cfg.TSAURL)
 		} else {
 			drStore = fsStore
-			log.Printf("drs-verify: Tier 1 filesystem store (no TSA configured)")
+			slog.Info("store initialized", "tier", 1)
 		}
 	} else {
 		s, err := store.NewMemoryStore(0)
 		if err != nil {
-			log.Fatalf("store: %v", err)
+			slog.Error("store init failed", "error", err)
+			os.Exit(1)
 		}
 		drStore = s
-		log.Printf("drs-verify: Tier 0 memory store (no STORE_DIR configured)")
+		slog.Info("store initialized", "tier", 0)
 	}
 
 	var tsaRootPool *x509.CertPool
 	if cfg.TSARootCertPEM != "" {
 		tsaRootPool = x509.NewCertPool()
 		if !tsaRootPool.AppendCertsFromPEM([]byte(cfg.TSARootCertPEM)) {
-			log.Fatalf("TSA_ROOT_CERT_PEM: no valid certificates found in PEM data")
+			slog.Error("TSA_ROOT_CERT_PEM: no valid certificates found in PEM data")
+			os.Exit(1)
 		}
-		log.Printf("drs-verify: RFC 3161 trust anchored to custom root pool")
+		slog.Info("RFC 3161 trust anchored to custom root pool")
 	} else {
-		log.Printf("drs-verify: RFC 3161 trust uses system roots (set TSA_ROOT_CERT_PEM to override)")
+		slog.Info("RFC 3161 trust uses system roots")
 	}
 
 	deps := verify.Deps{
@@ -94,8 +132,15 @@ func main() {
 	}
 
 	nonceStore := nonce.New(cfg.NonceStoreMaxEntries, time.Duration(cfg.NonceStoreTTLSecs)*time.Second)
-	log.Printf("drs-verify: nonce replay protection enabled (max_entries=%d, ttl=%ds)",
-		cfg.NonceStoreMaxEntries, cfg.NonceStoreTTLSecs)
+	slog.Info("nonce replay protection enabled",
+		"max_entries", cfg.NonceStoreMaxEntries,
+		"ttl_secs", cfg.NonceStoreTTLSecs)
+
+	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitPerIP, cfg.RateLimitGlobal, cfg.TrustProxy)
+	slog.Info("rate limiting enabled",
+		"per_ip_rps", cfg.RateLimitPerIP,
+		"global_rps", cfg.RateLimitGlobal,
+		"trust_proxy", cfg.TrustProxy)
 
 	mux := http.NewServeMux()
 
@@ -126,7 +171,7 @@ func main() {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
-				log.Printf("verify: encode error response: %v", encErr)
+				slog.Warn("encode error response failed", "error", encErr)
 			}
 			return
 		}
@@ -143,7 +188,7 @@ func main() {
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(result); err != nil {
-			log.Printf("verify: encode result: %v", err)
+			slog.Warn("encode verify result failed", "error", err)
 		}
 	})
 
@@ -165,14 +210,15 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
-		Handler:           mux,
+		Handler:           rateLimiter.Middleware(mux),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
-	log.Printf("drs-verify listening on %s", cfg.ListenAddr)
+	slog.Info("drs-verify listening", "addr", cfg.ListenAddr)
 	if err := srv.ListenAndServe(); err != nil {
-		log.Fatalf("server: %v", err)
+		slog.Error("server exited", "error", err)
+		os.Exit(1)
 	}
 }

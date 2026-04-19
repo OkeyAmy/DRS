@@ -32,6 +32,10 @@ type Config struct {
 	// LOG_LEVEL: "debug" | "info" | "warn" | "error"
 	LogLevel string
 
+	// LogFormat controls output format: "text" (default) or "json".
+	// Set via LOG_FORMAT env var. Use "json" in production for log aggregators.
+	LogFormat string
+
 	// Bearer token required to call POST /admin/revoke.
 	// Empty means the admin endpoint is disabled (responds 503).
 	// Set via DRS_ADMIN_TOKEN — no default.
@@ -67,6 +71,30 @@ type Config struct {
 	// RFC 3161 timestamp verification. Empty means system roots are used.
 	// Set via TSA_ROOT_CERT_PEM env var.
 	TSARootCertPEM string
+
+	// RateLimitPerIP is the sustained requests/second allowed per source IP.
+	// Default: 100. Set via RATE_LIMIT_PER_IP.
+	RateLimitPerIP float64
+
+	// RateLimitGlobal is the sustained requests/second allowed across all IPs.
+	// Default: 1000. Set via RATE_LIMIT_GLOBAL.
+	RateLimitGlobal float64
+
+	// TrustProxy controls whether X-Forwarded-For is trusted for IP extraction.
+	// When false (default), r.RemoteAddr is always used for rate limiting.
+	// Set to true only when the service runs behind a trusted reverse proxy
+	// that appends client IPs to X-Forwarded-For.
+	// Set via TRUST_PROXY=true.
+	TrustProxy bool
+
+	// CircuitBreakerThreshold is the number of consecutive did:web failures before
+	// the circuit opens for that DID. Default: 5. Set via CIRCUIT_BREAKER_THRESHOLD.
+	CircuitBreakerThreshold int
+
+	// CircuitBreakerCooldownSecs is the number of seconds to wait before allowing
+	// a probe request through an open circuit. Default: 60.
+	// Set via CIRCUIT_BREAKER_COOLDOWN_SECS.
+	CircuitBreakerCooldownSecs int64
 }
 
 // Load reads all configuration from environment variables.
@@ -97,6 +125,7 @@ func Load() (Config, error) {
 	}
 
 	logLevel := getEnvOrDefault("LOG_LEVEL", "info")
+	logFormat := getEnvOrDefault("LOG_FORMAT", "text")
 	adminToken := os.Getenv("DRS_ADMIN_TOKEN")
 	tsaURL := os.Getenv("TSA_URL")
 	storeDir := os.Getenv("STORE_DIR")
@@ -114,6 +143,25 @@ func Load() (Config, error) {
 
 	tsaRootCertPEM := os.Getenv("TSA_ROOT_CERT_PEM")
 
+	rateLimitPerIP, err := getEnvFloat64("RATE_LIMIT_PER_IP", 100)
+	if err != nil {
+		return Config{}, fmt.Errorf("RATE_LIMIT_PER_IP: %w", err)
+	}
+	rateLimitGlobal, err := getEnvFloat64("RATE_LIMIT_GLOBAL", 1000)
+	if err != nil {
+		return Config{}, fmt.Errorf("RATE_LIMIT_GLOBAL: %w", err)
+	}
+	trustProxy := os.Getenv("TRUST_PROXY") == "true"
+
+	cbThreshold, err := getEnvInt("CIRCUIT_BREAKER_THRESHOLD", 5)
+	if err != nil {
+		return Config{}, fmt.Errorf("CIRCUIT_BREAKER_THRESHOLD: %w", err)
+	}
+	cbCooldown, err := getEnvInt64("CIRCUIT_BREAKER_COOLDOWN_SECS", 60)
+	if err != nil {
+		return Config{}, fmt.Errorf("CIRCUIT_BREAKER_COOLDOWN_SECS: %w", err)
+	}
+
 	return Config{
 		ListenAddr:             listenAddr,
 		DidCacheSize:           didCacheSize,
@@ -122,6 +170,7 @@ func Load() (Config, error) {
 		StatusListBaseURL:      statusBaseURL,
 		MaxBodyBytes:           maxBodyBytes,
 		LogLevel:               logLevel,
+		LogFormat:              logFormat,
 		AdminToken:             adminToken,
 		TSAURL:                 tsaURL,
 		StoreDir:               storeDir,
@@ -129,6 +178,11 @@ func Load() (Config, error) {
 		NonceStoreMaxEntries:   nonceMax,
 		NonceStoreTTLSecs:      nonceTTL,
 		TSARootCertPEM:         tsaRootCertPEM,
+		RateLimitPerIP:             rateLimitPerIP,
+		RateLimitGlobal:            rateLimitGlobal,
+		TrustProxy:                 trustProxy,
+		CircuitBreakerThreshold:    cbThreshold,
+		CircuitBreakerCooldownSecs: cbCooldown,
 	}, nil
 }
 
@@ -159,6 +213,18 @@ func getEnvInt64(key string, def int64) (int64, error) {
 	n, err := strconv.ParseInt(v, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("must be an integer, got %q", v)
+	}
+	return n, nil
+}
+
+func getEnvFloat64(key string, def float64) (float64, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return def, nil
+	}
+	n, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return 0, fmt.Errorf("must be a number, got %q", v)
 	}
 	return n, nil
 }

@@ -650,3 +650,101 @@ func TestChainStoreWarningsOnPutFailure(t *testing.T) {
 		t.Errorf("StoreWarnings content unexpected: %v", result.StoreWarnings)
 	}
 }
+
+func TestStrictEd25519FunctionRejectsNonCanonicalS(t *testing.T) {
+	// Direct unit test for strictVerifyEd25519 itself — calls the function with
+	// crafted byte slices, independent of ed25519.Verify (which also rejects
+	// non-canonical S in Go 1.13+, so the integration path below is defense-in-depth).
+	L := [32]byte{
+		0xed, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58,
+		0xd6, 0x9c, 0xf7, 0xa2, 0xde, 0xf9, 0xde, 0x14,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10,
+	}
+	// S == L: non-canonical, must be rejected.
+	sig := make([]byte, 64)
+	copy(sig[32:], L[:])
+	if err := strictVerifyEd25519(sig); err == nil {
+		t.Error("S == L must be rejected, got nil error")
+	}
+	// S = L+1: clearly non-canonical.
+	sig2 := make([]byte, 64)
+	copy(sig2[32:], L[:])
+	sig2[32] += 1
+	if err := strictVerifyEd25519(sig2); err == nil {
+		t.Error("S > L must be rejected, got nil error")
+	}
+	// S = 0: canonical, must be accepted.
+	sig3 := make([]byte, 64)
+	if err := strictVerifyEd25519(sig3); err != nil {
+		t.Errorf("S = 0 must be accepted, got: %v", err)
+	}
+	// S = L-1: largest canonical value, must be accepted.
+	sig4 := make([]byte, 64)
+	copy(sig4[32:], L[:])
+	sig4[32] -= 1
+	if err := strictVerifyEd25519(sig4); err != nil {
+		t.Errorf("S = L-1 must be accepted, got: %v", err)
+	}
+}
+
+func TestStrictEd25519RejectsNonCanonicalS(t *testing.T) {
+	// Integration path: verifyJWTSignature must reject a JWT with S >= L.
+	// In Go 1.13+, ed25519.Verify itself rejects non-canonical S; this test
+	// confirms the full verification path correctly surfaces an error.
+	k := newTestKey(t)
+
+	headerJSON, _ := json.Marshal(map[string]string{"alg": "EdDSA", "typ": "JWT"})
+	payloadJSON, _ := json.Marshal(map[string]interface{}{
+		"iss": k.did,
+		"exp": int64(9999999999),
+	})
+	h := base64.RawURLEncoding.EncodeToString(headerJSON)
+	p := base64.RawURLEncoding.EncodeToString(payloadJSON)
+	msg := h + "." + p
+
+	validSig := ed25519.Sign(k.prv, []byte(msg))
+
+	// Add L to S (bytes 32-63, little-endian) to produce a non-canonical scalar.
+	L := [32]byte{
+		0xed, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58,
+		0xd6, 0x9c, 0xf7, 0xa2, 0xde, 0xf9, 0xde, 0x14,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10,
+	}
+	nonCanonicalSig := make([]byte, 64)
+	copy(nonCanonicalSig, validSig)
+	carry := uint16(0)
+	for i := 0; i < 32; i++ {
+		sum := uint16(nonCanonicalSig[32+i]) + uint16(L[i]) + carry
+		nonCanonicalSig[32+i] = byte(sum)
+		carry = sum >> 8
+	}
+
+	nonCanonicalJWT := msg + "." + base64.RawURLEncoding.EncodeToString(nonCanonicalSig)
+
+	res, err := resolver.New(10, time.Hour)
+	if err != nil {
+		t.Fatalf("resolver.New: %v", err)
+	}
+	err = verifyJWTSignature(context.Background(), nonCanonicalJWT, k.did, res)
+	if err == nil {
+		t.Error("strict verifier must reject non-canonical S (S >= L), got nil error")
+	}
+}
+
+func TestStrictEd25519AcceptsValidSignatures(t *testing.T) {
+	k := newTestKey(t)
+	res, err := resolver.New(10, time.Hour)
+	if err != nil {
+		t.Fatalf("resolver.New: %v", err)
+	}
+
+	jwt := signJWT(k.prv, map[string]interface{}{
+		"iss": k.did,
+		"exp": int64(9999999999),
+	})
+	if err := verifyJWTSignature(context.Background(), jwt, k.did, res); err != nil {
+		t.Errorf("strict verifier rejected a valid canonical signature: %v", err)
+	}
+}
