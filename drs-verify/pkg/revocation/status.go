@@ -20,6 +20,12 @@ import (
 	"time"
 )
 
+// fetchTimeout bounds how long a single status list refresh may run.
+// Independent of the caller's context: request cancellation must not abort a
+// cache write that other callers depend on, but refreshes must have their own
+// deadline so a slow status list endpoint cannot hang verifications forever.
+const fetchTimeout = 15 * time.Second
+
 // StatusCache caches a remote Bitstring Status List with TTL-based refresh.
 type StatusCache struct {
 	mu         sync.RWMutex
@@ -44,12 +50,21 @@ func New(baseURL string, ttl time.Duration) *StatusCache {
 // IsRevoked returns true if the credential at the given statusListIndex is revoked.
 // On the first call it fetches the status list (sync.Once prevents double-fetch).
 // On subsequent calls it returns the cached value unless TTL has expired.
+//
+// ctx is honoured for fast-fail on caller cancellation: refreshes themselves
+// use their own context (see fetchTimeout) so a cancelled request cannot poison
+// a shared initialisation or abort a write other callers depend on.
 func (s *StatusCache) IsRevoked(ctx context.Context, statusListIndex uint64) (bool, error) {
+	// Fast-fail on caller cancellation before doing any work.
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+
 	var initErr error
 
 	// First fetch — protected by sync.Once to prevent double-fetch race condition.
-	// Uses context.Background() intentionally: if the first caller's context is
-	// cancelled we must not poison the once guard for all future callers.
+	// Uses a fresh context so the first caller's cancellation cannot poison
+	// the once guard for all future callers.
 	s.once.Do(func() {
 		initErr = s.refresh(context.Background())
 	})
@@ -111,6 +126,7 @@ func (s *StatusCache) WarmUp() error {
 // refresh fetches the current status list from the remote endpoint.
 // Only publishes the new bitstring if the entire body was read successfully.
 // On failure, the previous known-good snapshot (if any) is preserved.
+// Always enforces a fetchTimeout bound on the refresh regardless of ctx.
 func (s *StatusCache) refresh(ctx context.Context) error {
 	if s.baseURL == "" {
 		s.mu.Lock()
@@ -120,7 +136,12 @@ func (s *StatusCache) refresh(ctx context.Context) error {
 		return nil
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.baseURL, nil)
+	// Bound the refresh even when ctx is context.Background(). Without an
+	// explicit deadline a slow TSA could block TTL-refresh goroutines forever.
+	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, s.baseURL, nil)
 	if err != nil {
 		return fmt.Errorf("building request for %s: %w", s.baseURL, err)
 	}

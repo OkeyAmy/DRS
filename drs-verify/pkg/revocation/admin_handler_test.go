@@ -1,6 +1,7 @@
 package revocation
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -235,5 +236,44 @@ func TestAdminRevokeTokenRejection(t *testing.T) {
 				t.Errorf("auth=%q: got status %d, want %d", tc.auth, w.Code, tc.status)
 			}
 		})
+	}
+}
+
+func TestAdminRevokeHandler_HashedCompareAcceptsCorrectToken(t *testing.T) {
+	// Sanity: the SHA-256-based compare accepts the exact expected token.
+	s := NewLocalRevocationStore()
+	h := AdminRevokeHandler(s, "very-long-admin-token-42")
+
+	body := bytes.NewReader([]byte(`{"status_list_index":7}`))
+	req := httptest.NewRequest(http.MethodPost, "/admin/revoke", body)
+	req.Header.Set("Authorization", "Bearer very-long-admin-token-42")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAdminRevokeHandler_HashedCompareRejectsMismatchedLengths(t *testing.T) {
+	// Inputs of very different lengths must both be rejected and treated
+	// identically: fixed-length hash input removes the length-based early exit.
+	s := NewLocalRevocationStore()
+	h := AdminRevokeHandler(s, "correct-token")
+
+	cases := []string{
+		"",                             // empty
+		"x",                            // 1 char
+		"Bearer c",                     // prefix match of expected
+		"Bearer " + "extremely-long-wrong-token-" + "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+	}
+	for _, auth := range cases {
+		body := bytes.NewReader([]byte(`{"status_list_index":0}`))
+		req := httptest.NewRequest(http.MethodPost, "/admin/revoke", body)
+		req.Header.Set("Authorization", auth)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("auth=%q: expected 401, got %d", auth, w.Code)
+		}
 	}
 }

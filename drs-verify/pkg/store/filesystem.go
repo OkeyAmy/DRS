@@ -16,9 +16,11 @@ const (
 	dirPermission  = 0o700
 )
 
-// validHashRe matches exactly 64 lowercase hex characters — a SHA-256 digest.
-// Anything else (path separators, dots, uppercase, wrong length) is rejected.
-var validHashRe = regexp.MustCompile(`^[0-9a-f]{64}$`)
+// validKeyRe matches a SHA-256 digest (64 lowercase hex characters) with an
+// optional ".jwt" or ".tst" extension. Anything else is rejected at the
+// path-construction boundary to prevent traversal (../), separators, null
+// bytes, uppercase, wrong length, and unknown extensions.
+var validKeyRe = regexp.MustCompile(`^([0-9a-f]{64})(?:\.(jwt|tst))?$`)
 
 // FilesystemStore is a Tier-1 DR store backed by the local filesystem.
 //
@@ -102,14 +104,22 @@ func (f *FilesystemStore) Delete(hash string) error {
 	return nil
 }
 
-// hashPath maps a chain hash key to an absolute file path.
-// Strips the "sha256:" prefix before using the hex digest as a filename.
-// Returns an error if the hash is not exactly 64 lowercase hex characters.
+// hashPath maps a store key to an absolute file path.
+// Strips the "sha256:" prefix and accepts an optional ".jwt" or ".tst"
+// extension in the key (Tier3Store uses ".tst" for RFC 3161 timestamp tokens).
+// Returns an error for any other shape — this is the path-traversal boundary,
+// so it must be strict and fail-closed.
 func (f *FilesystemStore) hashPath(hash string) (string, error) {
 	name := strings.TrimPrefix(hash, "sha256:")
-	if !validHashRe.MatchString(name) {
-		return "", fmt.Errorf("store: invalid hash %q: must be 64 lowercase hex characters", hash)
+	m := validKeyRe.FindStringSubmatch(name)
+	if m == nil {
+		return "", fmt.Errorf("store: invalid key %q: must be 64 lowercase hex characters with an optional .jwt or .tst extension", hash)
 	}
-	prefix := name[:4]
-	return filepath.Join(f.baseDir, prefix, name+".jwt"), nil
+	digest := m[1]
+	ext := m[2]
+	if ext == "" {
+		ext = "jwt"
+	}
+	prefix := digest[:4]
+	return filepath.Join(f.baseDir, prefix, digest+"."+ext), nil
 }

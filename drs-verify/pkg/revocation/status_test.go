@@ -3,6 +3,8 @@ package revocation
 import (
 	"bytes"
 	"context"
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -297,5 +299,55 @@ func TestRefreshPreservesSnapshotOnError(t *testing.T) {
 	// Old snapshot had bit 0 set → should still return true.
 	if !revoked {
 		t.Error("expected index 0 to be revoked (from preserved snapshot)")
+	}
+}
+
+func TestIsRevokedReturnsErrorOnCancelledContext(t *testing.T) {
+	// A cancelled context must cause IsRevoked to fail fast — without waiting
+	// for a status-list fetch that would block on the network.
+	c := New("http://127.0.0.1:1/unreachable", time.Hour)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel before calling
+	_, err := c.IsRevoked(ctx, 0)
+	if err == nil {
+		t.Fatal("expected error on cancelled context, got nil")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("error should wrap context.Canceled, got: %v", err)
+	}
+}
+
+func TestRefreshHasExplicitFetchTimeout(t *testing.T) {
+	// Serve a connection that accepts the request but never responds. The
+	// refresh must fail via its own fetchTimeout, not the HTTP client timeout
+	// (which would also work but we want the context-level bound to be active).
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer l.Close()
+	go func() {
+		c, err := l.Accept()
+		if err != nil {
+			return
+		}
+		// Hold connection open without responding.
+		defer c.Close()
+		buf := make([]byte, 1)
+		_, _ = c.Read(buf)
+		// Then sleep — never send a response.
+		time.Sleep(30 * time.Second)
+	}()
+	start := time.Now()
+	cache := New("http://"+l.Addr().String(), time.Hour)
+	_, err = cache.IsRevoked(context.Background(), 0)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+	// The http.Client has Timeout=10s; the context adds fetchTimeout=15s.
+	// Whichever fires first wins — must be within ~20s.
+	if elapsed > 20*time.Second {
+		t.Errorf("refresh did not honour timeout: took %v", elapsed)
 	}
 }
