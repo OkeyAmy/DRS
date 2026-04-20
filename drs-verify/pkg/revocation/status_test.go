@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -314,6 +315,110 @@ func TestIsRevokedReturnsErrorOnCancelledContext(t *testing.T) {
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("error should wrap context.Canceled, got: %v", err)
+	}
+}
+
+func TestIsRevokedFailsClosedWhenNoSnapshotAvailable(t *testing.T) {
+	// Regression: if WarmUp() fails (or is never called) and every subsequent
+	// refresh also fails, IsRevoked must return an error — not (false, nil).
+	// Returning false with nil error would be a fail-open bug: revoked receipts
+	// get treated as not-revoked whenever the status list endpoint is down.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	cache := New(srv.URL, time.Hour)
+	// Simulate startup warm-up: result is logged but execution continues.
+	_ = cache.WarmUp()
+
+	revoked, err := cache.IsRevoked(context.Background(), 42)
+	if err == nil {
+		t.Fatalf("fail-open: IsRevoked returned (revoked=%v, err=nil) when no snapshot was available", revoked)
+	}
+	if cache.Ready() {
+		t.Error("Ready() must be false when no snapshot has ever been fetched")
+	}
+}
+
+func TestWarmUpCanBeRetriedAfterFailure(t *testing.T) {
+	// Regression: the original implementation used sync.Once inside WarmUp, so
+	// a failed initial fetch permanently prevented future fetches. After the
+	// fix, a failed WarmUp is retryable.
+	var fail atomic.Bool
+	fail.Store(true)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if fail.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte{0x80})
+	}))
+	defer srv.Close()
+
+	cache := New(srv.URL, time.Hour)
+	if err := cache.WarmUp(); err == nil {
+		t.Fatal("expected WarmUp to fail while endpoint returns 503")
+	}
+	if cache.Ready() {
+		t.Error("cache should not be Ready after a failed WarmUp")
+	}
+
+	// Endpoint recovers — WarmUp must retry successfully.
+	fail.Store(false)
+
+	if err := cache.WarmUp(); err != nil {
+		t.Fatalf("WarmUp must retry on recovery, got: %v", err)
+	}
+	if !cache.Ready() {
+		t.Error("cache must be Ready after a successful retry WarmUp")
+	}
+}
+
+func TestIsRevokedRecoversAfterWarmUpFailure(t *testing.T) {
+	// Endpoint is down during WarmUp; comes back up when IsRevoked runs.
+	// IsRevoked must drive the initial-fetch path and succeed — not remain
+	// stuck on the first-call failure.
+	var fail atomic.Bool
+	fail.Store(true)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if fail.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte{0x80})
+	}))
+	defer srv.Close()
+
+	cache := New(srv.URL, time.Hour)
+	_ = cache.WarmUp() // fails; main.go logs and continues
+
+	fail.Store(false)
+
+	revoked, err := cache.IsRevoked(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("IsRevoked must recover after WarmUp failure: %v", err)
+	}
+	if !revoked {
+		t.Error("index 0 should be revoked per server response")
+	}
+	if !cache.Ready() {
+		t.Error("cache must be Ready after a successful fetch via IsRevoked")
+	}
+}
+
+func TestReadyFalseAfterFailedWarmUp(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	cache := New(srv.URL, time.Hour)
+	_ = cache.WarmUp()
+	if cache.Ready() {
+		t.Error("Ready() must be false after a failed WarmUp — readiness probes must not report ready")
 	}
 }
 
