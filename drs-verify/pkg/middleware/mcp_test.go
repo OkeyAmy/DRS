@@ -156,7 +156,11 @@ func fakeJWTWithJTI(t *testing.T, jti string) string {
 	return header + "." + payloadB64 + "." + sig
 }
 
-func TestMCPMiddlewareReplayReturns409(t *testing.T) {
+func TestMCPMiddlewareInvalidSigDoesNotPreConsumeNonce(t *testing.T) {
+	// Regression: committing the nonce before signature verification lets an
+	// attacker with a known JTI pre-consume legitimate nonces via invalid-sig
+	// requests. After the fix, two invalid-sig requests sharing a JTI both
+	// return 403 (verify failed) and the JTI is never committed to the store.
 	ns := nonce.New(100, time.Hour)
 
 	bundle := types.ChainBundle{
@@ -169,20 +173,26 @@ func TestMCPMiddlewareReplayReturns409(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	// First request — nonce recorded, will likely fail at verify.Chain (bad sigs).
 	req1 := httptest.NewRequest(http.MethodPost, "/mcp/tools/call", nil)
 	req1.Header.Set("X-DRS-Bundle", encodeBundle(t, bundle))
 	rr1 := httptest.NewRecorder()
 	handler.ServeHTTP(rr1, req1)
+	if rr1.Code != http.StatusForbidden {
+		t.Errorf("first request (invalid sig): expected 403, got %d", rr1.Code)
+	}
 
-	// Second request — same bundle, should be caught by nonce store.
 	req2 := httptest.NewRequest(http.MethodPost, "/mcp/tools/call", nil)
 	req2.Header.Set("X-DRS-Bundle", encodeBundle(t, bundle))
 	rr2 := httptest.NewRecorder()
 	handler.ServeHTTP(rr2, req2)
+	if rr2.Code != http.StatusForbidden {
+		t.Errorf("second request (invalid sig): expected 403, got %d (nonce was pre-consumed on invalid sig)", rr2.Code)
+	}
 
-	if rr2.Code != http.StatusConflict {
-		t.Errorf("expected 409 Conflict on replay, got %d", rr2.Code)
+	// The JTI must NOT have been recorded in the nonce store — a legitimate
+	// future request with this JTI must still be acceptable.
+	if err := ns.Check("inv:replay-test"); err != nil {
+		t.Errorf("legitimate JTI was wrongly consumed by invalid-sig request: %v", err)
 	}
 }
 

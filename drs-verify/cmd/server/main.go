@@ -176,15 +176,18 @@ func main() {
 			return
 		}
 
-		// Nonce replay check — before expensive chain verification.
-		if middleware.CheckNonceReplay(w, req.Invocation, nonceStore) {
-			return
-		}
-
 		reqDeps := deps
 		reqDeps.IncludeTimestamps = req.IncludeTimestamps
 
+		// Verify first, commit nonce only on a valid chain. Committing the
+		// nonce from an unsigned payload would let an attacker with a known
+		// JTI pre-consume legitimate nonces by submitting an invalid signature.
 		result := verify.Chain(r.Context(), req.ChainBundle, reqDeps)
+		if result.Valid {
+			if middleware.CheckNonceReplay(w, req.Invocation, nonceStore) {
+				return
+			}
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(result); err != nil {

@@ -135,7 +135,8 @@ func TestOptionalA2AMiddlewareReturnsNilContextWhenNoBundleHeader(t *testing.T) 
 	}
 }
 
-func TestA2AMiddlewareReplayReturns409(t *testing.T) {
+func TestA2AMiddlewareInvalidSigDoesNotPreConsumeNonce(t *testing.T) {
+	// See TestMCPMiddlewareInvalidSigDoesNotPreConsumeNonce for rationale.
 	ns := nonce.New(100, time.Hour)
 
 	bundle := types.ChainBundle{
@@ -152,13 +153,19 @@ func TestA2AMiddlewareReplayReturns409(t *testing.T) {
 	req1.Header.Set("X-DRS-Bundle", encodeBundle(t, bundle))
 	rr1 := httptest.NewRecorder()
 	handler.ServeHTTP(rr1, req1)
+	if rr1.Code != http.StatusForbidden {
+		t.Errorf("first request (invalid sig): expected 403, got %d", rr1.Code)
+	}
 
 	req2 := httptest.NewRequest(http.MethodPost, "/a2a/task", nil)
 	req2.Header.Set("X-DRS-Bundle", encodeBundle(t, bundle))
 	rr2 := httptest.NewRecorder()
 	handler.ServeHTTP(rr2, req2)
+	if rr2.Code != http.StatusForbidden {
+		t.Errorf("second request (invalid sig): expected 403, got %d (nonce pre-consumed on invalid sig)", rr2.Code)
+	}
 
-	if rr2.Code != http.StatusConflict {
-		t.Errorf("expected 409 Conflict on replay, got %d", rr2.Code)
+	if err := ns.Check("inv:a2a-replay"); err != nil {
+		t.Errorf("legitimate JTI was wrongly consumed by invalid-sig request: %v", err)
 	}
 }

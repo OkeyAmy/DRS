@@ -44,16 +44,17 @@ func a2aMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler,
 			return
 		}
 
-		// Nonce replay check — before expensive chain verification.
-		if CheckNonceReplay(w, bundle.Invocation, nonceStore) {
-			return
-		}
-
+		// Verify first, commit nonce only on a valid signature/chain. Committing
+		// the nonce from an unsigned payload would let an attacker with a known
+		// JTI pre-consume legitimate nonces by submitting an invalid signature.
 		result := verify.Chain(r.Context(), bundle, deps)
 		if !result.Valid {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
 			_ = json.NewEncoder(w).Encode(result)
+			return
+		}
+		if CheckNonceReplay(w, bundle.Invocation, nonceStore) {
 			return
 		}
 
