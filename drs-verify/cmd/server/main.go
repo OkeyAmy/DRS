@@ -162,10 +162,37 @@ func main() {
 		TSARootPool:     tsaRootPool,
 	}
 
-	nonceStore := nonce.New(cfg.NonceStoreMaxEntries, time.Duration(cfg.NonceStoreTTLSecs)*time.Second)
-	slog.Info("nonce replay protection enabled",
-		"max_entries", cfg.NonceStoreMaxEntries,
-		"ttl_secs", cfg.NonceStoreTTLSecs)
+	// Nonce store: in-memory by default. When NONCE_STORE_BACKEND=redis,
+	// Check uses Redis SETNX for atomic claim-if-new across replicas and
+	// across restart. Closed in the shutdown deferred cleanup path so
+	// Redis connections drain.
+	var nonceStore nonce.Checker
+	switch cfg.NonceStoreBackend {
+	case "redis":
+		rs, err := nonce.NewRedisStore(context.Background(), nonce.RedisConfig{
+			URL: cfg.RedisURL,
+			TTL: time.Duration(cfg.NonceStoreTTLSecs) * time.Second,
+		})
+		if err != nil {
+			slog.Error("nonce store init failed", "backend", "redis", "error", err)
+			os.Exit(1)
+		}
+		defer func() {
+			if err := rs.Close(); err != nil {
+				slog.Warn("nonce store close failed", "error", err)
+			}
+		}()
+		nonceStore = rs
+		slog.Info("nonce replay protection enabled",
+			"backend", "redis",
+			"ttl_secs", cfg.NonceStoreTTLSecs)
+	default:
+		nonceStore = nonce.New(cfg.NonceStoreMaxEntries, time.Duration(cfg.NonceStoreTTLSecs)*time.Second)
+		slog.Info("nonce replay protection enabled",
+			"backend", "memory",
+			"max_entries", cfg.NonceStoreMaxEntries,
+			"ttl_secs", cfg.NonceStoreTTLSecs)
+	}
 
 	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitPerIP, cfg.RateLimitGlobal, cfg.TrustProxy)
 	slog.Info("rate limiting enabled",

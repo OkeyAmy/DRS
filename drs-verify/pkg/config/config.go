@@ -102,6 +102,19 @@ type Config struct {
 	// in-memory store — fastest, but /admin/revoke calls are lost on restart.
 	// Set via REVOCATION_STORE_PATH. Typical value: /var/lib/drs-verify/revoked.log
 	RevocationStorePath string
+
+	// NonceStoreBackend selects the replay-protection backend:
+	//   "memory" — in-process map (default). Lost on restart; not replica-shared.
+	//   "redis"  — redis-backed. Survives restart; shared across replicas.
+	// Set via NONCE_STORE_BACKEND.
+	NonceStoreBackend string
+
+	// RedisURL is the Redis connection URL for the redis nonce backend.
+	// Required when NONCE_STORE_BACKEND=redis. Example:
+	//   redis://localhost:6379/0
+	//   rediss://user:pw@redis.internal:6379/0  (TLS)
+	// Set via REDIS_URL.
+	RedisURL string
 }
 
 // Load reads all configuration from environment variables.
@@ -169,6 +182,17 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("CIRCUIT_BREAKER_COOLDOWN_SECS: %w", err)
 	}
 	revocationStorePath := os.Getenv("REVOCATION_STORE_PATH")
+	nonceBackend := getEnvOrDefault("NONCE_STORE_BACKEND", "memory")
+	redisURL := os.Getenv("REDIS_URL")
+
+	// Fail fast if redis backend is requested without a URL — surfaces
+	// misconfiguration at boot instead of at first /verify call.
+	if nonceBackend == "redis" && redisURL == "" {
+		return Config{}, fmt.Errorf("NONCE_STORE_BACKEND=redis requires REDIS_URL to be set")
+	}
+	if nonceBackend != "memory" && nonceBackend != "redis" {
+		return Config{}, fmt.Errorf("NONCE_STORE_BACKEND: unknown backend %q (want memory or redis)", nonceBackend)
+	}
 
 	return Config{
 		ListenAddr:             listenAddr,
@@ -192,6 +216,8 @@ func Load() (Config, error) {
 		CircuitBreakerThreshold:    cbThreshold,
 		CircuitBreakerCooldownSecs: cbCooldown,
 		RevocationStorePath:        revocationStorePath,
+		NonceStoreBackend:          nonceBackend,
+		RedisURL:                   redisURL,
 	}, nil
 }
 

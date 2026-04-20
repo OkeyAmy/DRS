@@ -12,17 +12,17 @@ import (
 // verifies it, and attaches the VerificationContext to the request context.
 // Requests with no X-DRS-Bundle header receive 401 Unauthorized (fail-closed).
 // For optional enforcement, use OptionalA2AMiddleware instead.
-func A2AMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler) http.Handler {
+func A2AMiddleware(deps verify.Deps, nonceStore nonce.Checker, next http.Handler) http.Handler {
 	return a2aMiddleware(deps, nonceStore, next, false)
 }
 
 // OptionalA2AMiddleware behaves like A2AMiddleware but passes through requests
 // that do not include the X-DRS-Bundle header.
-func OptionalA2AMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler) http.Handler {
+func OptionalA2AMiddleware(deps verify.Deps, nonceStore nonce.Checker, next http.Handler) http.Handler {
 	return a2aMiddleware(deps, nonceStore, next, true)
 }
 
-func a2aMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler, allowMissing bool) http.Handler {
+func a2aMiddleware(deps verify.Deps, nonceStore nonce.Checker, next http.Handler, allowMissing bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bundleHeader := r.Header.Get("X-DRS-Bundle")
 		if bundleHeader == "" {

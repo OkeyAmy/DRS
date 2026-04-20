@@ -48,7 +48,7 @@ func decodeInvocationJTI(jwt string) (string, error) {
 // attacker with a known (but not signed-for) JTI pre-consume legitimate
 // nonces by sending invalid-signature requests. The rate limiter, not the
 // nonce store, is the layer that defends against CPU exhaustion.
-func CheckNonceReplay(w http.ResponseWriter, invocationJWT string, ns *nonce.Store) bool {
+func CheckNonceReplay(w http.ResponseWriter, invocationJWT string, ns nonce.Checker) bool {
 	if ns == nil {
 		return false
 	}
