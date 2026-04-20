@@ -39,7 +39,7 @@ jobs:
         run: cd drs-core && cargo test
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: drs-verify/go.mod
           cache-dependency-path: drs-verify/go.sum
