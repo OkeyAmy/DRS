@@ -35,6 +35,10 @@ const (
 	multicodecPrefixLen   = 2
 	decodedLen            = multicodecPrefixLen + ed25519PublicKeyBytes
 	didWebFetchTimeout    = 10 * time.Second
+	// maxDIDDocumentBytes caps the DID document body size. A well-formed
+	// did:web document is well under 10 KiB; 1 MiB is a generous upper bound
+	// that still prevents memory-pressure DoS from attacker-controlled hosts.
+	maxDIDDocumentBytes = 1 << 20 // 1 MiB
 )
 
 // cacheEntry holds a resolved public key and its expiry time.
@@ -129,21 +133,81 @@ type inflightEntry struct {
 }
 
 // New creates a Resolver with an LRU cache of the given size and TTL.
-// did:web fetches use a 10-second timeout.
+// did:web fetches use a 10-second timeout, a custom DialContext that rejects
+// private IPs at connect time (closing DNS-rebinding and redirect-to-private
+// SSRF paths), and a redirect policy that forbids redirects entirely.
 func New(cacheSize int, ttl time.Duration) (*Resolver, error) {
 	c, err := lru.New[string, cacheEntry](cacheSize)
 	if err != nil {
 		return nil, fmt.Errorf("resolver: failed to create LRU cache: %w", err)
 	}
-	return &Resolver{
+	r := &Resolver{
 		cache:         c,
 		ttl:           ttl,
-		httpClient:    &http.Client{Timeout: didWebFetchTimeout},
 		inflight:      make(map[string]*inflightEntry),
 		circuitStates: make(map[string]*circuitState),
 		cbThreshold:   5,
 		cbCooldown:    60 * time.Second,
-	}, nil
+	}
+	r.httpClient = &http.Client{
+		Timeout: didWebFetchTimeout,
+		Transport: &http.Transport{
+			DialContext:           r.safeDialContext,
+			TLSHandshakeTimeout:   5 * time.Second,
+			ResponseHeaderTimeout: 5 * time.Second,
+			IdleConnTimeout:       30 * time.Second,
+			MaxIdleConns:          10,
+		},
+		// Forbid redirects: did:web documents are served directly; any redirect
+		// is either misconfiguration or an attempt to bypass the pre-request
+		// hostname check (including redirecting to 169.254.169.254 or similar).
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return fmt.Errorf("did:web: redirects not allowed (to %s)", req.URL.Host)
+		},
+	}
+	return r, nil
+}
+
+// safeDialContext is the http.Transport.DialContext for r.httpClient.
+// It validates every connect attempt (including redirect targets, if they
+// were allowed) against the private-IP blocklist, closing DNS-rebinding and
+// redirect-to-internal SSRF bypasses that pre-request hostname checks miss.
+// Tests set allowPrivateHosts so httptest servers on 127.0.0.1 are reachable.
+func (r *Resolver) safeDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, fmt.Errorf("safeDial: split host/port %q: %w", addr, err)
+	}
+	d := net.Dialer{Timeout: 5 * time.Second}
+
+	// If addr is already a literal IP, check and dial directly.
+	if ip := net.ParseIP(host); ip != nil {
+		if !r.allowPrivateHosts && isPrivateIP(ip) {
+			return nil, fmt.Errorf("safeDial: refused connection to private address %s", ip)
+		}
+		return d.DialContext(ctx, network, addr)
+	}
+
+	// Resolve host ourselves so the IP we validate is the IP we connect to.
+	// This closes the DNS-rebinding window between pre-check and default-dialer
+	// re-resolution.
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("safeDial: resolve %q: %w", host, err)
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("safeDial: no addresses for %q", host)
+	}
+	for _, ia := range ips {
+		if !r.allowPrivateHosts && isPrivateIP(ia.IP) {
+			return nil, fmt.Errorf("safeDial: %q resolves to private address %s", host, ia.IP)
+		}
+	}
+	// Dial the first resolved IP directly. Using the literal IP (not the
+	// hostname) prevents the dialer from re-resolving and reaching a different
+	// address than the one we validated.
+	target := net.JoinHostPort(ips[0].IP.String(), port)
+	return d.DialContext(ctx, network, target)
 }
 
 // NewWithCircuitBreaker creates a Resolver with circuit breaker protection for
@@ -406,10 +470,16 @@ func (r *Resolver) resolveDidWeb(ctx context.Context, did string) ([ed25519Publi
 		return zero, fmt.Errorf("did:web fetch failed: HTTP %d from %s", resp.StatusCode, fetchURL)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	// Cap body size. An attacker-controlled public host could otherwise serve
+	// an arbitrarily large "DID document" and drive memory pressure.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxDIDDocumentBytes+1))
 	if err != nil {
 		cs.recordFailure(r.cbThreshold, r.cbCooldown)
 		return zero, fmt.Errorf("did:web document read failed: %w", err)
+	}
+	if len(body) > maxDIDDocumentBytes {
+		cs.recordFailure(r.cbThreshold, r.cbCooldown)
+		return zero, fmt.Errorf("did:web document exceeds %d byte limit", maxDIDDocumentBytes)
 	}
 
 	key, extractErr := extractEd25519FromDIDDocument(body)

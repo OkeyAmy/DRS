@@ -501,3 +501,89 @@ func TestCircuitBreakerClosesAfterCooldown(t *testing.T) {
 		t.Errorf("probe after cooldown: expected success, got %v", err)
 	}
 }
+
+func TestResolveDidWeb_RedirectsBlocked(t *testing.T) {
+	// Two servers: target serves a valid doc, redirector returns a 302 to target.
+	// Even though the redirect target is also on 127.0.0.1 (which the test
+	// allows), the CheckRedirect policy must refuse to follow it.
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(buildTestDIDDocument(t, r))
+	}))
+	defer target.Close()
+
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+r.URL.Path, http.StatusFound)
+	}))
+	defer redirector.Close()
+
+	host := strings.TrimPrefix(redirector.URL, "http://")
+	did := "did:web:" + strings.ReplaceAll(host, ":", "%3A")
+
+	res, err := New(10, time.Hour)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	res.allowPrivateHosts = true
+
+	_, err = res.Resolve(context.Background(), did)
+	if err == nil {
+		t.Fatal("expected redirect to be rejected, got nil error")
+	}
+	if !strings.Contains(err.Error(), "redirect") {
+		t.Errorf("error should mention redirect, got: %v", err)
+	}
+}
+
+func TestResolveDidWeb_BodySizeLimit(t *testing.T) {
+	// Serve a body larger than maxDIDDocumentBytes. The fetch must be rejected
+	// without attempting to fully read or parse it.
+	oversize := make([]byte, maxDIDDocumentBytes+128)
+	for i := range oversize {
+		oversize[i] = 'x'
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(oversize)
+	}))
+	defer srv.Close()
+
+	host := strings.TrimPrefix(srv.URL, "http://")
+	did := "did:web:" + strings.ReplaceAll(host, ":", "%3A")
+
+	res, err := New(10, time.Hour)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	res.allowPrivateHosts = true
+
+	_, err = res.Resolve(context.Background(), did)
+	if err == nil {
+		t.Fatal("expected body-size error, got nil")
+	}
+	if !strings.Contains(err.Error(), "byte limit") && !strings.Contains(err.Error(), "exceeds") {
+		t.Errorf("error should mention size limit, got: %v", err)
+	}
+}
+
+func TestSafeDialContext_RejectsPrivateIP(t *testing.T) {
+	// Direct unit test of safeDialContext without httptest. A public hostname
+	// is not required — we dial an IP literal in a private range.
+	res, err := New(10, time.Hour)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	// allowPrivateHosts is false by default — private IP dial must fail.
+	_, err = res.safeDialContext(context.Background(), "tcp", "127.0.0.1:1")
+	if err == nil {
+		t.Fatal("expected refused connection to 127.0.0.1, got nil")
+	}
+	if !strings.Contains(err.Error(), "private") {
+		t.Errorf("error should mention private address, got: %v", err)
+	}
+
+	// Also reject AWS IMDS link-local address literal.
+	_, err = res.safeDialContext(context.Background(), "tcp", "169.254.169.254:80")
+	if err == nil {
+		t.Fatal("expected refused connection to 169.254.169.254, got nil")
+	}
+}
