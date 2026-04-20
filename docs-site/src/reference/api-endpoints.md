@@ -59,23 +59,40 @@ Body is capped at `MAX_BODY_BYTES` (default 1 MiB).
 
 ---
 
-## POST /mcp/* (middleware)
+## POST /mcp/* and /a2a/* (verifier stubs, not proxies)
 
-The built-in server registers `/mcp/*` routes wrapped with
-`middleware.MCPMiddleware`. In the current binary, the wrapped handler is a
-stub that returns `200` after successful verification.
+**drs-verify does not proxy, transform, or execute MCP/A2A traffic.**
+It is a verification service: it validates a bundle, reports the outcome,
+and — for requests that arrive on `/mcp/*` or `/a2a/*` — returns a JSON
+stub confirming the bundle was accepted.
 
-In your own integration, this wrapped handler is your normal tool/business
-handler. Middleware verifies first, then your handler executes.
+Production integrations embed the middleware package directly into the
+caller's own HTTP server, so DRS enforcement sits in front of the caller's
+actual MCP/A2A handlers. The `/mcp/*` and `/a2a/*` routes on the hosted
+verifier are kept for demos and smoke tests only.
 
-**Request:** any MCP request with `X-DRS-Bundle` header:
+```go
+import "github.com/drs-protocol/drs-verify/pkg/middleware"
+
+mux := http.NewServeMux()
+mux.Handle("/tools/call", middleware.MCPMiddleware(deps, nonceStore, myHandler))
+```
+
+**Request to the stub:** any MCP request with `X-DRS-Bundle` header:
 ```
 POST /mcp/tools/call
 X-DRS-Bundle: <base64url bundle>
 Content-Type: application/json
 ```
 
-**On valid bundle:** request reaches the wrapped handler.
+**On valid bundle (200) — verifier stub response**:
+```json
+{
+  "verified": true,
+  "role": "verifier-stub",
+  "detail": "DRS bundle accepted. This endpoint is a verifier stub — drs-verify does not proxy MCP/A2A traffic. Import github.com/drs-protocol/drs-verify/pkg/middleware to wire DRS into your own server."
+}
+```
 
 **On invalid bundle (403):**
 ```json
