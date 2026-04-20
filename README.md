@@ -6,6 +6,18 @@ DRS is a cryptographic delegation receipt protocol implemented in this repositor
 
 **Documentation → [okeyamy.github.io/DRS](https://okeyamy.github.io/DRS/)**
 
+**Plugging DRS into your product? You do not need to fork this repo.**
+DRS ships as three published artifacts you install like any other
+dependency:
+
+- `@okeyamy/drs-sdk` — `pnpm add @okeyamy/drs-sdk` (issuance, Node / RN / browser)
+- `ghcr.io/okeyamy/drs-verify` — `docker pull` (verification service)
+- `drs-core` — `cargo add drs-core` (Rust crypto / WASM core)
+
+Start at the [Builder guides](https://okeyamy.github.io/DRS/how-to/builders/no-fork-required.html)
+to map your role (React Native, MCP server, A2A agent, Node backend)
+to the right artifact.
+
 ---
 
 ## The Problem

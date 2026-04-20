@@ -28,10 +28,18 @@
 
 # How-To Guides
 
+## For Builders (start here if you're building on top of DRS)
+- [You do not need to fork](./how-to/builders/no-fork-required.md)
+- [Which part of DRS do I install?](./how-to/builders/choosing-your-path.md)
+- [React Native / Expo integration](./how-to/builders/react-native.md)
+- [MCP server integration (Node)](./how-to/builders/mcp-node.md)
+- [A2A agent integration (Node)](./how-to/builders/a2a-node.md)
+- [Non-MCP Node backend integration](./how-to/builders/node-backend.md)
+
 ## For Developers
 - [Install the SDK](./how-to/developers/install-sdk.md)
-- [MCP Middleware Integration](./how-to/developers/mcp-middleware.md)
-- [A2A Middleware Integration](./how-to/developers/a2a-middleware.md)
+- [MCP Middleware Integration (Go)](./how-to/developers/mcp-middleware.md)
+- [A2A Middleware Integration (Go)](./how-to/developers/a2a-middleware.md)
 - [Human Consent Records](./how-to/developers/human-consent.md)
 - [Sub-Delegation](./how-to/developers/sub-delegation.md)
 
