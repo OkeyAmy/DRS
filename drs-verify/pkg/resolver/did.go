@@ -39,6 +39,12 @@ const (
 	// did:web document is well under 10 KiB; 1 MiB is a generous upper bound
 	// that still prevents memory-pressure DoS from attacker-controlled hosts.
 	maxDIDDocumentBytes = 1 << 20 // 1 MiB
+	// circuitStateCacheSize bounds memory usage of the did:web circuit-breaker
+	// state. Each entry is ~200 bytes; 10 000 entries ≈ 2 MB. If an attacker
+	// floods the resolver with unique did:web identifiers, LRU eviction discards
+	// the oldest entries — acceptable because the rate limiter is the primary
+	// defense and evicted entries simply reset to closed on next contact.
+	circuitStateCacheSize = 10_000
 )
 
 // cacheEntry holds a resolved public key and its expiry time.
@@ -116,9 +122,11 @@ type Resolver struct {
 	inflightMu sync.Mutex
 	inflight   map[string]*inflightEntry
 
-	// Circuit breaker state — one entry per did:web DID.
+	// Circuit breaker state — one entry per did:web DID, capped by LRU.
+	// circuitMu guards the get-or-create compound operation on circuitStates.
+	// (The underlying LRU is itself thread-safe, but Get-then-Add is not atomic.)
 	circuitMu     sync.Mutex
-	circuitStates map[string]*circuitState
+	circuitStates *lru.Cache[string, *circuitState]
 	cbThreshold   int
 	cbCooldown    time.Duration
 
@@ -141,11 +149,15 @@ func New(cacheSize int, ttl time.Duration) (*Resolver, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolver: failed to create LRU cache: %w", err)
 	}
+	cs, err := lru.New[string, *circuitState](circuitStateCacheSize)
+	if err != nil {
+		return nil, fmt.Errorf("resolver: failed to create circuit state cache: %w", err)
+	}
 	r := &Resolver{
 		cache:         c,
 		ttl:           ttl,
 		inflight:      make(map[string]*inflightEntry),
-		circuitStates: make(map[string]*circuitState),
+		circuitStates: cs,
 		cbThreshold:   5,
 		cbCooldown:    60 * time.Second,
 	}
@@ -224,15 +236,26 @@ func NewWithCircuitBreaker(cacheSize int, ttl time.Duration, threshold int, cool
 }
 
 // getCircuitState returns the circuitState for the given DID, creating it if absent.
+// Entries are stored in a capped LRU to bound memory under attacker-controlled
+// DID floods. Eviction of a state only costs the loss of its failure-count
+// history — the circuit simply starts closed on next contact.
 func (r *Resolver) getCircuitState(did string) *circuitState {
 	r.circuitMu.Lock()
 	defer r.circuitMu.Unlock()
-	if cs, ok := r.circuitStates[did]; ok {
+	if cs, ok := r.circuitStates.Get(did); ok {
 		return cs
 	}
 	cs := &circuitState{}
-	r.circuitStates[did] = cs
+	r.circuitStates.Add(did, cs)
 	return cs
+}
+
+// circuitStateCount returns the number of circuit states currently stored.
+// Exposed for tests that verify the LRU bound is effective.
+func (r *Resolver) circuitStateCount() int {
+	r.circuitMu.Lock()
+	defer r.circuitMu.Unlock()
+	return r.circuitStates.Len()
 }
 
 // privateRanges is the set of IP ranges that must not be reachable via did:web.
@@ -413,16 +436,19 @@ func resolveDidKey(did string) ([ed25519PublicKeyBytes]byte, error) {
 func (r *Resolver) resolveDidWeb(ctx context.Context, did string) ([ed25519PublicKeyBytes]byte, error) {
 	var zero [ed25519PublicKeyBytes]byte
 
+	// Parse the DID first so malformed identifiers do not allocate circuit
+	// state. A flood of unique garbage DIDs otherwise creates one LRU entry
+	// per request (still bounded, but wasted work). Real parsing errors are
+	// client mistakes, not endpoint failures — no circuit state belongs to them.
+	docURL, err := didWebDocumentURL(did)
+	if err != nil {
+		return zero, err
+	}
+
 	// Circuit breaker: fail fast for recently-broken did:web endpoints.
 	cs := r.getCircuitState(did)
 	if cs.isOpen(time.Now()) {
 		return zero, fmt.Errorf("did:web circuit open for %q — endpoint was recently unreachable", did)
-	}
-
-	docURL, err := didWebDocumentURL(did)
-	if err != nil {
-		cs.recordFailure(r.cbThreshold, r.cbCooldown)
-		return zero, err
 	}
 
 	// SSRF protection: resolve the hostname and reject private/reserved ranges.
