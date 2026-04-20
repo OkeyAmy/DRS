@@ -32,7 +32,10 @@ jobs:
       # First pass: table format, non-fatal — so findings are visible in the
       # workflow log. The second pass below is the gate that fails the build.
       - name: Trivy fs scan (print findings to log)
-        uses: aquasecurity/trivy-action@0.35.0
+        # Pinned to SHA (0.35.0) per GHSA-69fq-xp46-6x23 (Mar 2026 supply-chain
+        # attack). 0.35.0 is the only tag that was immutable-release-protected;
+        # SHA pinning prevents future tag-mutation attacks of the same class.
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: fs
           scan-ref: .
@@ -42,7 +45,7 @@ jobs:
           ignore-unfixed: 'true'
 
       - name: Run Trivy fs scan
-        uses: aquasecurity/trivy-action@0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: fs
           scan-ref: .

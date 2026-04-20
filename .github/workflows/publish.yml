@@ -190,7 +190,7 @@ jobs:
       # HIGH/CRITICAL: if something slips through dependabot, the workflow
       # fails loudly rather than silently shipping a known-vulnerable image.
       - name: Trivy scan published image
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
           format: sarif
