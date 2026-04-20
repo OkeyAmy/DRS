@@ -1,7 +1,7 @@
 # Build stage — compile a static binary with CGO disabled.
-# Go 1.23+ is required because the Prometheus client_golang dependency
-# targets that toolchain.
-FROM golang:1.23-alpine AS builder
+# Go 1.25 is required to pick up stdlib CVE fixes (crypto/tls, net/http,
+# encoding/asn1, etc.) flagged by govulncheck on older toolchains.
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /build
 
