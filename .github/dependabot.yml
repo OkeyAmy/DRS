@@ -1,0 +1,55 @@
+version: 2
+
+updates:
+  # ── GitHub Actions ────────────────────────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # ── Rust (drs-core) ──────────────────────────────────────────────────────────
+  - package-ecosystem: "cargo"
+    directory: "/drs-core"
+    schedule:
+      interval: "weekly"
+
+  # ── TypeScript SDK (drs-sdk) ─────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/drs-sdk"
+    schedule:
+      interval: "weekly"
+    ignore:
+      # vite and esbuild are transitive deps of vitest@1.x — they cannot be
+      # bumped past what vitest allows without upgrading vitest itself first.
+      - dependency-name: "vite"
+      - dependency-name: "esbuild"
+
+  # ── MCP client ───────────────────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/packages/drs-mcp-client"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "vite"
+      - dependency-name: "esbuild"
+
+  # ── MCP server ───────────────────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/packages/drs-mcp-server"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "vite"
+      - dependency-name: "esbuild"
+
+  # ── Integration tests ────────────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/integration-tests"
+    schedule:
+      interval: "weekly"
+
+  # ── Expense agent example ────────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/examples/drs-expense-agent"
+    schedule:
+      interval: "weekly"
