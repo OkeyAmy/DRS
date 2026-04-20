@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as ed from "@noble/ed25519";
-import { sha512 } from "@noble/hashes/sha512";
+import { sha512 } from "@noble/hashes/sha2.js";
 import {
   buildJwt,
   computeChainHash,
@@ -11,8 +11,8 @@ import {
 } from "./issue.js";
 import { DrsError } from "./types.js";
 
-// @noble/ed25519 v2 requires SHA-512 to be set (set here in case vitest runs before issue.ts)
-ed.etc.sha512Sync = (...msgs) => sha512(ed.etc.concatBytes(...msgs));
+// @noble/ed25519 v3 requires SHA-512 to be supplied (set here in case vitest runs before issue.ts)
+ed.hashes.sha512 = sha512;
 
 function generateKey(): Uint8Array {
   const key = new Uint8Array(32);

@@ -9,8 +9,7 @@
  */
 
 import * as ed from "@noble/ed25519";
-import { sha256 } from "@noble/hashes/sha256";
-import { sha512 } from "@noble/hashes/sha512";
+import { sha256, sha512 } from "@noble/hashes/sha2.js";
 import { base64url, base64urlBytes } from "./base64url.js";
 import { jcsSerialise } from "./jcs.js";
 import { checkPolicyAttenuation } from "./policy.js";
@@ -24,8 +23,9 @@ import type {
 } from "./types.js";
 import { DrsError } from "./types.js";
 
-// @noble/ed25519 v2 requires SHA-512 to be set explicitly
-ed.etc.sha512Sync = (...msgs) => sha512(ed.etc.concatBytes(...msgs));
+// @noble/ed25519 v3 requires SHA-512 to be supplied — moved from
+// ed.etc.sha512Sync (v2) to ed.hashes.sha512 (v3).
+ed.hashes.sha512 = sha512;
 
 /** Parameters for issuing the root delegation receipt. */
 export interface RootDelegationParams {

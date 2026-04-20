@@ -21,20 +21,17 @@ const edPkg = join(
   dirname(fileURLToPath(import.meta.url)),
   "../../drs-sdk/node_modules/@noble/ed25519/index.js",
 );
-const hashesPkg = join(
+// @noble/hashes v2 consolidated sha256 + sha512 into a single sha2.js module.
+const sha2Pkg = join(
   dirname(fileURLToPath(import.meta.url)),
-  "../../drs-sdk/node_modules/@noble/hashes/sha256.js",
-);
-const sha512Pkg = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../drs-sdk/node_modules/@noble/hashes/sha512.js",
+  "../../drs-sdk/node_modules/@noble/hashes/sha2.js",
 );
 
 const ed = await import(edPkg);
-const { sha256 } = await import(hashesPkg);
-const { sha512 } = await import(sha512Pkg);
+const { sha256, sha512 } = await import(sha2Pkg);
 
-ed.etc.sha512Sync = (...msgs) => sha512(ed.etc.concatBytes(...msgs));
+// @noble/ed25519 v3 moved the hash hook from ed.etc.sha512Sync to ed.hashes.sha512.
+ed.hashes.sha512 = sha512;
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
