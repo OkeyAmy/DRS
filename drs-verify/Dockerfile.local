@@ -1,5 +1,5 @@
 # Dockerfile.local — uses a pre-built static binary so no Docker Hub pull is needed.
-# Build the binary first (requires Go 1.22+):
+# Build the binary first (requires Go 1.23+):
 #   cd drs-verify
 #   CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o drs-verify-bin ./cmd/server
 # Then from examples/drs-expense-agent/:

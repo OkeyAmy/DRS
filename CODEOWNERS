@@ -1,0 +1,29 @@
+# DRS code owners
+#
+# The last matching rule wins; order matters. @OkeyAmy is the fallback owner
+# for everything, and the required reviewer for security-sensitive paths.
+
+*                                       @OkeyAmy
+
+# Cryptographic primitives — touch only with Linus-kernel discipline.
+/drs-core/src/crypto/                   @OkeyAmy
+/drs-core/src/jcs/                      @OkeyAmy
+/drs-core/src/chain/                    @OkeyAmy
+/drs-core/src/verify/                   @OkeyAmy
+
+# Verification path and HTTP middleware — this is where verification bypasses hide.
+/drs-verify/pkg/verify/                 @OkeyAmy
+/drs-verify/pkg/middleware/             @OkeyAmy
+/drs-verify/pkg/resolver/               @OkeyAmy
+/drs-verify/pkg/anchor/                 @OkeyAmy
+/drs-verify/pkg/revocation/             @OkeyAmy
+/drs-verify/pkg/nonce/                  @OkeyAmy
+/drs-verify/cmd/server/                 @OkeyAmy
+
+# Release + supply-chain
+/.github/workflows/                     @OkeyAmy
+/Dockerfile                             @OkeyAmy
+/drs-verify/Dockerfile                  @OkeyAmy
+/docker-compose.yml                     @OkeyAmy
+/SECURITY.md                            @OkeyAmy
+/CODEOWNERS                             @OkeyAmy
