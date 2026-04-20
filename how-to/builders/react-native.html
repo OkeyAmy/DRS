@@ -1,0 +1,402 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>React Native / Expo integration - Delegation Receipt Standard</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../../highlight.css">
+        <link rel="stylesheet" href="../../tomorrow-night.css">
+        <link rel="stylesheet" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../theme/css/custom.css">
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "navy";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../../introduction.html">Introduction</a></li><li class="chapter-item expanded affix "><a href="../../quick-start.html">Quick Start</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">Explanation</li><li class="chapter-item expanded "><a href="../../explanation/what-is-drs.html"><strong aria-hidden="true">1.</strong> What is DRS?</a></li><li class="chapter-item expanded "><a href="../../explanation/why-drs-exists.html"><strong aria-hidden="true">2.</strong> Why DRS Exists</a></li><li class="chapter-item expanded "><a href="../../explanation/five-actors.html"><strong aria-hidden="true">3.</strong> The Five Actors</a></li><li class="chapter-item expanded "><a href="../../explanation/data-model.html"><strong aria-hidden="true">4.</strong> Data Model</a></li><li class="chapter-item expanded "><a href="../../explanation/verification-algorithm.html"><strong aria-hidden="true">5.</strong> Verification Algorithm</a></li><li class="chapter-item expanded "><a href="../../explanation/architecture.html"><strong aria-hidden="true">6.</strong> Architecture</a></li><li class="chapter-item expanded "><a href="../../explanation/security-model.html"><strong aria-hidden="true">7.</strong> Security Model</a></li><li class="chapter-item expanded "><a href="../../explanation/regulatory-alignment.html"><strong aria-hidden="true">8.</strong> Regulatory Alignment</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">Tutorials</li><li class="chapter-item expanded "><a href="../../tutorials/01-issue-first-delegation.html"><strong aria-hidden="true">9.</strong> Issue Your First Delegation</a></li><li class="chapter-item expanded "><a href="../../tutorials/02-verify-a-bundle.html"><strong aria-hidden="true">10.</strong> Verify a Bundle</a></li><li class="chapter-item expanded "><a href="../../tutorials/03-end-to-end-trace.html"><strong aria-hidden="true">11.</strong> End-to-End Trace</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">How-To Guides</li><li class="chapter-item expanded "><a href="../../how-to/builders/no-fork-required.html"><strong aria-hidden="true">12.</strong> You do not need to fork</a></li><li class="chapter-item expanded "><a href="../../how-to/builders/choosing-your-path.html"><strong aria-hidden="true">13.</strong> Which part of DRS do I install?</a></li><li class="chapter-item expanded "><a href="../../how-to/builders/react-native.html" class="active"><strong aria-hidden="true">14.</strong> React Native / Expo integration</a></li><li class="chapter-item expanded "><a href="../../how-to/builders/mcp-node.html"><strong aria-hidden="true">15.</strong> MCP server integration (Node)</a></li><li class="chapter-item expanded "><a href="../../how-to/builders/a2a-node.html"><strong aria-hidden="true">16.</strong> A2A agent integration (Node)</a></li><li class="chapter-item expanded "><a href="../../how-to/builders/node-backend.html"><strong aria-hidden="true">17.</strong> Non-MCP Node backend integration</a></li><li class="chapter-item expanded "><a href="../../how-to/developers/install-sdk.html"><strong aria-hidden="true">18.</strong> Install the SDK</a></li><li class="chapter-item expanded "><a href="../../how-to/developers/mcp-middleware.html"><strong aria-hidden="true">19.</strong> MCP Middleware Integration (Go)</a></li><li class="chapter-item expanded "><a href="../../how-to/developers/a2a-middleware.html"><strong aria-hidden="true">20.</strong> A2A Middleware Integration (Go)</a></li><li class="chapter-item expanded "><a href="../../how-to/developers/human-consent.html"><strong aria-hidden="true">21.</strong> Human Consent Records</a></li><li class="chapter-item expanded "><a href="../../how-to/developers/sub-delegation.html"><strong aria-hidden="true">22.</strong> Sub-Delegation</a></li><li class="chapter-item expanded "><a href="../../how-to/operators/deploy-drs-verify.html"><strong aria-hidden="true">23.</strong> Deploy drs-verify</a></li><li class="chapter-item expanded "><a href="../../how-to/operators/operator-config.html"><strong aria-hidden="true">24.</strong> Operator Configuration</a></li><li class="chapter-item expanded "><a href="../../how-to/operators/storage-tiers.html"><strong aria-hidden="true">25.</strong> Storage Tiers</a></li><li class="chapter-item expanded "><a href="../../how-to/operators/key-management.html"><strong aria-hidden="true">26.</strong> Key Management</a></li><li class="chapter-item expanded "><a href="../../how-to/operators/revocation.html"><strong aria-hidden="true">27.</strong> Revocation</a></li><li class="chapter-item expanded "><a href="../../how-to/auditors/reconstruct-chain.html"><strong aria-hidden="true">28.</strong> Reconstruct a Chain</a></li><li class="chapter-item expanded "><a href="../../how-to/auditors/independent-verify.html"><strong aria-hidden="true">29.</strong> Independent Verification</a></li><li class="chapter-item expanded "><a href="../../how-to/auditors/export-eu-ai-act.html"><strong aria-hidden="true">30.</strong> Export for EU AI Act</a></li><li class="chapter-item expanded "><a href="../../how-to/auditors/hipaa-evidence.html"><strong aria-hidden="true">31.</strong> HIPAA Audit Evidence</a></li><li class="chapter-item expanded "><a href="../../how-to/contributors/dev-setup.html"><strong aria-hidden="true">32.</strong> Dev Setup</a></li><li class="chapter-item expanded "><a href="../../how-to/contributors/architecture-deep-dive.html"><strong aria-hidden="true">33.</strong> Architecture Deep Dive</a></li><li class="chapter-item expanded "><a href="../../how-to/contributors/testing-standards.html"><strong aria-hidden="true">34.</strong> Testing Standards</a></li><li class="chapter-item expanded "><a href="../../how-to/contributors/false-positives.html"><strong aria-hidden="true">35.</strong> False Positives: What We Tried</a></li><li class="chapter-item expanded "><a href="../../how-to/contributors/upstream-monitoring.html"><strong aria-hidden="true">36.</strong> Upstream Monitoring</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">Reference</li><li class="chapter-item expanded "><a href="../../reference/jwt-fields.html"><strong aria-hidden="true">37.</strong> JWT Fields</a></li><li class="chapter-item expanded "><a href="../../reference/policy-schema.html"><strong aria-hidden="true">38.</strong> Policy Schema</a></li><li class="chapter-item expanded "><a href="../../reference/error-codes.html"><strong aria-hidden="true">39.</strong> Error Codes</a></li><li class="chapter-item expanded "><a href="../../reference/cli-commands.html"><strong aria-hidden="true">40.</strong> CLI Commands</a></li><li class="chapter-item expanded "><a href="../../reference/api-endpoints.html"><strong aria-hidden="true">41.</strong> API Endpoints</a></li><li class="chapter-item expanded "><a href="../../reference/configuration.html"><strong aria-hidden="true">42.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="../../reference/comparison.html"><strong aria-hidden="true">43.</strong> DRS vs Alternatives</a></li><li class="chapter-item expanded "><a href="../../reference/roadmap.html"><strong aria-hidden="true">44.</strong> Roadmap</a></li><li class="chapter-item expanded "><a href="../../reference/glossary.html"><strong aria-hidden="true">45.</strong> Glossary</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Delegation Receipt Standard</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/how-to/builders/react-native.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="integrate-drs-in-a-react-native-app"><a class="header" href="#integrate-drs-in-a-react-native-app">Integrate DRS in a React Native app</a></h1>
+<p>This guide covers installing and using <code>@okeyamy/drs-sdk</code> inside an Expo
+or bare React Native app. The SDK is pure TypeScript plus pure-JS
+cryptography (<code>@noble/ed25519</code>) — no native modules, no WASM glue code
+required on the mobile side.</p>
+<h2 id="compatibility-matrix"><a class="header" href="#compatibility-matrix">Compatibility matrix</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Runtime</th><th>Status</th></tr></thead><tbody>
+<tr><td>Expo SDK 50+ (managed)</td><td>Supported</td></tr>
+<tr><td>Expo SDK 50+ (bare)</td><td>Supported</td></tr>
+<tr><td>React Native 0.73+ (community CLI)</td><td>Supported</td></tr>
+<tr><td>Hermes (default on RN 0.70+)</td><td>Supported</td></tr>
+<tr><td>JavaScriptCore</td><td>Supported</td></tr>
+</tbody></table>
+</div>
+<p>The SDK relies on:</p>
+<ul>
+<li><code>crypto.getRandomValues</code> — provided by React Native's <code>expo-crypto</code> or
+by modern RN directly. Polyfill on older targets.</li>
+<li><code>TextEncoder</code> / <code>TextDecoder</code> — provided by Hermes. On JSC, polyfill
+with <code>text-encoding</code>.</li>
+<li><code>atob</code> / <code>btoa</code> — provided by both engines.</li>
+</ul>
+<h2 id="install"><a class="header" href="#install">Install</a></h2>
+<pre><code class="language-bash"># Expo
+npx expo install @okeyamy/drs-sdk
+
+# RN community CLI
+pnpm add @okeyamy/drs-sdk
+</code></pre>
+<p>If your project runs on an older RN (&lt;0.74) or bare JSC:</p>
+<pre><code class="language-bash">pnpm add react-native-get-random-values text-encoding
+</code></pre>
+<p>Then import the polyfills once, at the top of your entry file
+(<code>index.js</code> or <code>App.tsx</code>):</p>
+<pre><code class="language-ts">import "react-native-get-random-values";
+import "text-encoding/encoding-indexes";
+</code></pre>
+<h2 id="generate-and-persist-a-key"><a class="header" href="#generate-and-persist-a-key">Generate and persist a key</a></h2>
+<p>Mobile apps typically generate a per-device key on first launch and
+store it in the OS secure enclave / Keychain. Use
+<code>expo-secure-store</code> (Expo) or <code>react-native-keychain</code> (bare).</p>
+<pre><code class="language-ts">import * as SecureStore from "expo-secure-store";
+import { derivePublicKey } from "@okeyamy/drs-sdk";
+
+export async function getOrCreateAgentKey(): Promise&lt;Uint8Array&gt; {
+  const existing = await SecureStore.getItemAsync("drs.agent_sk");
+  if (existing) {
+    return Uint8Array.from(Buffer.from(existing, "hex"));
+  }
+  // Fresh key: 32 bytes from a CSPRNG.
+  const sk = new Uint8Array(32);
+  globalThis.crypto.getRandomValues(sk);
+  await SecureStore.setItemAsync(
+    "drs.agent_sk",
+    Buffer.from(sk).toString("hex"),
+    { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY },
+  );
+  return sk;
+}
+
+export function didFromKey(sk: Uint8Array): string {
+  const pub = derivePublicKey(sk);
+  const multicodec = new Uint8Array([0xed, 0x01, ...pub]);
+  return `did:key:z${base58btc(multicodec)}`;
+}
+</code></pre>
+<p><code>base58btc</code> is a small pure-JS helper; see the
+<a href="https://github.com/OkeyAmy/DRS/blob/main/drs-sdk/src/sdk/issue.test.ts">SDK tests</a>
+for an inlineable implementation.</p>
+<h2 id="issue-an-invocation-when-the-user-taps-a-button"><a class="header" href="#issue-an-invocation-when-the-user-taps-a-button">Issue an invocation when the user taps a button</a></h2>
+<pre><code class="language-tsx">import { useState } from "react";
+import { Button, Text } from "react-native";
+import {
+  buildBundle,
+  issueInvocation,
+  computeChainHash,
+  serialiseBundle,
+} from "@okeyamy/drs-sdk";
+
+export function CallToolButton({
+  agentKey,
+  agentDid,
+  rootDR,
+  toolServerDid,
+}: Props) {
+  const [result, setResult] = useState&lt;string&gt;("");
+
+  async function onCall() {
+    const invocation = await issueInvocation({
+      signingKey: agentKey,
+      issuerDid: agentDid,
+      subjectDid: agentDid,
+      cmd: "/mcp/tools/call",
+      args: { tool: "web_search", query: "react native drs integration" },
+      drChain: [computeChainHash(rootDR)],
+      toolServer: toolServerDid,
+    });
+
+    const bundle = buildBundle([rootDR], invocation);
+    const bundleHeader = serialiseBundle(bundle);
+
+    const res = await fetch("https://your-tool-server.example.com/mcp/tools/call", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "X-DRS-Bundle": bundleHeader,
+      },
+      body: JSON.stringify({ tool: "web_search", query: "..." }),
+    });
+    setResult(await res.text());
+  }
+
+  return (
+    &lt;&gt;
+      &lt;Button onPress={onCall} title="Run tool with DRS receipt" /&gt;
+      &lt;Text&gt;{result}&lt;/Text&gt;
+    &lt;/&gt;
+  );
+}
+</code></pre>
+<p>The root delegation (<code>rootDR</code>) was issued when the user approved the
+agent — see <a href="../developers/human-consent.html">Human Consent Records</a>.
+Persist it alongside the agent key, or fetch it from your backend on app
+launch.</p>
+<h2 id="where-drs-verify-runs"><a class="header" href="#where-drs-verify-runs">Where <code>drs-verify</code> runs</a></h2>
+<p>The verifier <strong>does not run on the phone.</strong> It is a backend service
+that your tool server calls (or that your tool server is wrapped by).
+From the React Native app's perspective, DRS is issuance-only: you sign
+receipts, you send them over HTTPS in the <code>X-DRS-Bundle</code> header, the
+server verifies.</p>
+<p>A typical deployment:</p>
+<pre><code>┌───────────────────────┐
+│ React Native app      │  @okeyamy/drs-sdk (npm)
+└─────────┬─────────────┘
+          │ HTTPS + X-DRS-Bundle header
+          ▼
+┌───────────────────────┐
+│ Your tool server API  │  validates bundle (sidecar or Go middleware)
+└─────────┬─────────────┘
+          │ POST /verify (optional sidecar mode)
+          ▼
+┌───────────────────────┐
+│ drs-verify (Docker)   │  ghcr.io/okeyamy/drs-verify
+└───────────────────────┘
+</code></pre>
+<p>See <a href="./mcp-node.html">Integrate DRS with an MCP Node server</a> for the
+server side.</p>
+<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
+<h3 id="cryptogetrandomvalues-is-not-a-function"><a class="header" href="#cryptogetrandomvalues-is-not-a-function">"crypto.getRandomValues is not a function"</a></h3>
+<p>You're on an older RN without a secure random source. Install and import
+<code>react-native-get-random-values</code> as shown above.</p>
+<h3 id="cannot-find-module-nobleed25519"><a class="header" href="#cannot-find-module-nobleed25519">"Cannot find module '@noble/ed25519'"</a></h3>
+<p>This is a transitive dependency of the SDK. It should resolve
+automatically. If it doesn't, clear the Metro cache:</p>
+<pre><code class="language-bash">npx expo start --clear
+# or for bare:
+pnpm start -- --reset-cache
+</code></pre>
+<h3 id="signatures-dont-verify-on-the-server"><a class="header" href="#signatures-dont-verify-on-the-server">Signatures don't verify on the server</a></h3>
+<p>Double-check that <code>drChain</code> entries are <strong>chain hashes</strong>
+(<code>sha256:...</code>), not raw JWTs. The SDK exposes <code>computeChainHash(jwt)</code>
+for this — forgetting it is the most common mistake.</p>
+<h3 id="bundle-is-too-large-for-http-headers"><a class="header" href="#bundle-is-too-large-for-http-headers">Bundle is too large for HTTP headers</a></h3>
+<p>Some gateways cap header size at 8 KB. If your delegation chain has many
+sub-delegations, consider sending the bundle as a request body field
+using the JSON-RPC <code>_meta</code> pattern instead of the <code>X-DRS-Bundle</code>
+header. Both shapes are defined in
+<a href="https://github.com/OkeyAmy/DRS/blob/main/docs/drs-source-of-truth.md"><code>drs-source-of-truth.md</code></a>.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../how-to/builders/choosing-your-path.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../how-to/builders/mcp-node.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../how-to/builders/choosing-your-path.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../how-to/builders/mcp-node.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

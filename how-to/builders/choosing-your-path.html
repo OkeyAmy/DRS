@@ -1,0 +1,343 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Which part of DRS do I install? - Delegation Receipt Standard</title>
+
+
+        <!-- Custom HTML head -->
+        
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon.svg">
+        <link rel="shortcut icon" href="../../favicon.png">
+        <link rel="stylesheet" href="../../css/variables.css">
+        <link rel="stylesheet" href="../../css/general.css">
+        <link rel="stylesheet" href="../../css/chrome.css">
+        <link rel="stylesheet" href="../../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="../../highlight.css">
+        <link rel="stylesheet" href="../../tomorrow-night.css">
+        <link rel="stylesheet" href="../../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../../theme/css/custom.css">
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "../../";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "navy";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="../../introduction.html">Introduction</a></li><li class="chapter-item expanded affix "><a href="../../quick-start.html">Quick Start</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">Explanation</li><li class="chapter-item expanded "><a href="../../explanation/what-is-drs.html"><strong aria-hidden="true">1.</strong> What is DRS?</a></li><li class="chapter-item expanded "><a href="../../explanation/why-drs-exists.html"><strong aria-hidden="true">2.</strong> Why DRS Exists</a></li><li class="chapter-item expanded "><a href="../../explanation/five-actors.html"><strong aria-hidden="true">3.</strong> The Five Actors</a></li><li class="chapter-item expanded "><a href="../../explanation/data-model.html"><strong aria-hidden="true">4.</strong> Data Model</a></li><li class="chapter-item expanded "><a href="../../explanation/verification-algorithm.html"><strong aria-hidden="true">5.</strong> Verification Algorithm</a></li><li class="chapter-item expanded "><a href="../../explanation/architecture.html"><strong aria-hidden="true">6.</strong> Architecture</a></li><li class="chapter-item expanded "><a href="../../explanation/security-model.html"><strong aria-hidden="true">7.</strong> Security Model</a></li><li class="chapter-item expanded "><a href="../../explanation/regulatory-alignment.html"><strong aria-hidden="true">8.</strong> Regulatory Alignment</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">Tutorials</li><li class="chapter-item expanded "><a href="../../tutorials/01-issue-first-delegation.html"><strong aria-hidden="true">9.</strong> Issue Your First Delegation</a></li><li class="chapter-item expanded "><a href="../../tutorials/02-verify-a-bundle.html"><strong aria-hidden="true">10.</strong> Verify a Bundle</a></li><li class="chapter-item expanded "><a href="../../tutorials/03-end-to-end-trace.html"><strong aria-hidden="true">11.</strong> End-to-End Trace</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">How-To Guides</li><li class="chapter-item expanded "><a href="../../how-to/builders/no-fork-required.html"><strong aria-hidden="true">12.</strong> You do not need to fork</a></li><li class="chapter-item expanded "><a href="../../how-to/builders/choosing-your-path.html" class="active"><strong aria-hidden="true">13.</strong> Which part of DRS do I install?</a></li><li class="chapter-item expanded "><a href="../../how-to/builders/react-native.html"><strong aria-hidden="true">14.</strong> React Native / Expo integration</a></li><li class="chapter-item expanded "><a href="../../how-to/builders/mcp-node.html"><strong aria-hidden="true">15.</strong> MCP server integration (Node)</a></li><li class="chapter-item expanded "><a href="../../how-to/builders/a2a-node.html"><strong aria-hidden="true">16.</strong> A2A agent integration (Node)</a></li><li class="chapter-item expanded "><a href="../../how-to/builders/node-backend.html"><strong aria-hidden="true">17.</strong> Non-MCP Node backend integration</a></li><li class="chapter-item expanded "><a href="../../how-to/developers/install-sdk.html"><strong aria-hidden="true">18.</strong> Install the SDK</a></li><li class="chapter-item expanded "><a href="../../how-to/developers/mcp-middleware.html"><strong aria-hidden="true">19.</strong> MCP Middleware Integration (Go)</a></li><li class="chapter-item expanded "><a href="../../how-to/developers/a2a-middleware.html"><strong aria-hidden="true">20.</strong> A2A Middleware Integration (Go)</a></li><li class="chapter-item expanded "><a href="../../how-to/developers/human-consent.html"><strong aria-hidden="true">21.</strong> Human Consent Records</a></li><li class="chapter-item expanded "><a href="../../how-to/developers/sub-delegation.html"><strong aria-hidden="true">22.</strong> Sub-Delegation</a></li><li class="chapter-item expanded "><a href="../../how-to/operators/deploy-drs-verify.html"><strong aria-hidden="true">23.</strong> Deploy drs-verify</a></li><li class="chapter-item expanded "><a href="../../how-to/operators/operator-config.html"><strong aria-hidden="true">24.</strong> Operator Configuration</a></li><li class="chapter-item expanded "><a href="../../how-to/operators/storage-tiers.html"><strong aria-hidden="true">25.</strong> Storage Tiers</a></li><li class="chapter-item expanded "><a href="../../how-to/operators/key-management.html"><strong aria-hidden="true">26.</strong> Key Management</a></li><li class="chapter-item expanded "><a href="../../how-to/operators/revocation.html"><strong aria-hidden="true">27.</strong> Revocation</a></li><li class="chapter-item expanded "><a href="../../how-to/auditors/reconstruct-chain.html"><strong aria-hidden="true">28.</strong> Reconstruct a Chain</a></li><li class="chapter-item expanded "><a href="../../how-to/auditors/independent-verify.html"><strong aria-hidden="true">29.</strong> Independent Verification</a></li><li class="chapter-item expanded "><a href="../../how-to/auditors/export-eu-ai-act.html"><strong aria-hidden="true">30.</strong> Export for EU AI Act</a></li><li class="chapter-item expanded "><a href="../../how-to/auditors/hipaa-evidence.html"><strong aria-hidden="true">31.</strong> HIPAA Audit Evidence</a></li><li class="chapter-item expanded "><a href="../../how-to/contributors/dev-setup.html"><strong aria-hidden="true">32.</strong> Dev Setup</a></li><li class="chapter-item expanded "><a href="../../how-to/contributors/architecture-deep-dive.html"><strong aria-hidden="true">33.</strong> Architecture Deep Dive</a></li><li class="chapter-item expanded "><a href="../../how-to/contributors/testing-standards.html"><strong aria-hidden="true">34.</strong> Testing Standards</a></li><li class="chapter-item expanded "><a href="../../how-to/contributors/false-positives.html"><strong aria-hidden="true">35.</strong> False Positives: What We Tried</a></li><li class="chapter-item expanded "><a href="../../how-to/contributors/upstream-monitoring.html"><strong aria-hidden="true">36.</strong> Upstream Monitoring</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><li class="part-title">Reference</li><li class="chapter-item expanded "><a href="../../reference/jwt-fields.html"><strong aria-hidden="true">37.</strong> JWT Fields</a></li><li class="chapter-item expanded "><a href="../../reference/policy-schema.html"><strong aria-hidden="true">38.</strong> Policy Schema</a></li><li class="chapter-item expanded "><a href="../../reference/error-codes.html"><strong aria-hidden="true">39.</strong> Error Codes</a></li><li class="chapter-item expanded "><a href="../../reference/cli-commands.html"><strong aria-hidden="true">40.</strong> CLI Commands</a></li><li class="chapter-item expanded "><a href="../../reference/api-endpoints.html"><strong aria-hidden="true">41.</strong> API Endpoints</a></li><li class="chapter-item expanded "><a href="../../reference/configuration.html"><strong aria-hidden="true">42.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="../../reference/comparison.html"><strong aria-hidden="true">43.</strong> DRS vs Alternatives</a></li><li class="chapter-item expanded "><a href="../../reference/roadmap.html"><strong aria-hidden="true">44.</strong> Roadmap</a></li><li class="chapter-item expanded "><a href="../../reference/glossary.html"><strong aria-hidden="true">45.</strong> Glossary</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Delegation Receipt Standard</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/OkeyAmy/DRS" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/OkeyAmy/DRS/edit/main/docs-site/src/how-to/builders/choosing-your-path.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="which-part-of-drs-do-i-install"><a class="header" href="#which-part-of-drs-do-i-install">Which part of DRS do I install?</a></h1>
+<p>DRS has three separately-published layers. Which you install depends on
+what you are building. This page maps common roles to the artifact(s) you
+need.</p>
+<h2 id="one-minute-decision-tree"><a class="header" href="#one-minute-decision-tree">One-minute decision tree</a></h2>
+<pre><code>What are you building?
+│
+├─ An AI agent / client that ACTS on behalf of a user or service
+│    → Install @okeyamy/drs-sdk (issuance path)
+│
+├─ A tool server or gateway that ACCEPTS requests from agents
+│    → Run ghcr.io/okeyamy/drs-verify (verification service)
+│    → OR embed pkg/middleware in your Go server
+│
+├─ A human-consent UI (user clicks "Approve", you mint a root delegation)
+│    → Install @okeyamy/drs-sdk
+│
+├─ An auditor / compliance replay tool (verify chains after the fact)
+│    → Install @okeyamy/drs-sdk (uses its VerifyClient)
+│    → OR point it at a running drs-verify /verify endpoint
+│
+└─ Rust binary / WASM polyfill
+     → Install drs-core from crates.io
+</code></pre>
+<h2 id="mapping-roles-to-artifacts"><a class="header" href="#mapping-roles-to-artifacts">Mapping roles to artifacts</a></h2>
+<h3 id="role-agent-runtime-node-browser-react-native-deno"><a class="header" href="#role-agent-runtime-node-browser-react-native-deno">Role: Agent runtime (Node, browser, React Native, Deno)</a></h3>
+<p>Install the SDK from npm.</p>
+<pre><code class="language-bash">pnpm add @okeyamy/drs-sdk
+</code></pre>
+<p>You use it to:</p>
+<ul>
+<li>generate keys (<code>drs keygen</code> or programmatically)</li>
+<li>issue root delegations (when a human consents)</li>
+<li>issue sub-delegations (when an agent delegates to another agent)</li>
+<li>issue invocations (when the agent actually calls a tool)</li>
+<li>optionally, verify bundles via <code>VerifyClient</code></li>
+</ul>
+<p>You <strong>do not</strong> need to run <code>drs-verify</code> for issuance. Issuance is all
+local cryptography.</p>
+<h3 id="role-tool-server--mcp-server--api-gateway"><a class="header" href="#role-tool-server--mcp-server--api-gateway">Role: Tool server / MCP server / API gateway</a></h3>
+<p>Run the verification service. Two shapes:</p>
+<p><strong>Shape A — sidecar verifier (any language tool server)</strong></p>
+<p>Run <code>ghcr.io/okeyamy/drs-verify:latest</code> next to your tool server. In your
+server's request handler, before doing real work, call
+<code>POST /verify</code> with the incoming bundle. If <code>result.valid</code> is true, proceed.</p>
+<pre><code>┌─────────────────┐          ┌─────────────────┐
+│  your tool      │  POST    │  drs-verify     │
+│  server (any    │──/verify─▶ :8080 (sidecar) │
+│  language)      │  ◀─json─ │                 │
+└─────────────────┘          └─────────────────┘
+</code></pre>
+<p>Best for: Node, Python, Rust, Ruby, Java — anything not Go.</p>
+<p><strong>Shape B — embedded Go middleware</strong></p>
+<p>If your tool server is in Go, import the middleware package directly.
+Faster path (no extra hop), but Go-only.</p>
+<pre><code class="language-go">import "github.com/drs-protocol/drs-verify/pkg/middleware"
+
+mux.Handle("/tools/call", middleware.MCPMiddleware(deps, nonceStore, yourHandler))
+</code></pre>
+<p>Best for: Go MCP servers, Go A2A servers.</p>
+<h3 id="role-human-consent-ui"><a class="header" href="#role-human-consent-ui">Role: Human-consent UI</a></h3>
+<p>Install the SDK from npm, same as an agent. The difference is semantic:
+your app's <code>issueRootDelegation</code> call represents the moment a human
+clicked "Approve". Capture consent metadata (session ID, policy hash,
+timestamp) in the <code>consent</code> field.</p>
+<p>See <a href="../developers/human-consent.html">Human Consent Records</a>.</p>
+<h3 id="role-auditor--compliance-reviewer"><a class="header" href="#role-auditor--compliance-reviewer">Role: Auditor / compliance reviewer</a></h3>
+<p>Install the SDK and use its <code>VerifyClient</code> to replay past chains. You can
+point it at a running <code>drs-verify</code> or use the SDK-only in-process
+verifier for air-gapped replay.</p>
+<pre><code class="language-bash">pnpm add @okeyamy/drs-sdk
+</code></pre>
+<pre><code class="language-ts">import { VerifyClient } from "@okeyamy/drs-sdk";
+
+const client = new VerifyClient({ baseUrl: "https://drs-verify.internal" });
+const result = await client.verify(bundle);
+</code></pre>
+<h3 id="role-rustwasm-builder"><a class="header" href="#role-rustwasm-builder">Role: Rust/WASM builder</a></h3>
+<p>Most Rust callers don't interact with <code>drs-core</code> directly — it's
+embedded inside <code>@okeyamy/drs-sdk</code> via WASM. But if you're building a
+Rust binary (for example, a CLI that issues receipts), use the crate:</p>
+<pre><code class="language-toml">[dependencies]
+drs-core = "0.1"
+</code></pre>
+<h2 id="combining-them"><a class="header" href="#combining-them">Combining them</a></h2>
+<p>A typical production deployment uses all three:</p>
+<pre><code>┌──────────────────────┐
+│ Agent (React Native) │   uses @okeyamy/drs-sdk (npm)
+└──────────┬───────────┘
+           │  HTTPS: X-DRS-Bundle: &lt;base64url&gt;
+           ▼
+┌──────────────────────┐
+│ Tool server (Node)   │   forwards body + bundle
+└──────────┬───────────┘
+           │  POST /verify
+           ▼
+┌──────────────────────┐
+│ drs-verify (Docker)  │   runs from ghcr.io/okeyamy/drs-verify
+│ + Redis (replay)     │
+└──────────────────────┘
+</code></pre>
+<p>None of these three boxes clones the DRS monorepo.</p>
+<h2 id="related"><a class="header" href="#related">Related</a></h2>
+<ul>
+<li><a href="./no-fork-required.html">You do not need to fork</a></li>
+<li><a href="./mcp-node.html">Integrate with MCP (Node)</a></li>
+<li><a href="./react-native.html">Integrate with React Native</a></li>
+<li><a href="./node-backend.html">Integrate with a non-Go HTTP gateway</a></li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../how-to/builders/no-fork-required.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../../how-to/builders/react-native.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../how-to/builders/no-fork-required.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../../how-to/builders/react-native.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../../elasticlunr.min.js"></script>
+        <script src="../../mark.min.js"></script>
+        <script src="../../searcher.js"></script>
+
+        <script src="../../clipboard.min.js"></script>
+        <script src="../../highlight.js"></script>
+        <script src="../../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>
