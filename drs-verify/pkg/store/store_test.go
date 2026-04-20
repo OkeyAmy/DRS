@@ -195,3 +195,72 @@ func TestFilesystemStoreValidHash(t *testing.T) {
 		t.Errorf("Get returned %q, want %q", got, "test.jwt")
 	}
 }
+
+func TestFilesystemStoreTstExtensionAccepted(t *testing.T) {
+	dir := t.TempDir()
+	s, err := store.NewFilesystemStore(dir, 0)
+	if err != nil {
+		t.Fatalf("NewFilesystemStore: %v", err)
+	}
+	// Tier3Store stores RFC 3161 timestamp tokens under hash + ".tst".
+	// The filesystem store must accept this key shape.
+	tstKey := "sha256:" + strings.Repeat("a1", 32) + ".tst"
+	if err := s.Put(tstKey, "token-bytes"); err != nil {
+		t.Fatalf("Put with .tst key: %v", err)
+	}
+	got, err := s.Get(tstKey)
+	if err != nil {
+		t.Fatalf("Get with .tst key: %v", err)
+	}
+	if got != "token-bytes" {
+		t.Errorf("Get returned %q, want %q", got, "token-bytes")
+	}
+	if err := s.Delete(tstKey); err != nil {
+		t.Errorf("Delete with .tst key: %v", err)
+	}
+}
+
+func TestFilesystemStoreJwtAndTstDisjoint(t *testing.T) {
+	dir := t.TempDir()
+	s, err := store.NewFilesystemStore(dir, 0)
+	if err != nil {
+		t.Fatalf("NewFilesystemStore: %v", err)
+	}
+	// JWT and TST keys for the same digest must map to distinct files,
+	// so storing a token does not overwrite the receipt.
+	digest := "sha256:" + strings.Repeat("cd", 32)
+	if err := s.Put(digest, "receipt-jwt"); err != nil {
+		t.Fatalf("Put jwt: %v", err)
+	}
+	if err := s.Put(digest+".tst", "timestamp-token"); err != nil {
+		t.Fatalf("Put tst: %v", err)
+	}
+	gotJWT, err := s.Get(digest)
+	if err != nil || gotJWT != "receipt-jwt" {
+		t.Errorf("Get jwt: got %q, err=%v; want %q", gotJWT, err, "receipt-jwt")
+	}
+	gotTST, err := s.Get(digest + ".tst")
+	if err != nil || gotTST != "timestamp-token" {
+		t.Errorf("Get tst: got %q, err=%v; want %q", gotTST, err, "timestamp-token")
+	}
+}
+
+func TestFilesystemStoreRejectsUnknownExtensions(t *testing.T) {
+	dir := t.TempDir()
+	s, err := store.NewFilesystemStore(dir, 0)
+	if err != nil {
+		t.Fatalf("NewFilesystemStore: %v", err)
+	}
+	bad := []string{
+		"sha256:" + strings.Repeat("a1", 32) + ".exe",
+		"sha256:" + strings.Repeat("a1", 32) + ".evil",
+		"sha256:" + strings.Repeat("a1", 32) + ".JWT", // uppercase
+		"sha256:" + strings.Repeat("a1", 32) + ".",
+		"sha256:" + strings.Repeat("a1", 32) + "..tst", // double dot
+	}
+	for _, key := range bad {
+		if err := s.Put(key, "x"); err == nil {
+			t.Errorf("Put(%q) should have returned an error", key)
+		}
+	}
+}
