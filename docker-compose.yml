@@ -23,6 +23,7 @@ services:
       STATUS_LIST_BASE_URL: "${STATUS_LIST_BASE_URL:-}"
       STATUS_CACHE_TTL_SECS: "${STATUS_CACHE_TTL_SECS:-300}"
       DRS_ADMIN_TOKEN: "${DRS_ADMIN_TOKEN:-}"
+      REVOCATION_STORE_PATH: "${REVOCATION_STORE_PATH:-}"
 
       # Replay protection
       NONCE_STORE_MAX_ENTRIES: "${NONCE_STORE_MAX_ENTRIES:-100000}"
@@ -63,3 +64,13 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+
+    # Named volume for durable local revocation state. Active only if
+    # REVOCATION_STORE_PATH points inside /var/lib/drs-verify (the default
+    # recommendation). Safe to mount unconditionally — unused if no path
+    # is set.
+    volumes:
+      - drs-revocation:/var/lib/drs-verify
+
+volumes:
+  drs-revocation:

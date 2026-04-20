@@ -64,10 +64,10 @@ func decodeJWTHeader(jwt string) (jwtHeader, error) {
 
 // Deps bundles the I/O dependencies needed for Block C, Block F, and DR storage.
 type Deps struct {
-	Resolver          *resolver.Resolver
-	Revocation        *revocation.StatusCache
-	LocalRevocation   *revocation.LocalRevocationStore
-	Store             store.Store
+	Resolver        *resolver.Resolver
+	Revocation      *revocation.StatusCache
+	LocalRevocation revocation.LocalStore
+	Store           store.Store
 	// ServerIdentity is this server's DID or identifier. When set, the verifier
 	// enforces that invocation.tool_server matches this value, binding the
 	// invocation to the intended destination. Empty disables the check.

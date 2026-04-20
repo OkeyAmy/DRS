@@ -95,7 +95,27 @@ func main() {
 		}
 	}
 
-	localRev := revocation.NewLocalRevocationStore()
+	// Local revocation store: in-memory by default, file-backed when
+	// REVOCATION_STORE_PATH is set. The file-backed store persists every
+	// /admin/revoke call with fsync so emergency revokes survive restart.
+	var localRev revocation.LocalStore
+	if cfg.RevocationStorePath != "" {
+		fsRev, err := revocation.OpenFileBackedRevocationStore(cfg.RevocationStorePath)
+		if err != nil {
+			slog.Error("revocation store init failed", "path", cfg.RevocationStorePath, "error", err)
+			os.Exit(1)
+		}
+		defer func() {
+			if err := fsRev.Close(); err != nil {
+				slog.Warn("revocation store close failed", "error", err)
+			}
+		}()
+		localRev = fsRev
+		slog.Info("local revocation: file-backed", "path", cfg.RevocationStorePath)
+	} else {
+		localRev = revocation.NewLocalRevocationStore()
+		slog.Info("local revocation: in-memory (set REVOCATION_STORE_PATH to persist)")
+	}
 
 	var drStore store.Store
 	if cfg.StoreDir != "" {

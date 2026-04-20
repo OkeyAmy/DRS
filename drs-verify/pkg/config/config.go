@@ -95,6 +95,13 @@ type Config struct {
 	// a probe request through an open circuit. Default: 60.
 	// Set via CIRCUIT_BREAKER_COOLDOWN_SECS.
 	CircuitBreakerCooldownSecs int64
+
+	// RevocationStorePath is the filesystem path for the file-backed local
+	// revocation store. When set, POST /admin/revoke persists to this file
+	// and revocations survive process restart. Empty (default) uses the
+	// in-memory store — fastest, but /admin/revoke calls are lost on restart.
+	// Set via REVOCATION_STORE_PATH. Typical value: /var/lib/drs-verify/revoked.log
+	RevocationStorePath string
 }
 
 // Load reads all configuration from environment variables.
@@ -161,6 +168,7 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("CIRCUIT_BREAKER_COOLDOWN_SECS: %w", err)
 	}
+	revocationStorePath := os.Getenv("REVOCATION_STORE_PATH")
 
 	return Config{
 		ListenAddr:             listenAddr,
@@ -183,6 +191,7 @@ func Load() (Config, error) {
 		TrustProxy:                 trustProxy,
 		CircuitBreakerThreshold:    cbThreshold,
 		CircuitBreakerCooldownSecs: cbCooldown,
+		RevocationStorePath:        revocationStorePath,
 	}, nil
 }
 
