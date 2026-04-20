@@ -29,14 +29,15 @@ import (
 // lines beginning with '#' are ignored. Unparseable lines are skipped
 // with a warning, not a fatal error — allowing an operator to manually
 // edit the file without taking the service down.
+//
+// Locking: a single RWMutex guards file I/O AND the in-memory set.
+// Revoke takes Lock (exclusive) for the duration of write + fsync + map
+// update; IsRevoked takes RLock and runs in parallel with other reads.
+// One mutex means one lock order — no chance of nested-lock deadlock
+// between file I/O and map access.
 type FileBackedRevocationStore struct {
-	// readMu guards the in-memory revoked set.
-	readMu  sync.RWMutex
+	mu      sync.RWMutex
 	revoked map[uint64]struct{}
-
-	// writeMu serialises appends so writes to file are linear and
-	// the in-memory set is updated in the same critical section.
-	writeMu sync.Mutex
 	path    string
 	file    *os.File
 }
@@ -115,16 +116,21 @@ func (s *FileBackedRevocationStore) loadExisting() error {
 }
 
 // Revoke appends the index to the backing file, fsyncs, and updates the
-// in-memory set. Returns an error if the write or fsync fails; callers
-// (e.g. AdminRevokeHandler) must treat this as operation-failed and report
-// 5xx rather than pretending the revoke succeeded.
+// in-memory set — all under a single exclusive Lock. Returns an error if
+// the write or fsync fails; callers (e.g. AdminRevokeHandler) must treat
+// this as operation-failed and report 5xx rather than pretending the
+// revoke succeeded.
 //
 // Revoking an already-revoked index writes a duplicate line (cheap) but the
 // in-memory set remains a single entry. Duplicates are compacted on the next
 // startup without operator intervention.
+//
+// Semantics: IsRevoked returns true only after Revoke has returned nil.
+// Readers never see a revocation that has not yet reached fsync durability —
+// the atomic boundary is fsync-then-map under the same lock.
 func (s *FileBackedRevocationStore) Revoke(index uint64) error {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	line := strconv.FormatUint(index, 10) + "\n"
 	if _, err := s.file.WriteString(line); err != nil {
@@ -133,18 +139,16 @@ func (s *FileBackedRevocationStore) Revoke(index uint64) error {
 	if err := s.file.Sync(); err != nil {
 		return fmt.Errorf("revocation: fsync after index %d: %w", index, err)
 	}
-
-	s.readMu.Lock()
 	s.revoked[index] = struct{}{}
-	s.readMu.Unlock()
 	return nil
 }
 
 // IsRevoked returns true if the index is in the in-memory set.
-// Lookup does not touch the file.
+// Lookup does not touch the file; multiple readers run concurrently under
+// RLock.
 func (s *FileBackedRevocationStore) IsRevoked(index uint64) bool {
-	s.readMu.RLock()
-	defer s.readMu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	_, ok := s.revoked[index]
 	return ok
 }
@@ -152,8 +156,8 @@ func (s *FileBackedRevocationStore) IsRevoked(index uint64) bool {
 // Close releases the file handle. Subsequent Revoke calls will fail.
 // Safe to call multiple times; subsequent calls return the first error.
 func (s *FileBackedRevocationStore) Close() error {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.file == nil {
 		return nil
 	}
