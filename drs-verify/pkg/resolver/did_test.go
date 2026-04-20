@@ -587,3 +587,56 @@ func TestSafeDialContext_RejectsPrivateIP(t *testing.T) {
 		t.Fatal("expected refused connection to 169.254.169.254, got nil")
 	}
 }
+
+func TestCircuitStateIsBoundedUnderUniqueDIDFlood(t *testing.T) {
+	// Regression: getCircuitState previously stored entries in a plain map
+	// with no eviction. An attacker sending many requests under unique
+	// did:web:... identifiers could grow memory unbounded. After the fix,
+	// circuit state lives in a capped LRU.
+	r, err := New(100, time.Hour)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	const flood = 20_000
+	for i := 0; i < flood; i++ {
+		_ = r.getCircuitState(fmt.Sprintf("did:web:attacker-%d.example.com", i))
+	}
+
+	stored := r.circuitStateCount()
+	if stored >= flood {
+		t.Errorf("circuit state unbounded: %d entries after %d distinct DIDs (expected bounded)", stored, flood)
+	}
+	// Cap should be ≤ 10 000 by design; leave some slack so the test is not
+	// brittle against future cap tweaks, but still catches the unbounded case.
+	if stored > 10_000 {
+		t.Errorf("circuit state cap too high: %d entries (want ≤ 10 000)", stored)
+	}
+}
+
+func TestCircuitStateSurvivesForActiveDIDs(t *testing.T) {
+	// The LRU must keep the most recently touched entries. A DID that has
+	// just failed should still have its open-circuit state preserved even if
+	// many other DIDs are then touched (provided the flood does not exceed
+	// the cap; if it does, eviction is acceptable — rate limiting handles
+	// that threat).
+	r, err := New(100, time.Hour)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	const activeDID = "did:web:active.example.com"
+	cs := r.getCircuitState(activeDID)
+	cs.recordFailure(1, time.Hour) // open the circuit with a 1hr cooldown
+
+	// Touch a modest number of other DIDs — well below the cap.
+	for i := 0; i < 100; i++ {
+		_ = r.getCircuitState(fmt.Sprintf("did:web:other-%d.example.com", i))
+	}
+
+	// Touch active DID again. Must still be the same entry with the circuit open.
+	cs2 := r.getCircuitState(activeDID)
+	if !cs2.isOpen(time.Now()) {
+		t.Error("active DID's open circuit was lost after touching 100 other DIDs")
+	}
+}

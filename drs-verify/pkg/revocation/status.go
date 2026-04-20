@@ -2,9 +2,12 @@
 //
 // Concurrency design:
 // - sync.RWMutex guards the cached bitstring: many readers, one writer
-// - sync.Once on first fetch prevents the double-fetch race condition under
-//   concurrent load (the race condition present in the v2 implementation)
-// - TTL is checked on every read; a background refresh is triggered if stale
+// - initMu serialises retryable first-fetch attempts (replaces sync.Once,
+//   which permanently consumed the first-fetch slot on failure and produced
+//   a fail-open path when the endpoint was briefly down at boot)
+// - refreshMu serialises TTL-triggered refreshes to prevent cache stampedes
+// - hasSnapshot tracks whether a valid snapshot has ever been successfully
+//   fetched. IsRevoked fails closed when no snapshot exists and refresh fails.
 //
 // Block F of the verification algorithm is implemented here.
 package revocation
@@ -28,14 +31,15 @@ const fetchTimeout = 15 * time.Second
 
 // StatusCache caches a remote Bitstring Status List with TTL-based refresh.
 type StatusCache struct {
-	mu         sync.RWMutex
-	once       sync.Once
-	refreshMu  sync.Mutex // serialises TTL-triggered refreshes; prevents cache stampede
-	bitstring  []byte
-	fetchedAt  time.Time
-	ttl        time.Duration
-	baseURL    string
-	httpClient *http.Client
+	mu          sync.RWMutex
+	initMu      sync.Mutex // serialises retryable first-fetch attempts
+	refreshMu   sync.Mutex // serialises TTL-triggered refreshes; prevents cache stampede
+	bitstring   []byte
+	fetchedAt   time.Time
+	hasSnapshot bool // true once a successful fetch has published a snapshot
+	ttl         time.Duration
+	baseURL     string
+	httpClient  *http.Client
 }
 
 // New creates a StatusCache that fetches from baseURL with the given TTL.
@@ -48,28 +52,27 @@ func New(baseURL string, ttl time.Duration) *StatusCache {
 }
 
 // IsRevoked returns true if the credential at the given statusListIndex is revoked.
-// On the first call it fetches the status list (sync.Once prevents double-fetch).
-// On subsequent calls it returns the cached value unless TTL has expired.
 //
-// ctx is honoured for fast-fail on caller cancellation: refreshes themselves
-// use their own context (see fetchTimeout) so a cancelled request cannot poison
-// a shared initialisation or abort a write other callers depend on.
+// Fail-closed guarantee: if no valid snapshot has ever been fetched, this
+// returns an error rather than (false, nil). A transient status-list outage
+// at boot must not silently let revoked receipts through.
+//
+// ctx is honoured for fast-fail on caller cancellation; refreshes themselves
+// use their own context (see fetchTimeout) so a cancelled request cannot abort
+// a cache write other callers depend on.
 func (s *StatusCache) IsRevoked(ctx context.Context, statusListIndex uint64) (bool, error) {
 	// Fast-fail on caller cancellation before doing any work.
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
 
-	var initErr error
-
-	// First fetch — protected by sync.Once to prevent double-fetch race condition.
-	// Uses a fresh context so the first caller's cancellation cannot poison
-	// the once guard for all future callers.
-	s.once.Do(func() {
-		initErr = s.refresh(context.Background())
-	})
-	if initErr != nil {
-		return false, fmt.Errorf("revocation: initial status list fetch failed: %w", initErr)
+	// Retryable first-fetch path: if no snapshot has ever been published,
+	// drive a refresh. Unlike sync.Once, a failed attempt here does not
+	// permanently consume the slot — the next call retries.
+	if !s.snapshotPublished() {
+		if err := s.ensureInitialSnapshot(); err != nil {
+			return false, fmt.Errorf("revocation: no valid status list snapshot available: %w", err)
+		}
 	}
 
 	// Check if TTL has expired; refresh if so.
@@ -92,6 +95,8 @@ func (s *StatusCache) IsRevoked(ctx context.Context, statusListIndex uint64) (bo
 			if err := s.refresh(context.Background()); err != nil {
 				// Log the error but serve stale data rather than blocking verification.
 				// A monitoring alert should fire on persistent fetch failures.
+				// Safe because snapshotPublished() is true here — this is a stale-data
+				// refresh, not a first-fetch.
 				slog.Warn("status list refresh failed, serving stale data", "error", err)
 			}
 		}
@@ -106,21 +111,46 @@ func (s *StatusCache) IsRevoked(ctx context.Context, statusListIndex uint64) (bo
 
 // Ready returns true if the status list has been successfully fetched at least once.
 // Used by the /readyz health endpoint.
+//
+// Returns false after a failed WarmUp() so orchestrators (Kubernetes, Nomad, etc.)
+// do not route traffic to a verifier whose revocation cache would fail-closed
+// for every request.
 func (s *StatusCache) Ready() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.bitstring) > 0
+	return s.snapshotPublished()
 }
 
 // WarmUp performs the initial status list fetch eagerly on startup.
 // Call this during server initialization to prevent readiness deadlock
 // in orchestrators that gate traffic on /readyz.
+//
+// Retryable: unlike the previous sync.Once-backed implementation, a failed
+// WarmUp does not permanently disable future fetch attempts. Callers may
+// re-invoke WarmUp (or simply let the first IsRevoked drive the init path)
+// to recover when the status-list endpoint comes back.
 func (s *StatusCache) WarmUp() error {
-	var err error
-	s.once.Do(func() {
-		err = s.refresh(context.Background())
-	})
-	return err
+	return s.ensureInitialSnapshot()
+}
+
+// ensureInitialSnapshot drives the first-fetch path under initMu. If a
+// concurrent caller has already successfully published a snapshot, this
+// returns nil without fetching. On failure it returns the error without
+// consuming the slot — callers may retry.
+func (s *StatusCache) ensureInitialSnapshot() error {
+	s.initMu.Lock()
+	defer s.initMu.Unlock()
+
+	if s.snapshotPublished() {
+		return nil
+	}
+	return s.refresh(context.Background())
+}
+
+// snapshotPublished reports whether a successful refresh has ever committed
+// a snapshot to the cache.
+func (s *StatusCache) snapshotPublished() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.hasSnapshot
 }
 
 // refresh fetches the current status list from the remote endpoint.
@@ -129,9 +159,13 @@ func (s *StatusCache) WarmUp() error {
 // Always enforces a fetchTimeout bound on the refresh regardless of ctx.
 func (s *StatusCache) refresh(ctx context.Context) error {
 	if s.baseURL == "" {
+		// No remote status list configured — revocation is effectively disabled.
+		// Mark as a valid snapshot so IsRevoked returns (false, nil) cleanly
+		// instead of fail-closing on "no snapshot available".
 		s.mu.Lock()
 		s.bitstring = []byte{}
 		s.fetchedAt = time.Now()
+		s.hasSnapshot = true
 		s.mu.Unlock()
 		return nil
 	}
@@ -181,6 +215,7 @@ func (s *StatusCache) refresh(ctx context.Context) error {
 	s.mu.Lock()
 	s.bitstring = buf
 	s.fetchedAt = time.Now()
+	s.hasSnapshot = true
 	s.mu.Unlock()
 
 	return nil
