@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/drs-protocol/drs-verify/pkg/metrics"
 	"github.com/drs-protocol/drs-verify/pkg/nonce"
 )
 
@@ -54,10 +55,12 @@ func CheckNonceReplay(w http.ResponseWriter, invocationJWT string, ns *nonce.Sto
 
 	jti, err := decodeInvocationJTI(invocationJWT)
 	if err != nil {
+		metrics.NonceChecks.WithLabelValues("decode_error").Inc()
 		http.Error(w, `{"error":"cannot decode invocation JTI"}`, http.StatusBadRequest)
 		return true
 	}
 	if jti == "" {
+		metrics.NonceChecks.WithLabelValues("missing_jti").Inc()
 		http.Error(w, `{"error":"invocation must include a jti for replay protection"}`, http.StatusBadRequest)
 		return true
 	}
@@ -65,6 +68,7 @@ func CheckNonceReplay(w http.ResponseWriter, invocationJWT string, ns *nonce.Sto
 	if err := ns.Check(jti); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		if errors.Is(err, nonce.ErrReplayDetected) {
+			metrics.NonceChecks.WithLabelValues("replay").Inc()
 			slog.Warn("nonce replay detected", "jti", jti)
 			w.WriteHeader(http.StatusConflict)
 			_ = json.NewEncoder(w).Encode(map[string]string{
@@ -73,6 +77,7 @@ func CheckNonceReplay(w http.ResponseWriter, invocationJWT string, ns *nonce.Sto
 				"suggestion": "Generate a new invocation with a unique jti.",
 			})
 		} else {
+			metrics.NonceChecks.WithLabelValues("exhausted").Inc()
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"error":      "NONCE_STORE_EXHAUSTED",
@@ -83,5 +88,6 @@ func CheckNonceReplay(w http.ResponseWriter, invocationJWT string, ns *nonce.Sto
 		return true
 	}
 
+	metrics.NonceChecks.WithLabelValues("accepted").Inc()
 	return false
 }

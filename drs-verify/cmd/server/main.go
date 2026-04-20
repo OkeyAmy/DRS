@@ -9,16 +9,21 @@
 package main
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/drs-protocol/drs-verify/pkg/anchor"
 	"github.com/drs-protocol/drs-verify/pkg/config"
 	"github.com/drs-protocol/drs-verify/pkg/health"
+	"github.com/drs-protocol/drs-verify/pkg/metrics"
 	"github.com/drs-protocol/drs-verify/pkg/middleware"
 	"github.com/drs-protocol/drs-verify/pkg/nonce"
 	"github.com/drs-protocol/drs-verify/pkg/resolver"
@@ -27,6 +32,12 @@ import (
 	"github.com/drs-protocol/drs-verify/pkg/types"
 	"github.com/drs-protocol/drs-verify/pkg/verify"
 )
+
+// shutdownTimeout is how long the server waits for in-flight requests to drain
+// after receiving SIGTERM / SIGINT. Long enough for /verify requests under
+// typical network conditions (resolver + HTTP response) to complete, short
+// enough that orchestrators' kill-after-grace-period stays in play.
+const shutdownTimeout = 30 * time.Second
 
 func main() {
 	// Pre-init: use a default text handler until configuration is loaded.
@@ -149,6 +160,10 @@ func main() {
 	mux.Handle("/healthz", healthMux)
 	mux.Handle("/readyz", healthMux)
 
+	// Prometheus metrics endpoint (no auth required, rate-limit exempt).
+	// Production operators should firewall /metrics to their monitoring network.
+	mux.Handle("/metrics", metrics.Handler())
+
 	// Verification endpoint — accepts a ChainBundle JSON body and returns VerificationResult.
 	// Used directly by the SDK and tests; MCP/A2A routes use header-based extraction instead.
 	//
@@ -156,6 +171,11 @@ func main() {
 	// the RFC 3161 timestamp token stored alongside each receipt and includes results
 	// in VerificationResult.Timestamps.
 	mux.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		defer func() {
+			metrics.RequestDuration.WithLabelValues("/verify").Observe(time.Since(start).Seconds())
+		}()
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -168,6 +188,7 @@ func main() {
 			IncludeTimestamps bool `json:"include_timestamps"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			metrics.Verifications.WithLabelValues("error").Inc()
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
@@ -184,9 +205,12 @@ func main() {
 		// JTI pre-consume legitimate nonces by submitting an invalid signature.
 		result := verify.Chain(r.Context(), req.ChainBundle, reqDeps)
 		if result.Valid {
+			metrics.Verifications.WithLabelValues("valid").Inc()
 			if middleware.CheckNonceReplay(w, req.Invocation, nonceStore) {
 				return
 			}
+		} else {
+			metrics.Verifications.WithLabelValues("invalid").Inc()
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -219,9 +243,46 @@ func main() {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+
+	// Run ListenAndServe in a goroutine so main can listen for shutdown signals.
+	// ErrServerClosed means a graceful shutdown happened — not an error.
+	serverErr := make(chan error, 1)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+			return
+		}
+		serverErr <- nil
+	}()
 	slog.Info("drs-verify listening", "addr", cfg.ListenAddr)
-	if err := srv.ListenAndServe(); err != nil {
-		slog.Error("server exited", "error", err)
+
+	// Block on SIGTERM / SIGINT or a startup failure from ListenAndServe.
+	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	select {
+	case err := <-serverErr:
+		if err != nil {
+			slog.Error("server exited unexpectedly", "error", err)
+			os.Exit(1)
+		}
+		return
+	case <-signalCtx.Done():
+		slog.Info("shutdown signal received, draining in-flight requests",
+			"timeout", shutdownTimeout)
+	}
+
+	// Graceful drain. srv.Shutdown blocks until idle or the deadline fires.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("graceful shutdown failed", "error", err)
 		os.Exit(1)
 	}
+	// Drain the background goroutine's final error (should be nil after Shutdown).
+	if err := <-serverErr; err != nil {
+		slog.Error("post-shutdown server error", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("drs-verify shut down cleanly")
 }

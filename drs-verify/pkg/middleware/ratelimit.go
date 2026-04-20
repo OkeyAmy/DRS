@@ -50,11 +50,12 @@ func NewRateLimiter(perIPRPS, globalRPS float64, trustProxy bool) *RateLimiter {
 }
 
 // Middleware wraps next and rejects requests that exceed the rate limits.
-// /healthz and /readyz are exempt from rate limiting.
+// /healthz, /readyz, and /metrics are exempt from rate limiting — they serve
+// orchestrators and monitoring pipelines that poll at fixed intervals.
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Health endpoints are never rate-limited.
-		if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" {
+		// Operational endpoints are never rate-limited.
+		if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" || r.URL.Path == "/metrics" {
 			next.ServeHTTP(w, r)
 			return
 		}
