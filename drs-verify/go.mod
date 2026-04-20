@@ -1,6 +1,6 @@
 module github.com/drs-protocol/drs-verify
 
-go 1.23.0
+go 1.25.9
 
 require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
