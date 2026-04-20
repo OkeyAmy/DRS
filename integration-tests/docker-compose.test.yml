@@ -1,0 +1,50 @@
+# Test harness for end-to-end integration tests.
+#
+# Spins up the verifier (image pinned via DRS_VERIFY_IMAGE env var, default
+# ghcr.io/okeyamy/drs-verify:latest) and a Redis instance for the distributed
+# nonce backend. The test runner (outside compose) connects via localhost.
+
+# version 3.9 is compatible with docker-compose v1.29+ (standalone) and
+# docker compose plugin v2. Both are used by run.sh at different sites.
+version: "3.9"
+
+services:
+  drs-verify:
+    image: ${DRS_VERIFY_IMAGE}
+    container_name: drs-verify-e2e
+    restart: "no"
+    ports:
+      # Default to 18080 to avoid colliding with any existing :8080 on dev
+      # machines. Override via DRS_VERIFY_PORT if needed.
+      - "${DRS_VERIFY_PORT:-18080}:8080"
+    environment:
+      LISTEN_ADDR: ":8080"
+      LOG_LEVEL: "info"
+      LOG_FORMAT: "json"
+      # Exercise the Redis-backed nonce store — this proves cross-replica
+      # replay protection would work in production.
+      NONCE_STORE_BACKEND: "redis"
+      REDIS_URL: "redis://redis:6379/0"
+      NONCE_STORE_TTL_SECS: "60"
+      # Admin token exercises /admin/revoke paths.
+      DRS_ADMIN_TOKEN: "e2e-integration-test-token"
+      # File-backed revocation would need a writable volume owned by the
+      # distroless nonroot user (uid 65532) — unit tests in pkg/revocation
+      # already exercise that path. For the E2E smoke we stay with the
+      # in-memory store so tests don't fight with volume ownership.
+      # Deliberately low to keep tests fast.
+      STATUS_CACHE_TTL_SECS: "5"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: drs-redis-e2e
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+
