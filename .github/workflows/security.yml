@@ -29,6 +29,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # First pass: table format, non-fatal — so findings are visible in the
+      # workflow log. The second pass below is the gate that fails the build.
+      - name: Trivy fs scan (print findings to log)
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          ignore-unfixed: 'true'
+
       - name: Run Trivy fs scan
         uses: aquasecurity/trivy-action@0.35.0
         with:
