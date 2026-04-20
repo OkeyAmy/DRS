@@ -2,15 +2,29 @@
 
 > Infrastructure-grade accountability layer for agentic AI systems.
 
-DRS is a cryptographic delegation receipt protocol built on OAuth 2.1 + RFC 8693 + MCP. Every time an AI agent acts on behalf of a human, DRS produces a signed, hash-chained receipt that proves — to a human, an auditor, or a regulator — who authorized the action, what was permitted, and when the authorization was granted.
+DRS is a cryptographic delegation receipt protocol implemented in this repository as JWT receipts, RFC 8785 JCS canonicalization, Ed25519 signatures, DID-based identity, and SHA-256 hash chaining. Every time an AI agent acts on behalf of a human, DRS produces a signed, hash-chained receipt that proves — to a human, an auditor, or a regulator — who authorized the action, what was permitted, and when the authorization was granted.
 
 **Documentation → [okeyamy.github.io/DRS](https://okeyamy.github.io/DRS/)**
+
+**Plugging DRS into your product? You do not need to fork this repo.**
+DRS ships as three published artifacts you install like any other
+dependency:
+
+- `@okeyamy/drs-sdk` — `pnpm add @okeyamy/drs-sdk` (issuance, Node / RN / browser)
+- `ghcr.io/okeyamy/drs-verify` — `docker pull` (verification service)
+- `drs-core` — `cargo add drs-core` (Rust crypto / WASM core)
+
+Start at the [Builder guides](https://okeyamy.github.io/DRS/how-to/builders/no-fork-required.html)
+to map your role (React Native, MCP server, A2A agent, Node backend)
+to the right artifact.
 
 ---
 
 ## The Problem
 
-When an AI agent sub-delegates work to other agents, standard OAuth 2.1 and JWT-based flows lose the chain of custody. An attacker can splice a forged delegation into the middle of the chain and the tool server has no way to detect it. DRS closes this gap with a tamper-evident, hash-linked receipt at every hop — from the human who clicked "approve" to the agent that executed the tool call.
+When an AI agent sub-delegates work to other agents, ordinary bearer-token context and server logs lose the chain of custody. An attacker can splice a forged delegation into the middle of the chain and the tool server has no way to detect it. DRS closes this gap with a tamper-evident, hash-linked receipt at every hop — from the human who clicked "approve" to the agent that executed the tool call.
+
+OAuth 2.1, RFC 8693, and MCP are important surrounding ecosystem context, but this repository does not currently implement OAuth 2.1 or RFC 8693 runtime flows.
 
 ## How It Works
 
@@ -31,7 +45,7 @@ Three-layer language stack chosen for correctness, performance, and deployabilit
 
 | Layer | Language | Responsibility |
 |---|---|---|
-| `drs-core` | Rust | Ed25519 crypto, CID computation, RFC 8785 JCS canonicalization, capability index |
+| `drs-core` | Rust | Ed25519 crypto, SHA-256 chain computation, RFC 8785 JCS canonicalization, capability index |
 | `drs-verify` | Go | HTTP verification server, MCP/A2A middleware, LRU caches, revocation, RFC 3161 anchor |
 | `drs-sdk` | TypeScript | Developer-facing SDK, issuance path, WASM bundle |
 
@@ -39,14 +53,42 @@ Rust compiles to native and WASM. Go compiles to a single static binary (`CGO_EN
 
 ## Quick Start
 
+### Run the verifier (zero config)
+
+Either with the published image directly:
+
+```bash
+docker run -p 8080:8080 ghcr.io/okeyamy/drs-verify:latest
+```
+
+Or with Docker Compose if you want `.env`-based configuration:
+
+```bash
+git clone https://github.com/OkeyAmy/DRS
+cd DRS
+cp .env.example .env            # review defaults; set DRS_ADMIN_TOKEN if needed
+docker compose up -d
+
+curl http://localhost:8080/healthz
+# {"status":"ok"}
+
+curl http://localhost:8080/metrics | head -5
+# # HELP drs_verify_verifications_total Total verification attempts by outcome.
+```
+
+See [`.env.example`](./.env.example) for every supported configuration variable.
+
+### Issue and verify a receipt
+
 ```bash
 # Install the SDK
 pnpm add @okeyamy/drs-sdk
 
 # Generate a keypair
 npx drs keygen
+```
 
-# Issue a root delegation receipt
+```ts
 import { issueRootDelegation } from '@okeyamy/drs-sdk'
 
 const dr = await issueRootDelegation({
@@ -55,12 +97,9 @@ const dr = await issueRootDelegation({
   policy:    { max_cost_usd: 1.00, allowed_tools: ['web_search'] },
   expiresIn: 3600,
 })
+```
 
-# Run the verification server
-docker run -p 8080:8080 \
-  -e SERVER_IDENTITY=did:key:z6Mk... \
-  ghcr.io/okeyamy/drs-verify:latest
-
+```bash
 # Verify a bundle
 curl -X POST http://localhost:8080/verify \
   -H 'Content-Type: application/json' \

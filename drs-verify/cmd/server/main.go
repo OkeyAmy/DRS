@@ -9,16 +9,21 @@
 package main
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/drs-protocol/drs-verify/pkg/anchor"
 	"github.com/drs-protocol/drs-verify/pkg/config"
 	"github.com/drs-protocol/drs-verify/pkg/health"
+	"github.com/drs-protocol/drs-verify/pkg/metrics"
 	"github.com/drs-protocol/drs-verify/pkg/middleware"
 	"github.com/drs-protocol/drs-verify/pkg/nonce"
 	"github.com/drs-protocol/drs-verify/pkg/resolver"
@@ -27,6 +32,12 @@ import (
 	"github.com/drs-protocol/drs-verify/pkg/types"
 	"github.com/drs-protocol/drs-verify/pkg/verify"
 )
+
+// shutdownTimeout is how long the server waits for in-flight requests to drain
+// after receiving SIGTERM / SIGINT. Long enough for /verify requests under
+// typical network conditions (resolver + HTTP response) to complete, short
+// enough that orchestrators' kill-after-grace-period stays in play.
+const shutdownTimeout = 30 * time.Second
 
 func main() {
 	// Pre-init: use a default text handler until configuration is loaded.
@@ -84,7 +95,27 @@ func main() {
 		}
 	}
 
-	localRev := revocation.NewLocalRevocationStore()
+	// Local revocation store: in-memory by default, file-backed when
+	// REVOCATION_STORE_PATH is set. The file-backed store persists every
+	// /admin/revoke call with fsync so emergency revokes survive restart.
+	var localRev revocation.LocalStore
+	if cfg.RevocationStorePath != "" {
+		fsRev, err := revocation.OpenFileBackedRevocationStore(cfg.RevocationStorePath)
+		if err != nil {
+			slog.Error("revocation store init failed", "path", cfg.RevocationStorePath, "error", err)
+			os.Exit(1)
+		}
+		defer func() {
+			if err := fsRev.Close(); err != nil {
+				slog.Warn("revocation store close failed", "error", err)
+			}
+		}()
+		localRev = fsRev
+		slog.Info("local revocation: file-backed", "path", cfg.RevocationStorePath)
+	} else {
+		localRev = revocation.NewLocalRevocationStore()
+		slog.Info("local revocation: in-memory (set REVOCATION_STORE_PATH to persist)")
+	}
 
 	var drStore store.Store
 	if cfg.StoreDir != "" {
@@ -131,10 +162,37 @@ func main() {
 		TSARootPool:     tsaRootPool,
 	}
 
-	nonceStore := nonce.New(cfg.NonceStoreMaxEntries, time.Duration(cfg.NonceStoreTTLSecs)*time.Second)
-	slog.Info("nonce replay protection enabled",
-		"max_entries", cfg.NonceStoreMaxEntries,
-		"ttl_secs", cfg.NonceStoreTTLSecs)
+	// Nonce store: in-memory by default. When NONCE_STORE_BACKEND=redis,
+	// Check uses Redis SETNX for atomic claim-if-new across replicas and
+	// across restart. Closed in the shutdown deferred cleanup path so
+	// Redis connections drain.
+	var nonceStore nonce.Checker
+	switch cfg.NonceStoreBackend {
+	case "redis":
+		rs, err := nonce.NewRedisStore(context.Background(), nonce.RedisConfig{
+			URL: cfg.RedisURL,
+			TTL: time.Duration(cfg.NonceStoreTTLSecs) * time.Second,
+		})
+		if err != nil {
+			slog.Error("nonce store init failed", "backend", "redis", "error", err)
+			os.Exit(1)
+		}
+		defer func() {
+			if err := rs.Close(); err != nil {
+				slog.Warn("nonce store close failed", "error", err)
+			}
+		}()
+		nonceStore = rs
+		slog.Info("nonce replay protection enabled",
+			"backend", "redis",
+			"ttl_secs", cfg.NonceStoreTTLSecs)
+	default:
+		nonceStore = nonce.New(cfg.NonceStoreMaxEntries, time.Duration(cfg.NonceStoreTTLSecs)*time.Second)
+		slog.Info("nonce replay protection enabled",
+			"backend", "memory",
+			"max_entries", cfg.NonceStoreMaxEntries,
+			"ttl_secs", cfg.NonceStoreTTLSecs)
+	}
 
 	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitPerIP, cfg.RateLimitGlobal, cfg.TrustProxy)
 	slog.Info("rate limiting enabled",
@@ -149,6 +207,10 @@ func main() {
 	mux.Handle("/healthz", healthMux)
 	mux.Handle("/readyz", healthMux)
 
+	// Prometheus metrics endpoint (no auth required, rate-limit exempt).
+	// Production operators should firewall /metrics to their monitoring network.
+	mux.Handle("/metrics", metrics.Handler())
+
 	// Verification endpoint — accepts a ChainBundle JSON body and returns VerificationResult.
 	// Used directly by the SDK and tests; MCP/A2A routes use header-based extraction instead.
 	//
@@ -156,6 +218,11 @@ func main() {
 	// the RFC 3161 timestamp token stored alongside each receipt and includes results
 	// in VerificationResult.Timestamps.
 	mux.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		defer func() {
+			metrics.RequestDuration.WithLabelValues("/verify").Observe(time.Since(start).Seconds())
+		}()
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -168,6 +235,7 @@ func main() {
 			IncludeTimestamps bool `json:"include_timestamps"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			metrics.Verifications.WithLabelValues("error").Inc()
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
@@ -184,9 +252,12 @@ func main() {
 		// JTI pre-consume legitimate nonces by submitting an invalid signature.
 		result := verify.Chain(r.Context(), req.ChainBundle, reqDeps)
 		if result.Valid {
+			metrics.Verifications.WithLabelValues("valid").Inc()
 			if middleware.CheckNonceReplay(w, req.Invocation, nonceStore) {
 				return
 			}
+		} else {
+			metrics.Verifications.WithLabelValues("invalid").Inc()
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -199,17 +270,25 @@ func main() {
 	// Requires DRS_ADMIN_TOKEN to be set; responds 503 otherwise.
 	mux.Handle("/admin/revoke", revocation.AdminRevokeHandler(localRev, cfg.AdminToken))
 
-	// MCP tool-call route group
-	mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nonceStore,
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		})))
-
-	// A2A task route group
-	mux.Handle("/a2a/", middleware.A2AMiddleware(deps, nonceStore,
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		})))
+	// /mcp/* and /a2a/* are verifier stubs — NOT transparent proxies.
+	// Behind MCPMiddleware / A2AMiddleware, they return a JSON body that says
+	// "your bundle was accepted; wire the middleware into your own server to
+	// enforce DRS on real MCP/A2A routes". Kept for demos and smoke tests.
+	//
+	// Product boundary: drs-verify is a verification service. It does not
+	// proxy, transform, or execute MCP/A2A requests. Real integrations
+	// consume the middleware package directly. See docs/drs-source-of-truth.md.
+	verifierStub := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"verified": true,
+			"role":     "verifier-stub",
+			"detail": "DRS bundle accepted. This endpoint is a verifier stub — drs-verify does not proxy MCP/A2A " +
+				"traffic. Import github.com/drs-protocol/drs-verify/pkg/middleware to wire DRS into your own server.",
+		})
+	})
+	mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nonceStore, verifierStub))
+	mux.Handle("/a2a/", middleware.A2AMiddleware(deps, nonceStore, verifierStub))
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -219,9 +298,46 @@ func main() {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+
+	// Run ListenAndServe in a goroutine so main can listen for shutdown signals.
+	// ErrServerClosed means a graceful shutdown happened — not an error.
+	serverErr := make(chan error, 1)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+			return
+		}
+		serverErr <- nil
+	}()
 	slog.Info("drs-verify listening", "addr", cfg.ListenAddr)
-	if err := srv.ListenAndServe(); err != nil {
-		slog.Error("server exited", "error", err)
+
+	// Block on SIGTERM / SIGINT or a startup failure from ListenAndServe.
+	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	select {
+	case err := <-serverErr:
+		if err != nil {
+			slog.Error("server exited unexpectedly", "error", err)
+			os.Exit(1)
+		}
+		return
+	case <-signalCtx.Done():
+		slog.Info("shutdown signal received, draining in-flight requests",
+			"timeout", shutdownTimeout)
+	}
+
+	// Graceful drain. srv.Shutdown blocks until idle or the deadline fires.
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("graceful shutdown failed", "error", err)
 		os.Exit(1)
 	}
+	// Drain the background goroutine's final error (should be nil after Shutdown).
+	if err := <-serverErr; err != nil {
+		slog.Error("post-shutdown server error", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("drs-verify shut down cleanly")
 }

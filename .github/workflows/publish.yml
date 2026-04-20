@@ -12,6 +12,13 @@ env:
 permissions:
   contents: read
   packages: write
+  # id-token: write is required for cosign keyless signing via GitHub OIDC.
+  # See https://docs.sigstore.dev/cosign/signing/overview/
+  id-token: write
+  # security-events: write lets the Trivy scan step upload SARIF to the
+  # repository's Security > Code scanning tab.
+  security-events: write
+
 
 jobs:
   test:
@@ -154,6 +161,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push drs-verify image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: drs-verify
@@ -162,3 +170,57 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      # Keyless cosign signing. No key material needed — uses the GitHub
+      # OIDC token to request a short-lived certificate from Sigstore.
+      # Verify with:
+      #   cosign verify ghcr.io/okeyamy/drs-verify:<tag> \
+      #     --certificate-identity-regexp '^https://github.com/OkeyAmy/DRS/.*' \
+      #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image with cosign (keyless)
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "$IMAGE@$DIGEST"
+
+      # Trivy scans the pushed image for known CVEs. We gate the release on
+      # HIGH/CRITICAL: if something slips through dependabot, the workflow
+      # fails loudly rather than silently shipping a known-vulnerable image.
+      - name: Trivy scan published image
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: 'true'
+
+      - name: Upload Trivy SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
+      # CycloneDX SBOM for supply-chain attestation. Attached to the image
+      # via cosign attest so downstream consumers can pull it.
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+
+      - name: Attach SBOM to image via cosign attest
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          cosign attest --yes \
+            --predicate sbom.cdx.json \
+            --type cyclonedx \
+            "$IMAGE@$DIGEST"

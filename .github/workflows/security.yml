@@ -1,0 +1,109 @@
+name: Security Scan
+
+# Runs on every PR and on main. Fails the build when a new HIGH or CRITICAL
+# vulnerability is found in dependencies — forces triage before merge rather
+# than relying solely on dependabot nagging.
+#
+# Note on inputs: none of the jobs below consume user-controllable event
+# fields in shell expressions. If you add a step that uses github.event.*,
+# bind it via `env:` first to avoid command injection. See
+# https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Re-scan weekly even with no code change so new advisories are caught.
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy-fs:
+    name: Trivy filesystem scan (code + dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy fs scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-fs.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: 'true'
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+
+  go-vulncheck:
+    name: govulncheck (Go-specific CVEs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: drs-verify/go.mod
+          cache-dependency-path: drs-verify/go.sum
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        working-directory: drs-verify
+        run: govulncheck ./...
+
+  cargo-audit:
+    name: cargo audit (Rust advisories)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo audit
+        working-directory: drs-core
+        run: cargo audit
+
+  pnpm-audit:
+    name: pnpm audit (npm advisories)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install SDK deps
+        working-directory: drs-sdk
+        run: pnpm install --frozen-lockfile
+
+      # pnpm audit exits non-zero on known advisories. --prod excludes dev
+      # dependencies whose vulns don't ship to end users.
+      - name: Run pnpm audit (production deps only)
+        working-directory: drs-sdk
+        run: pnpm audit --prod

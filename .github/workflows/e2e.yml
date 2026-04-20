@@ -1,0 +1,95 @@
+name: E2E Integration Tests
+
+# Runs the integration-tests/ suite against a locally-built Docker image
+# on every PR, and against the currently-tagged image after publish.
+# The published-artifact run is the one that catches drift between the
+# source tree and the shipped container.
+#
+# Security note: github.ref_name on tag events is a tag string, not user
+# input from an issue/PR body. We still funnel it through `env:` before
+# using it in run: shell, which is the safe pattern for any expression.
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-local-build:
+    name: E2E against locally-built image (PR gate)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build drs-verify image
+        uses: docker/build-push-action@v6
+        with:
+          context: drs-verify
+          file: drs-verify/Dockerfile
+          tags: drs-verify:pr-test
+          load: true
+          push: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install integration test deps
+        working-directory: integration-tests
+        run: pnpm install
+
+      - name: Run E2E
+        working-directory: integration-tests
+        env:
+          DRS_VERIFY_IMAGE: drs-verify:pr-test
+        run: ./run.sh
+
+  e2e-published-image:
+    name: E2E against published image (post-tag smoke test)
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install integration test deps
+        working-directory: integration-tests
+        run: pnpm install
+
+      - name: Wait for image to propagate
+        # Publish workflow pushes the image earlier in the run; this job
+        # blocks until `latest` reflects this tag to avoid a race.
+        run: sleep 30
+
+      - name: Run E2E against the published image
+        working-directory: integration-tests
+        env:
+          # Bound via env: (not inlined in run:) to follow the safe pattern
+          # for any ${{ }} expression — even ones that look innocuous today.
+          TAG: ${{ github.ref_name }}
+        run: DRS_VERIFY_TAG="$TAG" ./run.sh

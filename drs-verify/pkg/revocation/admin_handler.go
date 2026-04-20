@@ -39,7 +39,7 @@ type errorResponse struct {
 // Unauthorized (401): {"error":"unauthorized"}
 // Not configured (503): {"error":"admin endpoint not configured — set DRS_ADMIN_TOKEN"}
 // Wrong method (405): no body
-func AdminRevokeHandler(store *LocalRevocationStore, token string) http.Handler {
+func AdminRevokeHandler(store LocalStore, token string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -71,7 +71,16 @@ func AdminRevokeHandler(store *LocalRevocationStore, token string) http.Handler 
 			return
 		}
 
-		store.Revoke(req.StatusListIndex)
+		// Propagate persistence failures as 500 — the operator must see that
+		// the revocation did not reach durable storage. Silently returning 200
+		// on a failed fsync would let a restart silently un-revoke.
+		if err := store.Revoke(req.StatusListIndex); err != nil {
+			slog.Error("admin revoke: persist failed",
+				"index", req.StatusListIndex, "error", err)
+			writeJSON(w, http.StatusInternalServerError,
+				errorResponse{Error: "revocation did not persist: " + err.Error()})
+			return
+		}
 
 		writeJSON(w, http.StatusOK, revokeResponse{
 			Revoked:         true,

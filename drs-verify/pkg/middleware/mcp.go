@@ -24,18 +24,18 @@ const verificationContextKey contextKey = "drs_verification_context"
 // Requests with no X-DRS-Bundle header receive 401 Unauthorized (fail-closed).
 // Requests with an invalid bundle receive 403 Forbidden.
 // For optional enforcement, use OptionalMCPMiddleware instead.
-func MCPMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler) http.Handler {
+func MCPMiddleware(deps verify.Deps, nonceStore nonce.Checker, next http.Handler) http.Handler {
 	return mcpMiddleware(deps, nonceStore, next, false)
 }
 
 // OptionalMCPMiddleware behaves like MCPMiddleware but passes through requests
 // that do not include the X-DRS-Bundle header. Use this only when downstream
 // handlers perform their own authorization or when DRS verification is advisory.
-func OptionalMCPMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler) http.Handler {
+func OptionalMCPMiddleware(deps verify.Deps, nonceStore nonce.Checker, next http.Handler) http.Handler {
 	return mcpMiddleware(deps, nonceStore, next, true)
 }
 
-func mcpMiddleware(deps verify.Deps, nonceStore *nonce.Store, next http.Handler, allowMissing bool) http.Handler {
+func mcpMiddleware(deps verify.Deps, nonceStore nonce.Checker, next http.Handler, allowMissing bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bundleHeader := r.Header.Get("X-DRS-Bundle")
 		if bundleHeader == "" {

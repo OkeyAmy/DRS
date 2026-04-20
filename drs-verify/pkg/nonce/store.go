@@ -18,6 +18,22 @@ var (
 	ErrStoreExhausted = errors.New("nonce store at capacity with no expired entries to evict")
 )
 
+// Checker is the public contract for nonce stores. Middleware accepts a
+// Checker so the deployment chooses the backend:
+//
+//   - *Store         — in-memory, single-process (this file)
+//   - *RedisStore    — distributed, survives restart, shared across replicas (redis.go)
+//
+// Implementations MUST treat Check as atomic "claim-if-new": concurrent
+// callers with the same jti must see exactly one success and the others
+// ErrReplayDetected, regardless of whether they run in the same process.
+type Checker interface {
+	// Check claims the JTI. Returns nil for a new JTI (now recorded),
+	// ErrReplayDetected if the JTI was already consumed within the TTL,
+	// or ErrStoreExhausted if the backing store is at capacity.
+	Check(jti string) error
+}
+
 // Store is a bounded, TTL-evicting in-memory nonce store.
 // Safe for concurrent use.
 type Store struct {

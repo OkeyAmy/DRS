@@ -9,8 +9,8 @@ import "sync"
 // Revocations applied here take effect immediately on the next verification call
 // without any network round-trip.
 //
-// Persistence note: this store is in-memory only and does not survive a process
-// restart. Filesystem or database persistence is a Tier 2 roadmap item.
+// Persistence: in-memory only — does not survive a process restart. Use
+// FileBackedRevocationStore when durability across restart is required.
 type LocalRevocationStore struct {
 	mu      sync.RWMutex
 	revoked map[uint64]struct{}
@@ -24,11 +24,13 @@ func NewLocalRevocationStore() *LocalRevocationStore {
 }
 
 // Revoke marks the given status list index as revoked.
-// Calling Revoke on an already-revoked index is safe and idempotent.
-func (s *LocalRevocationStore) Revoke(index uint64) {
+// Idempotent; always returns nil (in-memory stores cannot fail).
+// Signature matches LocalStore so callers can swap for the file-backed variant.
+func (s *LocalRevocationStore) Revoke(index uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.revoked[index] = struct{}{}
+	return nil
 }
 
 // IsRevoked returns true if the given status list index has been revoked.

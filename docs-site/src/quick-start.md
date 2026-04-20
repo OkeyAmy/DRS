@@ -1,11 +1,17 @@
 # Quick Start
 
-Get from zero to a verified bundle quickly using the current SDK and verifier.
+Get from zero to a verified bundle using the **published** SDK and
+verifier container. You do not need to clone this repository.
+
+> New to DRS? First read
+> [You do not need to fork](./how-to/builders/no-fork-required.md) and
+> [Which part of DRS do I install?](./how-to/builders/choosing-your-path.md)
+> to map your role to the right artifact.
 
 ## Prerequisites
 
 - Node.js 20+ and pnpm
-- Go 1.22+ (to run `drs-verify` locally)
+- Docker (for the verifier). No Go toolchain required.
 
 ## 1. Install the SDK
 
@@ -56,12 +62,19 @@ const rootDR = await issueRootDelegation({
 });
 ```
 
-## 4. Start `drs-verify`
+## 4. Start `drs-verify` (from the published image)
 
 ```bash
-cd drs-verify
-go run ./cmd/server
+docker run --rm -d -p 8080:8080 --name drs-verify \
+  ghcr.io/okeyamy/drs-verify:latest
+
+# Confirm it's up
+curl http://localhost:8080/readyz
+# {"status":"ready"}
 ```
+
+No clone, no Go build — the image is published to GHCR from this
+repo's release pipeline.
 
 ## 5. Build and verify a bundle
 
@@ -97,7 +110,21 @@ Expected successful output starts with:
 
 ## Next steps
 
-- [MCP Middleware Integration](./how-to/developers/mcp-middleware.md)
-- [Deploy drs-verify](./how-to/operators/deploy-drs-verify.md)
-- [Reconstruct a Chain](./how-to/auditors/reconstruct-chain.md)
-- [Dev Setup](./how-to/contributors/dev-setup.md)
+Pick your path:
+
+- Building a mobile agent →
+  [React Native / Expo integration](./how-to/builders/react-native.md)
+- Building an MCP tool server in Node →
+  [MCP server integration (Node)](./how-to/builders/mcp-node.md)
+- Building an A2A agent in Node →
+  [A2A agent integration (Node)](./how-to/builders/a2a-node.md)
+- Building any other Node backend →
+  [Non-MCP Node backend integration](./how-to/builders/node-backend.md)
+- Building in Go →
+  [MCP Middleware Integration (Go)](./how-to/developers/mcp-middleware.md)
+- Operating the verifier →
+  [Deploy drs-verify](./how-to/operators/deploy-drs-verify.md)
+- Reviewing evidence →
+  [Reconstruct a Chain](./how-to/auditors/reconstruct-chain.md)
+- Contributing a change →
+  [Dev Setup](./how-to/contributors/dev-setup.md)

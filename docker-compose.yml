@@ -1,0 +1,78 @@
+# Zero-config public quickstart for the DRS verification service.
+#
+#   cp .env.example .env        # review the defaults
+#   docker compose up -d        # pull the published image and start
+#   curl http://localhost:8080/healthz
+#
+# Image: ghcr.io/okeyamy/drs-verify:latest (published from this repo).
+# For custom builds, see drs-verify/Dockerfile or set build.context.
+
+services:
+  drs-verify:
+    image: ghcr.io/okeyamy/drs-verify:${DRS_VERIFY_TAG:-latest}
+    container_name: drs-verify
+    restart: unless-stopped
+    ports:
+      - "${DRS_VERIFY_PORT:-8080}:8080"
+    environment:
+      LISTEN_ADDR: ":8080"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      LOG_FORMAT: "${LOG_FORMAT:-text}"
+
+      # Revocation
+      STATUS_LIST_BASE_URL: "${STATUS_LIST_BASE_URL:-}"
+      STATUS_CACHE_TTL_SECS: "${STATUS_CACHE_TTL_SECS:-300}"
+      DRS_ADMIN_TOKEN: "${DRS_ADMIN_TOKEN:-}"
+      REVOCATION_STORE_PATH: "${REVOCATION_STORE_PATH:-}"
+
+      # Replay protection
+      NONCE_STORE_BACKEND: "${NONCE_STORE_BACKEND:-memory}"
+      REDIS_URL: "${REDIS_URL:-}"
+      NONCE_STORE_MAX_ENTRIES: "${NONCE_STORE_MAX_ENTRIES:-100000}"
+      NONCE_STORE_TTL_SECS: "${NONCE_STORE_TTL_SECS:-900}"
+
+      # Server identity (unsets invocation.tool_server binding when empty)
+      SERVER_IDENTITY: "${SERVER_IDENTITY:-}"
+
+      # Body size cap (bytes)
+      MAX_BODY_BYTES: "${MAX_BODY_BYTES:-1048576}"
+
+      # Rate limiting
+      RATE_LIMIT_PER_IP: "${RATE_LIMIT_PER_IP:-100}"
+      RATE_LIMIT_GLOBAL: "${RATE_LIMIT_GLOBAL:-1000}"
+      TRUST_PROXY: "${TRUST_PROXY:-false}"
+
+      # Circuit breaker for did:web
+      CIRCUIT_BREAKER_THRESHOLD: "${CIRCUIT_BREAKER_THRESHOLD:-5}"
+      CIRCUIT_BREAKER_COOLDOWN_SECS: "${CIRCUIT_BREAKER_COOLDOWN_SECS:-60}"
+
+      # Storage (optional)
+      STORE_DIR: "${STORE_DIR:-}"
+      TSA_URL: "${TSA_URL:-}"
+
+    # The image is distroless/static — no shell, no curl — so Compose's
+    # built-in healthcheck can't probe /healthz from inside the container.
+    # Operators should probe http://<host>:${DRS_VERIFY_PORT}/healthz from
+    # their orchestrator (Kubernetes livenessProbe, Nomad check, etc.).
+    # /readyz is the right probe for traffic-gating; it waits for status-list
+    # warm-up when STATUS_LIST_BASE_URL is configured.
+
+    # Dropped capabilities and read-only rootfs — the verifier only needs
+    # to listen and read its tmpfs. Adjust if STORE_DIR is a bind mount.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    # Named volume for durable local revocation state. Active only if
+    # REVOCATION_STORE_PATH points inside /var/lib/drs-verify (the default
+    # recommendation). Safe to mount unconditionally — unused if no path
+    # is set.
+    volumes:
+      - drs-revocation:/var/lib/drs-verify
+
+volumes:
+  drs-revocation:
