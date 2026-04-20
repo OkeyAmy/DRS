@@ -1,6 +1,7 @@
 package revocation
 
 import (
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
 	"log/slog"
@@ -51,9 +52,13 @@ func AdminRevokeHandler(store *LocalRevocationStore, token string) http.Handler 
 			return
 		}
 
-		expected := "Bearer " + token
-		actual := r.Header.Get("Authorization")
-		if subtle.ConstantTimeCompare([]byte(expected), []byte(actual)) != 1 {
+		// Hash both values to a fixed 32-byte SHA-256 digest before comparing.
+		// subtle.ConstantTimeCompare exits early on length mismatch, which
+		// leaks the attacker-supplied token length via timing. Equal-length
+		// hash inputs eliminate that side channel.
+		expectedHash := sha256.Sum256([]byte("Bearer " + token))
+		actualHash := sha256.Sum256([]byte(r.Header.Get("Authorization")))
+		if subtle.ConstantTimeCompare(expectedHash[:], actualHash[:]) != 1 {
 			writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "unauthorized"})
 			return
 		}
