@@ -3,6 +3,7 @@ package operator_test
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/drs-protocol/drs-verify/pkg/operator"
@@ -84,7 +85,84 @@ func TestInvalidStorageTierIsRejected(t *testing.T) {
 	cfg := validConfig()
 	cfg.StorageTier = 6
 	if err := cfg.Validate(); err == nil {
-		t.Error("storage_tier > 5 should be rejected")
+		t.Error("storage_tier 6 (above max) should be rejected")
+	}
+}
+
+func TestImplementedStorageTiersAreAccepted(t *testing.T) {
+	for _, tier := range []int{0, 1, 3, 4} {
+		cfg := validConfig()
+		cfg.StorageTier = tier
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("tier %d: unexpected error: %v", tier, err)
+		}
+	}
+}
+
+func TestRoadmapStorageTiersAreRejected(t *testing.T) {
+	for _, tier := range []int{2, 5} {
+		cfg := validConfig()
+		cfg.StorageTier = tier
+		err := cfg.Validate()
+		if err == nil {
+			t.Errorf("tier %d (roadmap): expected error, got nil", tier)
+			continue
+		}
+		if !strings.Contains(err.Error(), "roadmap") {
+			t.Errorf("tier %d: error should mention roadmap, got: %v", tier, err)
+		}
+	}
+}
+
+func TestNegativeStorageTierIsRejected(t *testing.T) {
+	cfg := validConfig()
+	cfg.StorageTier = -1
+	if err := cfg.Validate(); err == nil {
+		t.Error("negative storage_tier should be rejected")
+	}
+}
+
+func TestEnvKeyManagementIsAccepted(t *testing.T) {
+	cfg := validConfig()
+	cfg.OperatorKeyManagement = "env"
+	cfg.OperatorKeyPath = ""
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("env key management should be valid: %v", err)
+	}
+}
+
+func TestAwsKmsIsRejected(t *testing.T) {
+	cfg := validConfig()
+	cfg.OperatorKeyManagement = "aws-kms"
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("aws-kms should be rejected (not yet implemented)")
+	}
+	if !strings.Contains(err.Error(), "aws-kms") {
+		t.Errorf("error should mention aws-kms, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "not implemented") {
+		t.Errorf("error should say 'not implemented', got: %v", err)
+	}
+}
+
+func TestGcpKmsIsRejected(t *testing.T) {
+	cfg := validConfig()
+	cfg.OperatorKeyManagement = "gcp-kms"
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("gcp-kms should be rejected (not yet implemented)")
+	}
+	if !strings.Contains(err.Error(), "gcp-kms") {
+		t.Errorf("error should mention gcp-kms, got: %v", err)
+	}
+}
+
+func TestUnknownKeyManagementIsRejected(t *testing.T) {
+	cfg := validConfig()
+	cfg.OperatorKeyManagement = "vault"
+	if err := cfg.Validate(); err == nil {
+		t.Error("unknown key management backend should be rejected")
 	}
 }
 

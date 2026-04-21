@@ -21,6 +21,25 @@ var ValidRootTypes = map[string]bool{
 	"automated-system": true,
 }
 
+// ValidKeyManagements lists the implemented key-management backends.
+// "aws-kms" and "gcp-kms" are planned but not yet implemented — they are
+// intentionally absent so the validator fails fast instead of silently
+// accepting a config that cannot actually load a key at runtime.
+var ValidKeyManagements = map[string]bool{
+	"file": true,
+	"env":  true,
+}
+
+// ImplementedStorageTiers lists the storage tiers that have a working runtime
+// implementation. Tiers 2 (S3/durable) and 5 (on-chain/Ethereum) are roadmap
+// items — accepting them would let the server start and then fail at first use.
+var ImplementedStorageTiers = map[int]bool{
+	0: true, // session (memory)
+	1: true, // ephemeral (filesystem)
+	3: true, // compliant (WORM + RFC 3161)
+	4: true, // timestamped (per-DR TSToken)
+}
+
 // OperatorConfig holds the runtime configuration for a machine-rooted DRS deployment.
 // It is loaded from a JSON file whose path is given by the DRS_OPERATOR_CONFIG env var,
 // or built programmatically for testing.
@@ -37,7 +56,8 @@ type OperatorConfig struct {
 	OperatorKeyPath string `json:"operator_key_path,omitempty"`
 
 	// OperatorKeyManagement identifies the key management backend.
-	// Supported values: "file", "env", "aws-kms", "gcp-kms".
+	// Implemented values: "file", "env".
+	// Planned (not yet available): "aws-kms", "gcp-kms".
 	OperatorKeyManagement string `json:"operator_key_management"`
 
 	// StandingPolicy is the capability constraint applied to all root delegations
@@ -52,9 +72,9 @@ type OperatorConfig struct {
 	Escalation Escalation `json:"escalation"`
 
 	// StorageTier selects the DR Store tier for receipts issued by this operator.
-	// 0 = session (memory), 1 = ephemeral (filesystem), 2 = durable (S3, roadmap),
-	// 3 = compliant (WORM + RFC 3161), 4 = timestamped (per-DR TSToken),
-	// 5 = on-chain (Ethereum, roadmap).
+	// Implemented: 0 = session (memory), 1 = ephemeral (filesystem),
+	//              3 = compliant (WORM + RFC 3161), 4 = timestamped (per-DR TSToken).
+	// Roadmap (not yet available): 2 = durable (S3), 5 = on-chain (Ethereum).
 	StorageTier int `json:"storage_tier"`
 }
 
@@ -100,14 +120,17 @@ func (c *OperatorConfig) Validate() error {
 	if c.OperatorKeyManagement == "" {
 		return fmt.Errorf("operator: operator_key_management must not be empty")
 	}
+	if !ValidKeyManagements[c.OperatorKeyManagement] {
+		return fmt.Errorf("operator: operator_key_management %q is not implemented; supported values are \"file\" and \"env\" (\"aws-kms\" and \"gcp-kms\" are planned but not yet available)", c.OperatorKeyManagement)
+	}
 	if c.OperatorKeyManagement == "file" && c.OperatorKeyPath == "" {
 		return fmt.Errorf("operator: operator_key_path is required when key_management is 'file'")
 	}
 	if c.RenewalRules.SessionTTLHours < 0 {
 		return fmt.Errorf("operator: session_ttl_hours must be >= 0")
 	}
-	if c.StorageTier < 0 || c.StorageTier > 5 {
-		return fmt.Errorf("operator: storage_tier must be 0–5")
+	if !ImplementedStorageTiers[c.StorageTier] {
+		return fmt.Errorf("operator: storage_tier %d is not implemented (implemented tiers: 0, 1, 3, 4 — tiers 2 and 5 are roadmap)", c.StorageTier)
 	}
 	return nil
 }
