@@ -47,3 +47,42 @@ func TestHandlerIsStateless(t *testing.T) {
 		t.Fatal("Handler() returned nil")
 	}
 }
+
+func TestStartServerDisabledWhenAddrEmpty(t *testing.T) {
+	srv, err := StartServer("")
+	if err != nil {
+		t.Fatalf("StartServer(\"\") returned error: %v", err)
+	}
+	if srv != nil {
+		t.Error("StartServer(\"\") should return nil server when addr is empty")
+		_ = srv.Close()
+	}
+}
+
+func TestStartServerServesMetrics(t *testing.T) {
+	srv, err := StartServer("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("StartServer returned error: %v", err)
+	}
+	if srv == nil {
+		t.Fatal("StartServer returned nil server")
+	}
+	defer srv.Close()
+
+	resp, err := http.Get("http://" + srv.Addr + "/metrics")
+	if err != nil {
+		t.Fatalf("GET /metrics: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("GET /metrics: got %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestStartServerUnknownPortFails(t *testing.T) {
+	// Port 1 is privileged — bind should fail without root.
+	_, err := StartServer("127.0.0.1:1")
+	if err == nil {
+		t.Error("StartServer on privileged port should return error")
+	}
+}

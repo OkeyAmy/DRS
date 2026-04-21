@@ -10,6 +10,7 @@
 package metrics
 
 import (
+	"net"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -77,4 +78,26 @@ var RequestDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 // Stateless — safe to call once at startup.
 func Handler() http.Handler {
 	return promhttp.Handler()
+}
+
+// StartServer starts a minimal HTTP server on addr that serves only /metrics.
+// Returns the started *http.Server so the caller can call Shutdown during
+// graceful drain. Returns nil, nil when addr is empty (metrics disabled).
+// Returns nil, err if the listener cannot bind.
+func StartServer(addr string) (*http.Server, error) {
+	if addr == "" {
+		return nil, nil
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", Handler())
+	srv := &http.Server{
+		Addr:    ln.Addr().String(),
+		Handler: mux,
+	}
+	go srv.Serve(ln) //nolint:errcheck — ErrServerClosed is the normal exit
+	return srv, nil
 }
