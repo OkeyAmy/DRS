@@ -66,6 +66,23 @@ func TestRateLimiterHealthBypass(t *testing.T) {
 	}
 }
 
+func TestRateLimiterDoesNotBypassMetrics(t *testing.T) {
+	rl := NewRateLimiter(1, 1, false)
+	handler := rl.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+		req.RemoteAddr = "1.2.3.4:5000"
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if i == 1 && w.Code != http.StatusTooManyRequests {
+			t.Errorf("second /metrics request: expected 429 (not exempt), got %d", w.Code)
+		}
+	}
+}
+
 func TestClientIPTrustProxy(t *testing.T) {
 	tests := []struct {
 		name       string
