@@ -14,6 +14,10 @@ services:
     restart: unless-stopped
     ports:
       - "${DRS_VERIFY_PORT:-8080}:8080"
+      # Metrics port — uncomment when METRICS_ADDR=:9090 is set in .env.
+      # In production, leave this commented out and restrict port 9090 to
+      # your monitoring network via firewall or Kubernetes NetworkPolicy.
+      # - "${DRS_METRICS_PORT:-9090}:9090"
     environment:
       LISTEN_ADDR: ":8080"
       LOG_LEVEL: "${LOG_LEVEL:-info}"
@@ -41,6 +45,10 @@ services:
       RATE_LIMIT_PER_IP: "${RATE_LIMIT_PER_IP:-100}"
       RATE_LIMIT_GLOBAL: "${RATE_LIMIT_GLOBAL:-1000}"
       TRUST_PROXY: "${TRUST_PROXY:-false}"
+
+      # Metrics listener — empty disables /metrics (safe default).
+      # Set to :9090 and uncomment the port mapping below for local monitoring.
+      METRICS_ADDR: "${METRICS_ADDR:-}"
 
       # Circuit breaker for did:web
       CIRCUIT_BREAKER_THRESHOLD: "${CIRCUIT_BREAKER_THRESHOLD:-5}"

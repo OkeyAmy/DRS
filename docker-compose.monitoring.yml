@@ -1,0 +1,40 @@
+# Optional monitoring overlay — adds Prometheus + Grafana for local observability.
+#
+# Prerequisites:
+#   1. Set METRICS_ADDR=:9090 in your .env file.
+#   2. Uncomment the 9090 port mapping in docker-compose.yml.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+#
+# Access:
+#   Prometheus: http://localhost:9091
+#   Grafana:    http://localhost:3000  (admin / admin — change on first login)
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: drs-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9091:9090"
+    restart: unless-stopped
+    depends_on:
+      - drs-verify
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: drs-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
+    volumes:
+      - drs-grafana-data:/var/lib/grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  drs-grafana-data:

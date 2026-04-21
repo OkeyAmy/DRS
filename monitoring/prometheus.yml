@@ -1,0 +1,14 @@
+# Minimal Prometheus config for local drs-verify monitoring.
+# Used by docker-compose.monitoring.yml.
+# In production, manage scrape targets through your Prometheus Operator
+# ServiceMonitor CRD or equivalent.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: drs-verify
+    static_configs:
+      - targets: ["drs-verify:9090"]
+    metrics_path: /metrics
