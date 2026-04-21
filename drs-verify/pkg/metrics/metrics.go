@@ -12,6 +12,7 @@ package metrics
 import (
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -95,8 +96,11 @@ func StartServer(addr string) (*http.Server, error) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", Handler())
 	srv := &http.Server{
-		Addr:    ln.Addr().String(),
-		Handler: mux,
+		Addr:              ln.Addr().String(),
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
 	}
 	go srv.Serve(ln) //nolint:errcheck — ErrServerClosed is the normal exit
 	return srv, nil

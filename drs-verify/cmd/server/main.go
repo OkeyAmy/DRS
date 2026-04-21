@@ -342,7 +342,9 @@ func main() {
 		os.Exit(1)
 	}
 	if metricsSrv != nil {
-		if err = metricsSrv.Shutdown(shutdownCtx); err != nil {
+		metricsShutdownCtx, metricsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer metricsCancel()
+		if err = metricsSrv.Shutdown(metricsShutdownCtx); err != nil {
 			slog.Error("metrics server shutdown failed", "error", err)
 		}
 	}
