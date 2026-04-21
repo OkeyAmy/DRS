@@ -115,6 +115,15 @@ type Config struct {
 	//   rediss://user:pw@redis.internal:6379/0  (TLS)
 	// Set via REDIS_URL.
 	RedisURL string
+
+	// MetricsAddr is the listen address for the Prometheus /metrics endpoint,
+	// served on a separate listener so it can be firewalled independently of
+	// the main API port. Empty (default) disables the metrics endpoint.
+	// Set via METRICS_ADDR.
+	// Examples:
+	//   :9090               — all interfaces (dev)
+	//   127.0.0.1:9090      — loopback only (production / Kubernetes sidecar)
+	MetricsAddr string
 }
 
 // Load reads all configuration from environment variables.
@@ -184,6 +193,7 @@ func Load() (Config, error) {
 	revocationStorePath := os.Getenv("REVOCATION_STORE_PATH")
 	nonceBackend := getEnvOrDefault("NONCE_STORE_BACKEND", "memory")
 	redisURL := os.Getenv("REDIS_URL")
+	metricsAddr := os.Getenv("METRICS_ADDR")
 
 	// Fail fast if redis backend is requested without a URL — surfaces
 	// misconfiguration at boot instead of at first /verify call.
@@ -218,6 +228,7 @@ func Load() (Config, error) {
 		RevocationStorePath:        revocationStorePath,
 		NonceStoreBackend:          nonceBackend,
 		RedisURL:                   redisURL,
+		MetricsAddr:                metricsAddr,
 	}, nil
 }
 
