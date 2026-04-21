@@ -207,10 +207,6 @@ func main() {
 	mux.Handle("/healthz", healthMux)
 	mux.Handle("/readyz", healthMux)
 
-	// Prometheus metrics endpoint (no auth required, rate-limit exempt).
-	// Production operators should firewall /metrics to their monitoring network.
-	mux.Handle("/metrics", metrics.Handler())
-
 	// Verification endpoint — accepts a ChainBundle JSON body and returns VerificationResult.
 	// Used directly by the SDK and tests; MCP/A2A routes use header-based extraction instead.
 	//
@@ -311,6 +307,17 @@ func main() {
 	}()
 	slog.Info("drs-verify listening", "addr", cfg.ListenAddr)
 
+	metricsSrv, err := metrics.StartServer(cfg.MetricsAddr)
+	if err != nil {
+		slog.Error("metrics server failed to start", "addr", cfg.MetricsAddr, "error", err)
+		os.Exit(1)
+	}
+	if metricsSrv != nil {
+		slog.Info("metrics server listening", "addr", metricsSrv.Addr)
+	} else {
+		slog.Warn("metrics endpoint disabled — set METRICS_ADDR to enable (e.g. METRICS_ADDR=127.0.0.1:9090)")
+	}
+
 	// Block on SIGTERM / SIGINT or a startup failure from ListenAndServe.
 	signalCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -333,6 +340,11 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("graceful shutdown failed", "error", err)
 		os.Exit(1)
+	}
+	if metricsSrv != nil {
+		if err = metricsSrv.Shutdown(shutdownCtx); err != nil {
+			slog.Error("metrics server shutdown failed", "error", err)
+		}
 	}
 	// Drain the background goroutine's final error (should be nil after Shutdown).
 	if err := <-serverErr; err != nil {
