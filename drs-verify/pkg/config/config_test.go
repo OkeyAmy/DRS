@@ -1,12 +1,11 @@
 package config
 
 import (
-	"os"
 	"testing"
 )
 
 func TestMetricsAddrDefaultsToEmpty(t *testing.T) {
-	os.Unsetenv("METRICS_ADDR")
+	t.Setenv("METRICS_ADDR", "")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
