@@ -17,6 +17,8 @@ services:
       # Default to 18080 to avoid colliding with any existing :8080 on dev
       # machines. Override via DRS_VERIFY_PORT if needed.
       - "${DRS_VERIFY_PORT:-18080}:8080"
+      # /metrics lives on a separate listener; expose it for the test suite.
+      - "${DRS_VERIFY_METRICS_PORT:-19090}:9090"
     environment:
       LISTEN_ADDR: ":8080"
       LOG_LEVEL: "info"
@@ -34,6 +36,10 @@ services:
       # in-memory store so tests don't fight with volume ownership.
       # Deliberately low to keep tests fast.
       STATUS_CACHE_TTL_SECS: "5"
+      # Bind /metrics on a separate listener so the test suite can scrape
+      # it independently of the main API port. Main API (8080) does NOT
+      # serve /metrics — that was moved out in the metrics-auth refactor.
+      METRICS_ADDR: ":9090"
     depends_on:
       redis:
         condition: service_healthy

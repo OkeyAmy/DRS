@@ -13,9 +13,14 @@ import {
   issueInvocation,
   computeChainHash,
 } from "@okeyamy/drs-sdk";
-import { generateKey, didFromKey, now, postVerify } from "./util.mjs";
+import { generateKey, didFromKey, now, postVerify, postVerifyWithBody } from "./util.mjs";
 
 const VERIFY_URL = process.env.DRS_VERIFY_URL ?? "http://localhost:8080";
+// /metrics lives on a separate listener (METRICS_ADDR), mapped to host 19090 by
+// docker-compose.test.yml. Derive the host from VERIFY_URL and swap the port.
+const METRICS_URL =
+  process.env.DRS_METRICS_URL ??
+  VERIFY_URL.replace(/:\d+$/, `:${process.env.DRS_VERIFY_METRICS_PORT ?? "19090"}`);
 
 describe("operational endpoints", () => {
   test("/healthz returns 200", async () => {
@@ -31,7 +36,7 @@ describe("operational endpoints", () => {
   });
 
   test("/metrics exposes Prometheus exposition format", async () => {
-    const res = await fetch(`${VERIFY_URL}/metrics`);
+    const res = await fetch(`${METRICS_URL}/metrics`);
     assert.equal(res.status, 200);
     const body = await res.text();
     // Go runtime collectors register eagerly on boot — their presence proves
@@ -81,12 +86,171 @@ describe("happy path — fresh chain verifies", () => {
 
     // Now that at least one verification has happened, drs_verify_verifications_total
     // must appear under the drs_ namespace on /metrics.
-    const metricsRes = await fetch(`${VERIFY_URL}/metrics`);
+    const metricsRes = await fetch(`${METRICS_URL}/metrics`);
     const metricsBody = await metricsRes.text();
     assert.match(
       metricsBody,
       /drs_verify_verifications_total/,
       "drs_verify_verifications_total missing from /metrics after a /verify call",
+    );
+  });
+});
+
+describe("/verify body binding — JCS equality against invocation.args", () => {
+  test("matching body → binding: 'match'", async () => {
+    const operatorKey = generateKey();
+    const agentKey = generateKey();
+    const operatorDid = didFromKey(operatorKey);
+    const agentDid = didFromKey(agentKey);
+
+    const iat = now();
+    const rootDR = await issueRootDelegation({
+      signingKey: operatorKey,
+      issuerDid: operatorDid,
+      subjectDid: operatorDid,
+      audienceDid: agentDid,
+      cmd: "/mcp/tools/call",
+      policy: { max_cost_usd: 1.0, allowed_tools: ["approve_payment"] },
+      nbf: iat,
+      exp: iat + 3600,
+    });
+
+    const args = { tool: "approve_payment", transaction_id: "T1" };
+    const invocation = await issueInvocation({
+      signingKey: agentKey,
+      issuerDid: agentDid,
+      subjectDid: operatorDid,
+      cmd: "/mcp/tools/call",
+      args,
+      drChain: [computeChainHash(rootDR)],
+      toolServer: "did:key:z6MkTool",
+    });
+    const bundle = buildBundle([rootDR], invocation);
+
+    // Tool server sends the exact body it received; drs-verify confirms
+    // body ≡ args after JCS.
+    const { status, body } = await postVerifyWithBody(VERIFY_URL, bundle, args);
+
+    assert.equal(status, 200, `unexpected status: ${status}`);
+    assert.equal(body.valid, true, `chain must verify: ${JSON.stringify(body.error)}`);
+    assert.equal(body.binding, "match", `binding should be match, got ${body.binding}`);
+  });
+
+  test("divergent body → binding: 'mismatch', chain still valid", async () => {
+    // Agent signs args for T1 but tool server receives a body for T2. Chain
+    // is untouched — only the body diverged. drs-verify must flag this as
+    // binding=mismatch while leaving valid=true (cryptographic truth unchanged).
+    const operatorKey = generateKey();
+    const agentKey = generateKey();
+    const operatorDid = didFromKey(operatorKey);
+    const agentDid = didFromKey(agentKey);
+
+    const iat = now();
+    const rootDR = await issueRootDelegation({
+      signingKey: operatorKey,
+      issuerDid: operatorDid,
+      subjectDid: operatorDid,
+      audienceDid: agentDid,
+      cmd: "/mcp/tools/call",
+      policy: { max_cost_usd: 1.0, allowed_tools: ["approve_payment"] },
+      nbf: iat,
+      exp: iat + 3600,
+    });
+
+    const signedArgs = { tool: "approve_payment", transaction_id: "T1" };
+    const invocation = await issueInvocation({
+      signingKey: agentKey,
+      issuerDid: agentDid,
+      subjectDid: operatorDid,
+      cmd: "/mcp/tools/call",
+      args: signedArgs,
+      drChain: [computeChainHash(rootDR)],
+      toolServer: "did:key:z6MkTool",
+    });
+    const bundle = buildBundle([rootDR], invocation);
+
+    // Tampered body: T2 instead of T1. Bundle bytes untouched.
+    const tamperedBody = { tool: "approve_payment", transaction_id: "T2" };
+    const { body } = await postVerifyWithBody(VERIFY_URL, bundle, tamperedBody);
+
+    assert.equal(body.valid, true, "bundle bytes were not touched; chain must verify");
+    assert.equal(body.binding, "mismatch", `binding should be mismatch, got ${body.binding}`);
+  });
+
+  test("reordered keys in body still match via JCS", async () => {
+    const operatorKey = generateKey();
+    const agentKey = generateKey();
+    const operatorDid = didFromKey(operatorKey);
+    const agentDid = didFromKey(agentKey);
+
+    const iat = now();
+    const rootDR = await issueRootDelegation({
+      signingKey: operatorKey,
+      issuerDid: operatorDid,
+      subjectDid: operatorDid,
+      audienceDid: agentDid,
+      cmd: "/mcp/tools/call",
+      policy: { max_cost_usd: 1.0 },
+      nbf: iat,
+      exp: iat + 3600,
+    });
+
+    // Signer emitted args with a specific key order; body will arrive with a
+    // different order. JCS canonicalisation must normalise both.
+    const args = { b: 2, a: 1, c: "value" };
+    const invocation = await issueInvocation({
+      signingKey: agentKey,
+      issuerDid: agentDid,
+      subjectDid: operatorDid,
+      cmd: "/mcp/tools/call",
+      args,
+      drChain: [computeChainHash(rootDR)],
+      toolServer: "did:key:z6MkTool",
+    });
+    const bundle = buildBundle([rootDR], invocation);
+
+    const reorderedBody = { a: 1, b: 2, c: "value" };
+    const { body } = await postVerifyWithBody(VERIFY_URL, bundle, reorderedBody);
+
+    assert.equal(body.valid, true);
+    assert.equal(body.binding, "match", "JCS must normalise key order on both sides");
+  });
+
+  test("body omitted → no binding field in response", async () => {
+    const operatorKey = generateKey();
+    const agentKey = generateKey();
+    const operatorDid = didFromKey(operatorKey);
+    const agentDid = didFromKey(agentKey);
+
+    const iat = now();
+    const rootDR = await issueRootDelegation({
+      signingKey: operatorKey,
+      issuerDid: operatorDid,
+      subjectDid: operatorDid,
+      audienceDid: agentDid,
+      cmd: "/mcp/tools/call",
+      policy: { max_cost_usd: 1.0 },
+      nbf: iat,
+      exp: iat + 3600,
+    });
+    const invocation = await issueInvocation({
+      signingKey: agentKey,
+      issuerDid: agentDid,
+      subjectDid: operatorDid,
+      cmd: "/mcp/tools/call",
+      args: { tool: "echo" },
+      drChain: [computeChainHash(rootDR)],
+      toolServer: "did:key:z6MkTool",
+    });
+    const bundle = buildBundle([rootDR], invocation);
+
+    const { body } = await postVerify(VERIFY_URL, bundle);
+
+    assert.equal(body.valid, true);
+    assert.equal(
+      body.binding,
+      undefined,
+      "binding field must be absent when no body was sent",
     );
   });
 });

@@ -57,3 +57,18 @@ export async function postVerify(url, bundle) {
   });
   return { status: res.status, body: await res.json() };
 }
+
+/**
+ * POST /verify with an additional `body` field that drs-verify will compare
+ * against invocation.args via JCS (the binding check). Returns the parsed
+ * VerificationResult + status.
+ */
+export async function postVerifyWithBody(url, bundle, body) {
+  const payload = { ...bundle, body };
+  const res = await fetch(`${url}/verify`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return { status: res.status, body: await res.json() };
+}
