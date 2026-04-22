@@ -132,6 +132,12 @@ type VerificationResult struct {
 	Error         *VerificationError   `json:"error,omitempty"`
 	Timestamps    []TimestampResult    `json:"timestamps,omitempty"`
 	StoreWarnings []string             `json:"store_warnings,omitempty"`
+
+	// Binding reports the JCS(body) vs JCS(invocation.args) relationship when
+	// the /verify request included a body. Empty string when body was absent
+	// (and the field is omitted from the JSON response via omitempty).
+	// Values: "match" | "mismatch" | "empty_match" | "invalid_body".
+	Binding string `json:"binding,omitempty"`
 }
 
 // Valid constructs a successful VerificationResult.
