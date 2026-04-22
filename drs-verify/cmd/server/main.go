@@ -200,12 +200,6 @@ func main() {
 		"global_rps", cfg.RateLimitGlobal,
 		"trust_proxy", cfg.TrustProxy)
 
-	slog.Info("request binding check configured", "mode", cfg.BindingMode)
-	if cfg.BindingMode == "off" {
-		slog.Warn("binding mode is 'off' — body/args binding not enforced. " +
-			"NOT recommended in production. Set DRS_BINDING_MODE=lenient or enforced.")
-	}
-
 	mux := http.NewServeMux()
 
 	// Health endpoints (no auth required)
@@ -271,26 +265,6 @@ func main() {
 	// Admin revocation endpoint — marks a local status list index as revoked immediately.
 	// Requires DRS_ADMIN_TOKEN to be set; responds 503 otherwise.
 	mux.Handle("/admin/revoke", revocation.AdminRevokeHandler(localRev, cfg.AdminToken))
-
-	// /mcp/* and /a2a/* are verifier stubs — NOT transparent proxies.
-	// Behind MCPMiddleware / A2AMiddleware, they return a JSON body that says
-	// "your bundle was accepted; wire the middleware into your own server to
-	// enforce DRS on real MCP/A2A routes". Kept for demos and smoke tests.
-	//
-	// Product boundary: drs-verify is a verification service. It does not
-	// proxy, transform, or execute MCP/A2A requests. Real integrations
-	// consume the middleware package directly. See docs/drs-source-of-truth.md.
-	verifierStub := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"verified": true,
-			"role":     "verifier-stub",
-			"detail": "DRS bundle accepted. This endpoint is a verifier stub — drs-verify does not proxy MCP/A2A " +
-				"traffic. Import github.com/drs-protocol/drs-verify/pkg/middleware to wire DRS into your own server.",
-		})
-	})
-	mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nonceStore, cfg.BindingMode, verifierStub))
-	mux.Handle("/a2a/", middleware.A2AMiddleware(deps, nonceStore, cfg.BindingMode, verifierStub))
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
