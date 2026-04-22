@@ -124,6 +124,18 @@ type Config struct {
 	//   :9090               — all interfaces (dev)
 	//   127.0.0.1:9090      — loopback only (production / Kubernetes sidecar)
 	MetricsAddr string
+
+	// BindingMode selects enforcement level for the request-body binding check.
+	// The check compares JCS(request body) with JCS(invocation.args) after the
+	// bundle verifies, closing the gap where a caller signs policy-compliant
+	// args but sends a different body that the tool server actually executes.
+	//   "off"      — check disabled (NOT recommended in production)
+	//   "lenient"  — mismatches logged + metered, request passes through (default)
+	//   "enforced" — mismatches return 403 Forbidden
+	// Roll out lenient first; flip to enforced once
+	// drs_binding_checks_total{result="mismatch_lenient"} stays at zero.
+	// Set via DRS_BINDING_MODE.
+	BindingMode string
 }
 
 // Load reads all configuration from environment variables.
@@ -195,6 +207,14 @@ func Load() (Config, error) {
 	redisURL := os.Getenv("REDIS_URL")
 	metricsAddr := os.Getenv("METRICS_ADDR")
 
+	bindingMode := getEnvOrDefault("DRS_BINDING_MODE", "lenient")
+	switch bindingMode {
+	case "off", "lenient", "enforced":
+		// ok
+	default:
+		return Config{}, fmt.Errorf("DRS_BINDING_MODE: unknown mode %q (want off, lenient, or enforced)", bindingMode)
+	}
+
 	// Fail fast if redis backend is requested without a URL — surfaces
 	// misconfiguration at boot instead of at first /verify call.
 	if nonceBackend == "redis" && redisURL == "" {
@@ -229,6 +249,7 @@ func Load() (Config, error) {
 		NonceStoreBackend:          nonceBackend,
 		RedisURL:                   redisURL,
 		MetricsAddr:                metricsAddr,
+		BindingMode:                bindingMode,
 	}, nil
 }
 
