@@ -23,19 +23,20 @@ const verificationContextKey contextKey = "drs_verification_context"
 // the VerificationContext to the request context.
 // Requests with no X-DRS-Bundle header receive 401 Unauthorized (fail-closed).
 // Requests with an invalid bundle receive 403 Forbidden.
-// For optional enforcement, use OptionalMCPMiddleware instead.
-func MCPMiddleware(deps verify.Deps, nonceStore nonce.Checker, next http.Handler) http.Handler {
-	return mcpMiddleware(deps, nonceStore, next, false)
+// bindingMode controls the body↔invocation.args binding check: "off" | "lenient" | "enforced".
+// For optional enforcement of the header itself, use OptionalMCPMiddleware.
+func MCPMiddleware(deps verify.Deps, nonceStore nonce.Checker, bindingMode string, next http.Handler) http.Handler {
+	return mcpMiddleware(deps, nonceStore, bindingMode, next, false)
 }
 
 // OptionalMCPMiddleware behaves like MCPMiddleware but passes through requests
 // that do not include the X-DRS-Bundle header. Use this only when downstream
 // handlers perform their own authorization or when DRS verification is advisory.
-func OptionalMCPMiddleware(deps verify.Deps, nonceStore nonce.Checker, next http.Handler) http.Handler {
-	return mcpMiddleware(deps, nonceStore, next, true)
+func OptionalMCPMiddleware(deps verify.Deps, nonceStore nonce.Checker, bindingMode string, next http.Handler) http.Handler {
+	return mcpMiddleware(deps, nonceStore, bindingMode, next, true)
 }
 
-func mcpMiddleware(deps verify.Deps, nonceStore nonce.Checker, next http.Handler, allowMissing bool) http.Handler {
+func mcpMiddleware(deps verify.Deps, nonceStore nonce.Checker, bindingMode string, next http.Handler, allowMissing bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bundleHeader := r.Header.Get("X-DRS-Bundle")
 		if bundleHeader == "" {
@@ -68,6 +69,9 @@ func mcpMiddleware(deps verify.Deps, nonceStore nonce.Checker, next http.Handler
 			return
 		}
 		if CheckNonceReplay(w, bundle.Invocation, nonceStore) {
+			return
+		}
+		if checkRequestBinding(w, r, bundle.Invocation, bindingMode) {
 			return
 		}
 

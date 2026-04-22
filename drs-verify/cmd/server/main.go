@@ -200,6 +200,12 @@ func main() {
 		"global_rps", cfg.RateLimitGlobal,
 		"trust_proxy", cfg.TrustProxy)
 
+	slog.Info("request binding check configured", "mode", cfg.BindingMode)
+	if cfg.BindingMode == "off" {
+		slog.Warn("binding mode is 'off' — body/args binding not enforced. " +
+			"NOT recommended in production. Set DRS_BINDING_MODE=lenient or enforced.")
+	}
+
 	mux := http.NewServeMux()
 
 	// Health endpoints (no auth required)
@@ -283,8 +289,8 @@ func main() {
 				"traffic. Import github.com/drs-protocol/drs-verify/pkg/middleware to wire DRS into your own server.",
 		})
 	})
-	mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nonceStore, verifierStub))
-	mux.Handle("/a2a/", middleware.A2AMiddleware(deps, nonceStore, verifierStub))
+	mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nonceStore, cfg.BindingMode, verifierStub))
+	mux.Handle("/a2a/", middleware.A2AMiddleware(deps, nonceStore, cfg.BindingMode, verifierStub))
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,

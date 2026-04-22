@@ -33,7 +33,7 @@ func encodeBundle(t *testing.T, bundle types.ChainBundle) string {
 }
 
 func TestMCPMiddlewareRejects401WhenNoBundleHeader(t *testing.T) {
-	handler := MCPMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MCPMiddleware(testDeps(t), nil, BindingModeOff, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler must not be called when X-DRS-Bundle is missing")
 	}))
 
@@ -48,7 +48,7 @@ func TestMCPMiddlewareRejects401WhenNoBundleHeader(t *testing.T) {
 
 func TestOptionalMCPMiddlewarePassesThroughWhenNoBundleHeader(t *testing.T) {
 	called := false
-	handler := OptionalMCPMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := OptionalMCPMiddleware(testDeps(t), nil, BindingModeOff, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -66,7 +66,7 @@ func TestOptionalMCPMiddlewarePassesThroughWhenNoBundleHeader(t *testing.T) {
 }
 
 func TestMCPMiddlewareReturnsBadRequestForInvalidBase64(t *testing.T) {
-	handler := MCPMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MCPMiddleware(testDeps(t), nil, BindingModeOff, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler must not be called for invalid bundle")
 	}))
 
@@ -87,7 +87,7 @@ func TestMCPMiddlewareReturnsForbiddenForInvalidBundle(t *testing.T) {
 		Invocation:    "x",
 	}
 
-	handler := MCPMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MCPMiddleware(testDeps(t), nil, BindingModeOff, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler must not be called for invalid bundle")
 	}))
 
@@ -121,7 +121,7 @@ func TestGetVerificationContextReturnsNilWhenAbsent(t *testing.T) {
 }
 
 func TestMCPMiddleware401ResponseIsJSON(t *testing.T) {
-	handler := MCPMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MCPMiddleware(testDeps(t), nil, BindingModeOff, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler must not be called")
 	}))
 
@@ -169,7 +169,7 @@ func TestMCPMiddlewareInvalidSigDoesNotPreConsumeNonce(t *testing.T) {
 		Invocation:    fakeJWTWithJTI(t, "inv:replay-test"),
 	}
 
-	handler := MCPMiddleware(testDeps(t), ns, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MCPMiddleware(testDeps(t), ns, BindingModeOff, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -203,7 +203,7 @@ func TestMCPMiddlewareNilNonceStoreSkipsCheck(t *testing.T) {
 		Invocation:    "x",
 	}
 
-	handler := MCPMiddleware(testDeps(t), nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := MCPMiddleware(testDeps(t), nil, BindingModeOff, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler must not be called for invalid bundle")
 	}))
 
