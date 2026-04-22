@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/drs-protocol/drs-verify/pkg/anchor"
+	"github.com/drs-protocol/drs-verify/pkg/binding"
 	"github.com/drs-protocol/drs-verify/pkg/config"
 	"github.com/drs-protocol/drs-verify/pkg/health"
 	"github.com/drs-protocol/drs-verify/pkg/metrics"
@@ -208,59 +209,7 @@ func main() {
 	mux.Handle("/readyz", healthMux)
 
 	// Verification endpoint — accepts a ChainBundle JSON body and returns VerificationResult.
-	// Used directly by the SDK and tests; MCP/A2A routes use header-based extraction instead.
-	//
-	// Optional field: "include_timestamps" (bool) — when true, retrieves and verifies
-	// the RFC 3161 timestamp token stored alongside each receipt and includes results
-	// in VerificationResult.Timestamps.
-	mux.HandleFunc("/verify", func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		defer func() {
-			metrics.RequestDuration.WithLabelValues("/verify").Observe(time.Since(start).Seconds())
-		}()
-
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		r.Body = http.MaxBytesReader(w, r.Body, cfg.MaxBodyBytes)
-
-		var req struct {
-			types.ChainBundle
-			IncludeTimestamps bool `json:"include_timestamps"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			metrics.Verifications.WithLabelValues("error").Inc()
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
-				slog.Warn("encode error response failed", "error", encErr)
-			}
-			return
-		}
-
-		reqDeps := deps
-		reqDeps.IncludeTimestamps = req.IncludeTimestamps
-
-		// Verify first, commit nonce only on a valid chain. Committing the
-		// nonce from an unsigned payload would let an attacker with a known
-		// JTI pre-consume legitimate nonces by submitting an invalid signature.
-		result := verify.Chain(r.Context(), req.ChainBundle, reqDeps)
-		if result.Valid {
-			metrics.Verifications.WithLabelValues("valid").Inc()
-			if middleware.CheckNonceReplay(w, req.Invocation, nonceStore) {
-				return
-			}
-		} else {
-			metrics.Verifications.WithLabelValues("invalid").Inc()
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(result); err != nil {
-			slog.Warn("encode verify result failed", "error", err)
-		}
-	})
+	mux.Handle("/verify", verifyHandler(deps, nonceStore, cfg.MaxBodyBytes))
 
 	// Admin revocation endpoint — marks a local status list index as revoked immediately.
 	// Requires DRS_ADMIN_TOKEN to be set; responds 503 otherwise.
@@ -334,4 +283,112 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("drs-verify shut down cleanly")
+}
+
+// verifyHandler builds the /verify HTTP handler. Extracted so tests can
+// exercise the same code path that serves production traffic — no duplicate
+// wiring and no mocked dependencies around verify.Chain or binding.Check.
+//
+// Request body: types.ChainBundle JSON, plus two optional fields:
+//   - include_timestamps (bool): when true, verify.Chain retrieves and verifies
+//     the RFC 3161 timestamp token stored alongside each receipt.
+//   - body (arbitrary JSON): when present, the handler runs JCS(body) vs
+//     JCS(invocation.args) after chain verification succeeds and reports
+//     the outcome in result.binding. Tool servers should forward the request
+//     body they received from their own client so drs-verify can confirm
+//     it was not tampered with between signing and execution.
+func verifyHandler(deps verify.Deps, nonceStore nonce.Checker, maxBodyBytes int64) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		defer func() {
+			metrics.RequestDuration.WithLabelValues("/verify").Observe(time.Since(start).Seconds())
+		}()
+
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+
+		var req struct {
+			types.ChainBundle
+			IncludeTimestamps bool            `json:"include_timestamps"`
+			Body              json.RawMessage `json:"body,omitempty"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			metrics.Verifications.WithLabelValues("error").Inc()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+				slog.Warn("encode error response failed", "error", encErr)
+			}
+			return
+		}
+
+		reqDeps := deps
+		reqDeps.IncludeTimestamps = req.IncludeTimestamps
+
+		// Verify first, commit nonce only on a valid chain. Committing the
+		// nonce from an unsigned payload would let an attacker with a known
+		// JTI pre-consume legitimate nonces by submitting an invalid signature.
+		result := verify.Chain(r.Context(), req.ChainBundle, reqDeps)
+		if result.Valid {
+			metrics.Verifications.WithLabelValues("valid").Inc()
+
+			// Binding check runs only after chain verification succeeds AND
+			// only when the caller provided a body. Skipping on valid=false
+			// avoids emitting binding telemetry for unauthorised bundles.
+			if len(req.Body) > 0 {
+				result.Binding = computeBindingResult(req.Body, req.Invocation)
+				metrics.BindingChecks.WithLabelValues(result.Binding).Inc()
+			}
+
+			if middleware.CheckNonceReplay(w, req.Invocation, nonceStore) {
+				return
+			}
+		} else {
+			metrics.Verifications.WithLabelValues("invalid").Inc()
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(result); err != nil {
+			slog.Warn("encode verify result failed", "error", err)
+		}
+	})
+}
+
+// computeBindingResult runs the body↔invocation.args binding check and
+// returns the result label that goes into VerificationResult.Binding and the
+// drs_binding_checks_total metric.
+//
+// Assumes the chain has already verified — binding is meaningless otherwise.
+// Only called when the caller included a body field (len > 0), so the
+// "empty_match" label is unreachable here: the /verify JSON surface requires
+// some bytes under "body" to deserialise. empty_match still fires via the
+// pkg/middleware in-process path that sees raw HTTP bodies.
+//
+// Label semantics:
+//   - "match"        — body JCS-equals invocation.args
+//   - "mismatch"     — both valid JSON but canonical forms differ
+//   - "invalid_body" — body is not parseable as JSON (or invocation JWT decode failed)
+func computeBindingResult(body json.RawMessage, invocationJWT string) string {
+	args, err := middleware.DecodeInvocationArgs(invocationJWT)
+	if err != nil {
+		// Normally caught earlier by verify.Chain — surfacing as
+		// invalid_body keeps the metric meaningful when it does slip through.
+		return "invalid_body"
+	}
+	if !isValidJSON(body) {
+		return "invalid_body"
+	}
+	if err := binding.Check(body, args); err != nil {
+		return "mismatch"
+	}
+	return "match"
+}
+
+func isValidJSON(raw json.RawMessage) bool {
+	var tmp interface{}
+	return json.Unmarshal(raw, &tmp) == nil
 }

@@ -43,11 +43,11 @@ func decodeInvocationJTI(jwt string) (string, error) {
 	return p.Jti, nil
 }
 
-// decodeInvocationArgs extracts the args field from an invocation JWT payload
+// DecodeInvocationArgs extracts the args field from an invocation JWT payload
 // without decoding the entire receipt. Returns nil if the field is absent.
 // The caller is expected to have passed chain verification before relying on
 // this value.
-func decodeInvocationArgs(jwt string) (interface{}, error) {
+func DecodeInvocationArgs(jwt string) (interface{}, error) {
 	parts := strings.SplitN(jwt, ".", 4)
 	if len(parts) != 3 {
 		return nil, fmt.Errorf("expected 3 dot-separated parts, got %d", len(parts))

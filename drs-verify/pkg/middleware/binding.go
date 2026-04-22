@@ -40,7 +40,7 @@ func checkRequestBinding(w http.ResponseWriter, r *http.Request, invocationJWT, 
 	// Always restore the body so the next handler can read it, regardless of outcome.
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 
-	args, err := decodeInvocationArgs(invocationJWT)
+	args, err := DecodeInvocationArgs(invocationJWT)
 	if err != nil {
 		metrics.BindingChecks.WithLabelValues("invalid_body").Inc()
 		slog.Warn("binding: cannot decode invocation args", "error", err)

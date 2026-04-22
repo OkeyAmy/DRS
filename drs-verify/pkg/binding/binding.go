@@ -27,16 +27,20 @@ func Check(body []byte, args interface{}) error {
 	bodyEmpty := len(bytes.TrimSpace(body)) == 0
 	argsEmpty := IsEmptyArgs(args)
 
+	// Trivial short-circuit: both sides literally empty.
 	if bodyEmpty && argsEmpty {
 		return nil
 	}
+	// Only one side literally empty: real mismatch. The other side has bytes
+	// that will canonicalise to something non-empty, so equality can't hold.
 	if bodyEmpty {
 		return fmt.Errorf("body is empty but invocation.args is non-empty")
 	}
-	if argsEmpty {
-		return fmt.Errorf("body is non-empty but invocation.args is empty")
-	}
 
+	// Both sides have content. Fall through to canonicalisation and byte-equal
+	// compare — the authoritative check. Do NOT early-exit on argsEmpty here:
+	// a body that canonicalises to {} (or [] or null) and an args value that
+	// serialises to the same canonical form must still match.
 	canonicalBody, err := jcs.Transform(body)
 	if err != nil {
 		return fmt.Errorf("body is not valid JSON: %w", err)

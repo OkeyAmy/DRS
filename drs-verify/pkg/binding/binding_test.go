@@ -74,6 +74,27 @@ func TestCheckBodyWithEmptyArgsMismatch(t *testing.T) {
 	}
 }
 
+func TestCheckEmptyObjectBodyMatchesEmptyMap(t *testing.T) {
+	// Both sides canonicalise to {} — must match.
+	if err := Check([]byte(`{}`), map[string]interface{}{}); err != nil {
+		t.Errorf("body={} with args={} should match: %v", err)
+	}
+}
+
+func TestCheckEmptyArrayBodyMatchesEmptySlice(t *testing.T) {
+	// Both sides canonicalise to [] — must match.
+	if err := Check([]byte(`[]`), []interface{}{}); err != nil {
+		t.Errorf("body=[] with args=[] should match: %v", err)
+	}
+}
+
+func TestCheckNullBodyMatchesNilArgs(t *testing.T) {
+	// JSON null body and nil args both canonicalise to "null" — must match.
+	if err := Check([]byte(`null`), nil); err != nil {
+		t.Errorf("body=null with args=nil should match: %v", err)
+	}
+}
+
 func TestCheckInvalidJSONBody(t *testing.T) {
 	if err := Check([]byte(`not json`), map[string]interface{}{"x": 1}); err == nil {
 		t.Error("invalid JSON body must fail")
