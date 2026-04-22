@@ -10,6 +10,16 @@
 
 DRS has three implementation layers: Rust (`drs-core`), Go (`drs-verify`), and TypeScript (`drs-sdk`). Each layer implements portions of the DRS protocol: JCS canonicalization, chain hash computation, policy attenuation, Ed25519 signing/verification, and chain validation.
 
+The implemented protocol profile in this repository is:
+
+- JWT receipts
+- RFC 8785 JCS canonicalization
+- Ed25519 signatures
+- `did:key` identifiers in core flows, with `did:web` resolution in the Go verifier
+- SHA-256 hash chaining via `prev_dr_hash` and `dr_chain`
+
+OAuth 2.1 and RFC 8693 appear in the surrounding problem framing and ecosystem positioning, but they are not implemented here as runtime protocol flows.
+
 Without a canonical contract binding these implementations together, protocol drift is inevitable. A receipt that TypeScript accepts but Go rejects (or vice versa) is a security incident, not a bug.
 
 Two models were considered.
@@ -95,8 +105,10 @@ in use.
 
 ### Shape 1: HTTP-terminated MCP (Go middleware)
 
-Used when MCP traffic is proxied through an HTTP layer (reverse proxy, sidecar,
-or standalone verification server).
+Used when the tool server is implemented in Go and imports
+`github.com/drs-protocol/drs-verify/pkg/middleware`. The middleware runs
+in-process inside the tool server and calls `verify.Chain()` directly —
+drs-verify itself is never in the traffic path.
 
 | Aspect | Value |
 |--------|-------|

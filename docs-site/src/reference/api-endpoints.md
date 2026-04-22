@@ -57,67 +57,60 @@ Body is capped at `MAX_BODY_BYTES` (default 1 MiB).
 {"error": "invalid character 'x' looking for beginning of value"}
 ```
 
----
+### Optional: request-body binding check
 
-## POST /mcp/* and /a2a/* (verifier stubs, not proxies)
+`POST /verify` accepts an optional `body` field in the JSON request — the
+parsed request body the tool server received from its client. When present,
+drs-verify canonicalises both the body and `invocation.args` using
+RFC 8785 (JCS) and reports the relationship in `result.binding`:
 
-**drs-verify does not proxy, transform, or execute MCP/A2A traffic.**
-It is a verification service: it validates a bundle, reports the outcome,
-and — for requests that arrive on `/mcp/*` or `/a2a/*` — returns a JSON
-stub confirming the bundle was accepted.
+| `binding` value | Meaning |
+|---|---|
+| `"match"` | Body canonically equals `invocation.args`. The body is bound to what was signed. |
+| `"mismatch"` | Chain verified but body diverges from args. Likely tampering between signing and execution. |
+| `"invalid_body"` | Body was included but could not be parsed as JSON. |
+| (field absent) | Body was not sent; no binding check ran. |
 
-Production integrations embed the middleware package directly into the
-caller's own HTTP server, so DRS enforcement sits in front of the caller's
-actual MCP/A2A handlers. The `/mcp/*` and `/a2a/*` routes on the hosted
-verifier are kept for demos and smoke tests only.
+`result.valid` stays cryptographic truth (chain + policy + signature).
+`binding` is a distinct signal; the tool server decides what to do with
+`"mismatch"`. A common pattern:
 
-```go
-import "github.com/drs-protocol/drs-verify/pkg/middleware"
-
-mux := http.NewServeMux()
-mux.Handle("/tools/call", middleware.MCPMiddleware(deps, nonceStore, myHandler))
+```js
+if (!result.valid) return reject(result.error);
+if (result.binding === "mismatch") return reject({ code: "BINDING_MISMATCH" });
+// proceed to execute the tool against the verified body
 ```
 
-**Request to the stub:** any MCP request with `X-DRS-Bundle` header:
-```
-POST /mcp/tools/call
-X-DRS-Bundle: <base64url bundle>
-Content-Type: application/json
-```
+**Example request:**
 
-**On valid bundle (200) — verifier stub response**:
 ```json
+POST /verify
 {
-  "verified": true,
-  "role": "verifier-stub",
-  "detail": "DRS bundle accepted. This endpoint is a verifier stub — drs-verify does not proxy MCP/A2A traffic. Import github.com/drs-protocol/drs-verify/pkg/middleware to wire DRS into your own server."
+  "bundle_version": "4.0",
+  "invocation": "<invocation-receipt-jwt>",
+  "receipts": ["<root-dr-jwt>", "<sub-dr-jwt>"],
+  "body": { "tool": "approve_payment", "transaction_id": "T1" }
 }
 ```
 
-**On invalid bundle (403):**
+**Example response with binding match:**
+
 ```json
 {
-  "valid": false,
-  "error": {
-    "code": "SIGNATURE_INVALID",
-    "message": "Ed25519 signature verification failed for issuer did:key:z6Mk...",
-    "suggestion": "Ensure the receipt chain was signed by the listed issuers."
-  }
+  "valid": true,
+  "context": { ... },
+  "binding": "match"
 }
 ```
 
-**On missing bundle (401):**
-```json
-{
-  "error": "Missing X-DRS-Bundle header — DRS verification is required on this route."
-}
-```
+### What drs-verify does NOT do
 
-**On malformed bundle (400):**
-
-```json
-{"error":"X-DRS-Bundle header is not valid base64url JSON"}
-```
+drs-verify is a verification service only. It does not proxy, transform,
+or execute MCP/A2A traffic. Tool servers own their own endpoints and call
+`POST /verify` on a local drs-verify instance for each request. See
+`examples/drs-expense-agent/src/tool-server.ts` for the canonical
+tool-server pattern, or import `github.com/drs-protocol/drs-verify/pkg/middleware`
+for in-process Go integrations.
 
 ---
 
@@ -162,6 +155,21 @@ Use `/readyz` for Kubernetes readiness probes. Use `/healthz` for liveness probe
 
 ---
 
+## GET /metrics
+
+Prometheus exposition endpoint.
+
+```
+GET /metrics
+```
+
+The endpoint is unauthenticated and exempt from the built-in rate limiter so
+monitoring systems can scrape it reliably. In production, expose `/metrics`
+only to your monitoring network through your reverse proxy, firewall, service
+mesh, or Kubernetes NetworkPolicy.
+
+---
+
 ## POST /admin/revoke
 
 Mark a delegation receipt as locally revoked by its status list index. Takes effect immediately — does not wait for the remote Bitstring Status List to refresh.
@@ -195,4 +203,11 @@ Body is capped at 1 KiB.
 {"error": "unauthorized"}
 ```
 
-> The local revocation store is in-memory only. Revocations do not survive process restart. For durable revocation, update the W3C Bitstring Status List at your `STATUS_LIST_BASE_URL` endpoint.
+By default, local revocation is in-memory and affects only the current
+`drs-verify` process. Set `REVOCATION_STORE_PATH` to enable the file-backed
+local revocation store; successful `/admin/revoke` calls are appended and
+fsynced so they survive process restart on that instance.
+
+For multi-instance or cross-region durability, update the W3C Bitstring Status
+List at your `STATUS_LIST_BASE_URL` endpoint. The file-backed local store is not
+a distributed revocation backend.
