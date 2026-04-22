@@ -9,13 +9,16 @@
  * encoded ChainBundle (delegation receipts + invocation receipt). The server:
  *
  *   1. Parses the X-DRS-Bundle header into a ChainBundle
- *   2. POSTs the bundle to drs-verify (the Go service) for six-block verification
- *   3. If the bundle is VALID:  executes the requested tool and returns 200
+ *   2. POSTs the bundle + request body to drs-verify (the Go service) for
+ *      six-block chain verification AND body↔invocation.args binding check
+ *   3. If the bundle is VALID and binding is "match": executes the tool, 200
  *   4. If the bundle is INVALID: returns 403 with the VerificationError
+ *   5. If binding is "mismatch": returns 403 BINDING_MISMATCH
  *
- * The tool code never runs until DRS says the invocation is authorised.
- * This is the correct DRS integration pattern — verification happens at the
- * tool server boundary, not inside the agent.
+ * The tool code never runs until DRS says the invocation is authorised AND
+ * the body matches what was signed. This is the correct DRS integration
+ * pattern — verification happens at the tool server boundary, not inside
+ * the agent, and the body must equal the signed intent.
  *
  * Port:  process.env.TOOL_SERVER_PORT (default 3001)
  * Verify: process.env.DRS_VERIFY_URL   (default http://localhost:8080)
@@ -112,13 +115,30 @@ async function handleToolCall(
   //   Block E: delegation has not expired
   //   Block F: delegation has not been revoked
   //
-  // Tools do not execute until this returns valid = true.
-  const result = await client.verify(bundle);
+  // Pass the parsed request body so drs-verify also runs the body↔args
+  // binding check (JCS equality). Without this, a caller could sign a
+  // policy-compliant args value and POST a different body — the bundle
+  // would verify but the tool would execute against the tampered body.
+  //
+  // Tools do not execute until this returns valid=true AND binding!=mismatch.
+  const result = await client.verify(bundle, { body: requestData });
   printVerificationResult(toolName, result);
 
   if (!result.valid) {
     res.writeHead(403, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ drs_error: result.error }));
+    return;
+  }
+
+  if (result.binding === "mismatch") {
+    // Chain verified but the request body diverges from the signed args.
+    // In production this is a refuse-to-execute condition — the caller's
+    // signed intent does not authorise the body we are about to execute.
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      error: "BINDING_MISMATCH",
+      detail: "Request body does not match invocation.args after JCS canonicalisation.",
+    }));
     return;
   }
 
