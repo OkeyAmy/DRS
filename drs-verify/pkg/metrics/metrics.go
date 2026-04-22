@@ -66,13 +66,28 @@ var NonceChecks = promauto.NewCounterVec(prometheus.CounterOpts{
 
 // BindingChecks counts request-body binding outcomes.
 //
-// result labels:
+// Emitted from two surfaces:
+//
+//  1. The /verify HTTP handler (cmd/server). Labels: match | mismatch |
+//     invalid_body. empty_match does not fire here — the JSON envelope
+//     forces at least some bytes under "body", so purely-empty bodies
+//     are indistinguishable from "no body field" (which skips the check
+//     entirely and does not increment the counter).
+//
+//  2. pkg/middleware.checkRequestBinding, used by Go in-process tool-server
+//     integrations. Labels: match | mismatch | empty_match | invalid_body |
+//     (plus the off / mismatch_lenient / mismatch_enforced labels when an
+//     integrator wires the middleware with those modes — those modes live
+//     in the library, not on the drs-verify binary's env surface).
+//
+// Label semantics:
 //   - match              — body JCS-equals invocation.args
-//   - empty_match        — both body and args empty (trivially matches)
-//   - mismatch_lenient   — mismatch observed, request passed through (DRS_BINDING_MODE=lenient)
-//   - mismatch_enforced  — mismatch observed, request rejected 403 (DRS_BINDING_MODE=enforced)
-//   - invalid_body       — invocation args could not be decoded
-//   - off                — binding check disabled (DRS_BINDING_MODE=off)
+//   - mismatch           — body and args both valid JSON but canonical forms differ
+//   - empty_match        — body and args both literally empty (middleware path only)
+//   - invalid_body       — body is not parseable as JSON, or invocation args decode failed
+//   - off                — check disabled via middleware bindingMode (middleware only)
+//   - mismatch_lenient   — middleware lenient mode observed a mismatch and passed through
+//   - mismatch_enforced  — middleware enforced mode rejected a mismatch (403)
 var BindingChecks = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "drs",
 	Subsystem: "binding",
