@@ -208,12 +208,12 @@
 <p><strong>The lesson:</strong> Read the specification you are implementing against before writing any code. Check the encoding format. Check the version number. Validate against a reference implementation early.</p>
 <p><strong>v2 documents:</strong> <code>docs/Drs_architecture_v2.md</code></p>
 <hr />
-<h2 id="v3v4-oauth-21-profile-current"><a class="header" href="#v3v4-oauth-21-profile-current">v3/v4: OAuth 2.1 Profile (current)</a></h2>
-<p><strong>The pivot:</strong> From UCAN to OAuth 2.1.</p>
-<p><strong>Why the pivot:</strong> The ecosystem standardised on OAuth. AT Protocol chose JWT + OAuth. MCP chose JWT + OAuth. UCAN's production adoption is near-zero (Storacha is the only known production deployment). Building on UCAN would have meant building for a standard that the target ecosystem does not use.</p>
+<h2 id="v3v4-jwt-based-drs-for-oauthmcp-ecosystems-current"><a class="header" href="#v3v4-jwt-based-drs-for-oauthmcp-ecosystems-current">v3/v4: JWT-based DRS for OAuth/MCP ecosystems (current)</a></h2>
+<p><strong>The pivot:</strong> From UCAN to JWT-based DRS aligned with the OAuth/MCP ecosystem.</p>
+<p><strong>Why the pivot:</strong> The ecosystem standardised on JWT-based infrastructure around OAuth and MCP. UCAN's production adoption is near-zero (Storacha is the only known production deployment). Building on UCAN would have meant building for a standard that the target ecosystem does not use.</p>
 <p><strong>What changed:</strong></p>
 <ul>
-<li>UCAN → OAuth 2.1 + RFC 8693 as the base layer</li>
+<li>UCAN envelopes/CBOR assumptions → DRS JWT receipts with RFC 8785 JCS canonicalisation</li>
 <li>TypeScript verification → Go verification server (goroutines, predictable GC)</li>
 <li>Unbounded cache → <code>golang-lru/v2</code> with hard cap of 10,000 entries</li>
 <li>Race condition → <code>sync.Once</code> on status list fetch</li>

@@ -181,16 +181,16 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="what-is-drs"><a class="header" href="#what-is-drs">What is DRS?</a></h1>
-<p><strong>DRS (Delegation Receipt Standard) is a per-step delegation receipt standard built on OAuth 2.1 + RFC 8693 + MCP.</strong></p>
+<p><strong>DRS (Delegation Receipt Standard) is a JWT-based, per-step delegation receipt standard for MCP and OAuth-oriented agent ecosystems.</strong></p>
 <p>It produces a cryptographically signed receipt at every step of an agent delegation chain so that any party — the tool server, a regulator, an auditor — can independently verify the complete provenance of any agent action without contacting a central authority.</p>
 <h2 id="the-one-sentence-definition"><a class="header" href="#the-one-sentence-definition">The one-sentence definition</a></h2>
 <blockquote>
-<p>DRS adds a tamper-evident, independently verifiable receipt to every hop of an OAuth delegation chain.</p>
+<p>DRS adds a tamper-evident, independently verifiable receipt to every hop of an agent delegation chain.</p>
 </blockquote>
-<h2 id="what-drs-adds-to-existing-standards"><a class="header" href="#what-drs-adds-to-existing-standards">What DRS adds to existing standards</a></h2>
-<pre><code>OAuth 2.1         → handles the first delegation hop (user → agent)
-RFC 8693          → defines token exchange between agents
-RFC 8693 + DRS    → adds a signed receipt at EVERY hop
+<h2 id="what-drs-adds-around-existing-standards"><a class="header" href="#what-drs-adds-around-existing-standards">What DRS adds around existing standards</a></h2>
+<pre><code>OAuth / token exchange ecosystems → common surrounding auth context
+DRS JWT receipts                  → signed proof for each delegation step
+DRS verification                  → independent chain validation at the tool boundary
 </code></pre>
 <p>Without DRS, an audit trail exists only in server logs controlled by the operator. With DRS, the audit trail is in the receipts themselves — signed by the delegating party, verifiable by anyone with the public key.</p>
 <h2 id="the-chain-splicing-problem"><a class="header" href="#the-chain-splicing-problem">The chain splicing problem</a></h2>
@@ -209,8 +209,8 @@ the same base64url encoding.</li>
 <h2 id="what-drs-is-not"><a class="header" href="#what-drs-is-not">What DRS is not</a></h2>
 <p>DRS is frequently confused with systems it is adjacent to but distinct from:</p>
 <div class="table-wrapper"><table><thead><tr><th>System</th><th>What it does</th><th>How it differs from DRS</th></tr></thead><tbody>
-<tr><td>OAuth 2.1</td><td>Delegates access</td><td>DRS extends it with per-step receipts</td></tr>
-<tr><td>UCAN</td><td>Capability tokens (CBOR/IPLD)</td><td>DRS uses JWTs and OAuth — different ecosystem</td></tr>
+<tr><td>OAuth 2.1</td><td>Delegates access</td><td>DRS is designed to complement that ecosystem, but the implemented runtime here is JWT/JCS receipt verification</td></tr>
+<tr><td>UCAN</td><td>Capability tokens (CBOR/IPLD)</td><td>DRS uses JWT receipts and DRS-specific fields, not UCAN envelopes</td></tr>
 <tr><td>OpenTelemetry</td><td>Distributed tracing</td><td>Observability vs. authorisation provenance</td></tr>
 <tr><td>Langfuse / Arize</td><td>LLM observability</td><td>Logs vs. cryptographic proofs</td></tr>
 <tr><td>Agentic JWT</td><td>JWT profile for agent identity</td><td>Identity vs. delegation chain receipts</td></tr>

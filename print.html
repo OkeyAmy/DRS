@@ -328,16 +328,16 @@ writeFileSync("bundle.json", serialiseBundle(bundle));
 <a href="./how-to/contributors/dev-setup.html">Dev Setup</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="what-is-drs"><a class="header" href="#what-is-drs">What is DRS?</a></h1>
-<p><strong>DRS (Delegation Receipt Standard) is a per-step delegation receipt standard built on OAuth 2.1 + RFC 8693 + MCP.</strong></p>
+<p><strong>DRS (Delegation Receipt Standard) is a JWT-based, per-step delegation receipt standard for MCP and OAuth-oriented agent ecosystems.</strong></p>
 <p>It produces a cryptographically signed receipt at every step of an agent delegation chain so that any party — the tool server, a regulator, an auditor — can independently verify the complete provenance of any agent action without contacting a central authority.</p>
 <h2 id="the-one-sentence-definition"><a class="header" href="#the-one-sentence-definition">The one-sentence definition</a></h2>
 <blockquote>
-<p>DRS adds a tamper-evident, independently verifiable receipt to every hop of an OAuth delegation chain.</p>
+<p>DRS adds a tamper-evident, independently verifiable receipt to every hop of an agent delegation chain.</p>
 </blockquote>
-<h2 id="what-drs-adds-to-existing-standards"><a class="header" href="#what-drs-adds-to-existing-standards">What DRS adds to existing standards</a></h2>
-<pre><code>OAuth 2.1         → handles the first delegation hop (user → agent)
-RFC 8693          → defines token exchange between agents
-RFC 8693 + DRS    → adds a signed receipt at EVERY hop
+<h2 id="what-drs-adds-around-existing-standards"><a class="header" href="#what-drs-adds-around-existing-standards">What DRS adds around existing standards</a></h2>
+<pre><code>OAuth / token exchange ecosystems → common surrounding auth context
+DRS JWT receipts                  → signed proof for each delegation step
+DRS verification                  → independent chain validation at the tool boundary
 </code></pre>
 <p>Without DRS, an audit trail exists only in server logs controlled by the operator. With DRS, the audit trail is in the receipts themselves — signed by the delegating party, verifiable by anyone with the public key.</p>
 <h2 id="the-chain-splicing-problem"><a class="header" href="#the-chain-splicing-problem">The chain splicing problem</a></h2>
@@ -356,8 +356,8 @@ the same base64url encoding.</li>
 <h2 id="what-drs-is-not-1"><a class="header" href="#what-drs-is-not-1">What DRS is not</a></h2>
 <p>DRS is frequently confused with systems it is adjacent to but distinct from:</p>
 <div class="table-wrapper"><table><thead><tr><th>System</th><th>What it does</th><th>How it differs from DRS</th></tr></thead><tbody>
-<tr><td>OAuth 2.1</td><td>Delegates access</td><td>DRS extends it with per-step receipts</td></tr>
-<tr><td>UCAN</td><td>Capability tokens (CBOR/IPLD)</td><td>DRS uses JWTs and OAuth — different ecosystem</td></tr>
+<tr><td>OAuth 2.1</td><td>Delegates access</td><td>DRS is designed to complement that ecosystem, but the implemented runtime here is JWT/JCS receipt verification</td></tr>
+<tr><td>UCAN</td><td>Capability tokens (CBOR/IPLD)</td><td>DRS uses JWT receipts and DRS-specific fields, not UCAN envelopes</td></tr>
 <tr><td>OpenTelemetry</td><td>Distributed tracing</td><td>Observability vs. authorisation provenance</td></tr>
 <tr><td>Langfuse / Arize</td><td>LLM observability</td><td>Logs vs. cryptographic proofs</td></tr>
 <tr><td>Agentic JWT</td><td>JWT profile for agent identity</td><td>Identity vs. delegation chain receipts</td></tr>
@@ -374,7 +374,7 @@ the same base64url encoding.</li>
 <li>Only 5.2% of enterprises have AI agents in production today — the accountability gap is the primary blocker</li>
 </ul>
 <p>The question every CISO asks before approving an agent deployment: <em>"If this agent does something it shouldn't, can we prove exactly who authorised it, and what they authorised?"</em></p>
-<p>OAuth 2.1 + server logs cannot answer that question. DRS can.</p>
+<p>Server logs and bearer-token context alone cannot answer that question. DRS can.</p>
 <h2 id="the-rfc-8693-gap"><a class="header" href="#the-rfc-8693-gap">The RFC 8693 gap</a></h2>
 <p>RFC 8693 (Token Exchange) defines how Agent A exchanges its bearer token for a new token representing Agent B acting on behalf of the user. This is the correct building block for agentic delegation.</p>
 <p>The gap: RFC 8693 tokens are bearer tokens. Any agent that obtains a valid token can present it as if it were the legitimate holder. There is no per-step binding between the token and the specific delegation act that produced it.</p>
@@ -393,8 +393,8 @@ the same base64url encoding.</li>
 <h3 id="v2--ucan-profile-against-wrong-version"><a class="header" href="#v2--ucan-profile-against-wrong-version">v2 — UCAN profile (against wrong version)</a></h3>
 <p>Correctly identified DRS should be a UCAN Profile — but built against UCAN 0.x (JWT) while the actual spec was UCAN v1.0-rc.1 (CBOR/IPLD). Additional problems: TypeScript-only verification with V8 GC pauses destroying the &lt;5ms latency requirement, unbounded DID resolver cache, status list race condition, O(n·m) policy check.</p>
 <p><strong>v2 was scrapped.</strong> The document is preserved in <code>docs/Drs_architecture_v2.md</code>.</p>
-<h3 id="v3v4--oauth-21-profile-current"><a class="header" href="#v3v4--oauth-21-profile-current">v3/v4 — OAuth 2.1 profile (current)</a></h3>
-<p>The final pivot was from UCAN to OAuth 2.1. The reason: the ecosystem standardised on OAuth. AT Protocol and MCP both chose JWT + OAuth. UCAN's production adoption is near-zero. Building on UCAN would have meant building on a standard nobody uses.</p>
+<h3 id="v3v4--jwt-based-drs-for-oauthmcp-ecosystems-current-implementation"><a class="header" href="#v3v4--jwt-based-drs-for-oauthmcp-ecosystems-current-implementation">v3/v4 — JWT-based DRS for OAuth/MCP ecosystems (current implementation)</a></h3>
+<p>The final pivot was away from UCAN envelopes and toward a JWT/JCS/Ed25519 implementation that fits the MCP and OAuth-oriented agent ecosystem. The reason was practical: AT Protocol, MCP, and the broader deployment environment already converge on JWT-based infrastructure, while UCAN adoption remained niche.</p>
 <p>The current architecture separates concerns by language: Rust for crypto (zero GC), Go for verification middleware (goroutines), TypeScript for the developer SDK (npm ecosystem).</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="the-five-actors"><a class="header" href="#the-five-actors">The Five Actors</a></h1>
 <p>DRS defines five actors. Every use case in this documentation maps to one or more of them.</p>
@@ -872,7 +872,7 @@ yet. Today, evidence is assembled from <code>bundle.json</code>, <code>drs verif
 <h2 id="finos-ai-governance-framework"><a class="header" href="#finos-ai-governance-framework">FINOS AI Governance Framework</a></h2>
 <p>FINOS Tier 3–4 levels require chain-of-custody evidence admissible in legal proceedings. DRS Delegation Receipts are:</p>
 <ul>
-<li>Based on open standards (Ed25519, JWT, OAuth 2.1) — no proprietary formats</li>
+<li>Based on open standards (Ed25519, JWT, RFC 8785 JCS) and designed for OAuth-oriented ecosystems — no proprietary formats</li>
 <li>Independently verifiable — no vendor lock-in for evidence authentication</li>
 <li>Exportable in structured formats</li>
 </ul>
@@ -2564,17 +2564,18 @@ const cfg = parseOperatorConfig(
 <div class="table-wrapper"><table><thead><tr><th><code>operator_key_management</code></th><th>Where the key lives</th></tr></thead><tbody>
 <tr><td><code>"env"</code></td><td><code>DRS_OPERATOR_KEY</code> environment variable (base64url-encoded 32 bytes)</td></tr>
 <tr><td><code>"file"</code></td><td>Path in <code>operator_key_path</code> — raw 32-byte Ed25519 key file</td></tr>
-<tr><td><code>"aws-kms"</code></td><td>AWS KMS — requires <code>DRS_KMS_KEY_ID</code> env var</td></tr>
-<tr><td><code>"gcp-kms"</code></td><td>GCP Cloud KMS — requires <code>DRS_GCP_KEY_NAME</code> env var</td></tr>
+<tr><td><code>"aws-kms"</code></td><td>Configuration value reserved for an external AWS KMS signer integration</td></tr>
+<tr><td><code>"gcp-kms"</code></td><td>Configuration value reserved for an external GCP Cloud KMS signer integration</td></tr>
 </tbody></table>
 </div>
 <blockquote>
-<p><strong>Security:</strong> Never use <code>"file"</code> or <code>"env"</code> in production with keys that have regulatory significance. Use <code>"aws-kms"</code> or <code>"gcp-kms"</code> for production operator keys. See <a href="how-to/operators/./key-management.html">Key Management</a>.</p>
+<p><strong>Security:</strong> Never use <code>"file"</code> or <code>"env"</code> in production with keys that have regulatory significance unless your deployment wraps signing in a separately reviewed secrets boundary.</p>
 </blockquote>
 <blockquote>
-<p><strong>Implementation note:</strong> these values are accepted by the configuration model.
-Full KMS integration work is separate from config parsing and should be treated
-as production-hardening work rather than assumed runtime support.</p>
+<p><strong>Implementation note:</strong> these values are accepted by the configuration model only.
+This repository does not currently implement KMS-backed signing. Treat KMS/HSM
+signing as an external integration or production-hardening task, not as built-in
+runtime support.</p>
 </blockquote>
 <h2 id="root-type"><a class="header" href="#root-type">Root type</a></h2>
 <div class="table-wrapper"><table><thead><tr><th><code>drs_root_type</code></th><th>When to use</th></tr></thead><tbody>
@@ -2606,6 +2607,20 @@ as production-hardening work rather than assumed runtime support.</p>
 <blockquote>
 <p><strong>Security:</strong> <code>"allow-degraded"</code> should never be the default in regulated deployments. Discuss with your security team before enabling it.</p>
 </blockquote>
+<h2 id="storage-tier-field"><a class="header" href="#storage-tier-field">Storage tier field</a></h2>
+<p><code>storage_tier</code> records the operator's intended receipt-retention posture. The
+configuration schema accepts <code>0</code> through <code>5</code> so operator files can use the full
+DRS vocabulary, but not every tier is implemented by the current verifier.</p>
+<div class="table-wrapper"><table><thead><tr><th>Value</th><th>Current verifier behavior</th></tr></thead><tbody>
+<tr><td><code>0</code></td><td>In-memory store when <code>STORE_DIR</code> is unset</td></tr>
+<tr><td><code>1</code></td><td>Local filesystem store when <code>STORE_DIR</code> is set</td></tr>
+<tr><td><code>2</code></td><td>Roadmap only — no S3-compatible object-store backend in this release</td></tr>
+<tr><td><code>3</code></td><td>Filesystem store plus RFC 3161 timestamp attempt when <code>STORE_DIR</code> and <code>TSA_URL</code> are set; WORM must be supplied by deployment infrastructure</td></tr>
+<tr><td><code>4</code></td><td>Same backend as Tier 3, with timestamp verification/reporting requested by callers</td></tr>
+<tr><td><code>5</code></td><td>Roadmap only — no Ethereum anchoring backend in this release</td></tr>
+</tbody></table>
+</div>
+<p>See <a href="how-to/operators/./storage-tiers.html">Storage Tiers</a> for the canonical status table.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="storage-tiers"><a class="header" href="#storage-tiers">Storage Tiers</a></h1>
 <p>DRS uses a six-tier storage model. The canonical reference lives in
 <code>docs/storage-tiers.md</code>; this page summarizes it and highlights what is actually
@@ -2656,7 +2671,7 @@ LISTEN_ADDR=:8080 \
 <h2 id="key-types-and-requirements"><a class="header" href="#key-types-and-requirements">Key types and requirements</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Key type</th><th>Recommended storage</th><th>Rotation</th></tr></thead><tbody>
 <tr><td>Human root key</td><td>Hardware Security Module or device Secure Enclave</td><td>Not rotated — DID is derived from key</td></tr>
-<tr><td>Operator root key</td><td>HSM required for production</td><td>Annual with overlap period</td></tr>
+<tr><td>Operator root key</td><td>HSM/KMS or equivalent external signer for production</td><td>Annual with overlap period</td></tr>
 <tr><td>Agent session key</td><td>Ephemeral — generated per session, never stored</td><td>Per-session</td></tr>
 </tbody></table>
 </div>
@@ -2668,16 +2683,12 @@ LISTEN_ADDR=:8080 \
 # Private key: &lt;base64url 32 bytes&gt;
 # DID:         did:key:z6Mk...
 </code></pre>
-<p><strong>Production operator key (AWS KMS):</strong></p>
-<pre><code class="language-bash"># Create an Ed25519 key in AWS KMS
-aws kms create-key \
-  --key-spec ECC_NIST_P256 \
-  --key-usage SIGN_VERIFY \
-  --description "DRS operator key - production"
-
-# Set the key ID in operator config
-echo "DRS_KMS_KEY_ID=&lt;key-id&gt;" &gt;&gt; .env
-</code></pre>
+<p><strong>Production operator keys:</strong></p>
+<p>Use a KMS/HSM-backed signer or another reviewed external signing service for
+operator keys with regulatory significance. The current repository parses
+<code>operator_key_management</code> values such as <code>"aws-kms"</code> and <code>"gcp-kms"</code> in
+configuration, but it does not include built-in KMS signing code. Do not assume
+that setting those values alone moves signing out of local process memory.</p>
 <h2 id="did-method-choices"><a class="header" href="#did-method-choices">DID method choices</a></h2>
 <p><strong><code>did:key</code> (recommended):</strong> The DID is derived directly from the public key. No registry, no DNS, no trust anchor beyond the key itself. The verification key is self-contained in the DID string.</p>
 <p><strong><code>did:web</code>:</strong> The DID is resolved by fetching a DID document from an HTTPS URL. Useful when you need to rotate keys without changing the DID (the DID document can be updated). Requires your domain's DNS and TLS to be secure — a compromised domain means a compromised DID.</p>
@@ -2693,7 +2704,8 @@ echo "DRS_KMS_KEY_ID=&lt;key-id&gt;" &gt;&gt; .env
 <h2 id="protecting-signing-keys"><a class="header" href="#protecting-signing-keys">Protecting signing keys</a></h2>
 <ul>
 <li>Never log private key material, even in debug builds</li>
-<li>Never store private keys in environment variables in production (use <code>aws-kms</code> or <code>gcp-kms</code>)</li>
+<li>Never store private keys in environment variables in production</li>
+<li>Do not treat <code>aws-kms</code> or <code>gcp-kms</code> config values as built-in signing support until your deployment supplies and tests that signer integration</li>
 <li>Never include private keys in Docker images</li>
 <li>Never commit keys to version control</li>
 </ul>
@@ -2964,9 +2976,10 @@ curl http://localhost:8080/healthz
 <p>Before making changes to the core verification logic:</p>
 <ol>
 <li><code>docs/Drs_language&amp;algorithms.md</code> — authoritative reference for language choices and corrected algorithms</li>
-<li><code>docs/Drs_architecture_v2.md</code> — the full DRS 4.0.0 specification</li>
+<li><code>docs/drs-source-of-truth.md</code> — current implementation contract</li>
 <li><a href="how-to/contributors/./false-positives.html">False Positives: What We Tried</a> — the v1 and v2 failures</li>
 </ol>
+<p><code>docs/Drs_architecture_v2.md</code> is still useful, but as a historical prior-working-path document rather than the live implementation spec.</p>
 <h2 id="module-boundaries"><a class="header" href="#module-boundaries">Module boundaries</a></h2>
 <p>Each module has exactly one responsibility. Do not write code that crosses these boundaries:</p>
 <div class="table-wrapper"><table><thead><tr><th>Module</th><th>Responsibility</th><th>Does NOT do</th></tr></thead><tbody>
@@ -3119,12 +3132,12 @@ TestBlock3
 <p><strong>The lesson:</strong> Read the specification you are implementing against before writing any code. Check the encoding format. Check the version number. Validate against a reference implementation early.</p>
 <p><strong>v2 documents:</strong> <code>docs/Drs_architecture_v2.md</code></p>
 <hr />
-<h2 id="v3v4-oauth-21-profile-current"><a class="header" href="#v3v4-oauth-21-profile-current">v3/v4: OAuth 2.1 Profile (current)</a></h2>
-<p><strong>The pivot:</strong> From UCAN to OAuth 2.1.</p>
-<p><strong>Why the pivot:</strong> The ecosystem standardised on OAuth. AT Protocol chose JWT + OAuth. MCP chose JWT + OAuth. UCAN's production adoption is near-zero (Storacha is the only known production deployment). Building on UCAN would have meant building for a standard that the target ecosystem does not use.</p>
+<h2 id="v3v4-jwt-based-drs-for-oauthmcp-ecosystems-current"><a class="header" href="#v3v4-jwt-based-drs-for-oauthmcp-ecosystems-current">v3/v4: JWT-based DRS for OAuth/MCP ecosystems (current)</a></h2>
+<p><strong>The pivot:</strong> From UCAN to JWT-based DRS aligned with the OAuth/MCP ecosystem.</p>
+<p><strong>Why the pivot:</strong> The ecosystem standardised on JWT-based infrastructure around OAuth and MCP. UCAN's production adoption is near-zero (Storacha is the only known production deployment). Building on UCAN would have meant building for a standard that the target ecosystem does not use.</p>
 <p><strong>What changed:</strong></p>
 <ul>
-<li>UCAN → OAuth 2.1 + RFC 8693 as the base layer</li>
+<li>UCAN envelopes/CBOR assumptions → DRS JWT receipts with RFC 8785 JCS canonicalisation</li>
 <li>TypeScript verification → Go verification server (goroutines, predictable GC)</li>
 <li>Unbounded cache → <code>golang-lru/v2</code> with hard cap of 10,000 entries</li>
 <li>Race condition → <code>sync.Once</code> on status list fetch</li>
@@ -3453,51 +3466,48 @@ Content-Type: application/json
 <p><strong>Response — malformed input (400):</strong></p>
 <pre><code class="language-json">{"error": "invalid character 'x' looking for beginning of value"}
 </code></pre>
-<hr />
-<h2 id="post-mcp-and-a2a-verifier-stubs-not-proxies"><a class="header" href="#post-mcp-and-a2a-verifier-stubs-not-proxies">POST /mcp/* and /a2a/* (verifier stubs, not proxies)</a></h2>
-<p><strong>drs-verify does not proxy, transform, or execute MCP/A2A traffic.</strong>
-It is a verification service: it validates a bundle, reports the outcome,
-and — for requests that arrive on <code>/mcp/*</code> or <code>/a2a/*</code> — returns a JSON
-stub confirming the bundle was accepted.</p>
-<p>Production integrations embed the middleware package directly into the
-caller's own HTTP server, so DRS enforcement sits in front of the caller's
-actual MCP/A2A handlers. The <code>/mcp/*</code> and <code>/a2a/*</code> routes on the hosted
-verifier are kept for demos and smoke tests only.</p>
-<pre><code class="language-go">import "github.com/drs-protocol/drs-verify/pkg/middleware"
-
-mux := http.NewServeMux()
-mux.Handle("/tools/call", middleware.MCPMiddleware(deps, nonceStore, myHandler))
+<h3 id="optional-request-body-binding-check"><a class="header" href="#optional-request-body-binding-check">Optional: request-body binding check</a></h3>
+<p><code>POST /verify</code> accepts an optional <code>body</code> field in the JSON request — the
+parsed request body the tool server received from its client. When present,
+drs-verify canonicalises both the body and <code>invocation.args</code> using
+RFC 8785 (JCS) and reports the relationship in <code>result.binding</code>:</p>
+<div class="table-wrapper"><table><thead><tr><th><code>binding</code> value</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>"match"</code></td><td>Body canonically equals <code>invocation.args</code>. The body is bound to what was signed.</td></tr>
+<tr><td><code>"mismatch"</code></td><td>Chain verified but body diverges from args. Likely tampering between signing and execution.</td></tr>
+<tr><td><code>"invalid_body"</code></td><td>Body was included but could not be parsed as JSON.</td></tr>
+<tr><td>(field absent)</td><td>Body was not sent; no binding check ran.</td></tr>
+</tbody></table>
+</div>
+<p><code>result.valid</code> stays cryptographic truth (chain + policy + signature).
+<code>binding</code> is a distinct signal; the tool server decides what to do with
+<code>"mismatch"</code>. A common pattern:</p>
+<pre><code class="language-js">if (!result.valid) return reject(result.error);
+if (result.binding === "mismatch") return reject({ code: "BINDING_MISMATCH" });
+// proceed to execute the tool against the verified body
 </code></pre>
-<p><strong>Request to the stub:</strong> any MCP request with <code>X-DRS-Bundle</code> header:</p>
-<pre><code>POST /mcp/tools/call
-X-DRS-Bundle: &lt;base64url bundle&gt;
-Content-Type: application/json
-</code></pre>
-<p><strong>On valid bundle (200) — verifier stub response</strong>:</p>
-<pre><code class="language-json">{
-  "verified": true,
-  "role": "verifier-stub",
-  "detail": "DRS bundle accepted. This endpoint is a verifier stub — drs-verify does not proxy MCP/A2A traffic. Import github.com/drs-protocol/drs-verify/pkg/middleware to wire DRS into your own server."
+<p><strong>Example request:</strong></p>
+<pre><code class="language-json">POST /verify
+{
+  "bundle_version": "4.0",
+  "invocation": "&lt;invocation-receipt-jwt&gt;",
+  "receipts": ["&lt;root-dr-jwt&gt;", "&lt;sub-dr-jwt&gt;"],
+  "body": { "tool": "approve_payment", "transaction_id": "T1" }
 }
 </code></pre>
-<p><strong>On invalid bundle (403):</strong></p>
+<p><strong>Example response with binding match:</strong></p>
 <pre><code class="language-json">{
-  "valid": false,
-  "error": {
-    "code": "SIGNATURE_INVALID",
-    "message": "Ed25519 signature verification failed for issuer did:key:z6Mk...",
-    "suggestion": "Ensure the receipt chain was signed by the listed issuers."
-  }
+  "valid": true,
+  "context": { ... },
+  "binding": "match"
 }
 </code></pre>
-<p><strong>On missing bundle (401):</strong></p>
-<pre><code class="language-json">{
-  "error": "Missing X-DRS-Bundle header — DRS verification is required on this route."
-}
-</code></pre>
-<p><strong>On malformed bundle (400):</strong></p>
-<pre><code class="language-json">{"error":"X-DRS-Bundle header is not valid base64url JSON"}
-</code></pre>
+<h3 id="what-drs-verify-does-not-do"><a class="header" href="#what-drs-verify-does-not-do">What drs-verify does NOT do</a></h3>
+<p>drs-verify is a verification service only. It does not proxy, transform,
+or execute MCP/A2A traffic. Tool servers own their own endpoints and call
+<code>POST /verify</code> on a local drs-verify instance for each request. See
+<code>examples/drs-expense-agent/src/tool-server.ts</code> for the canonical
+tool-server pattern, or import <code>github.com/drs-protocol/drs-verify/pkg/middleware</code>
+for in-process Go integrations.</p>
 <hr />
 <h2 id="get-healthz"><a class="header" href="#get-healthz">GET /healthz</a></h2>
 <p>Liveness check.</p>
@@ -3523,6 +3533,15 @@ Content-Type: application/json
 <p><strong>Note:</strong> If <code>STATUS_LIST_BASE_URL</code> is not configured, the status list cache is skipped and <code>/readyz</code> always returns 200 immediately.</p>
 </blockquote>
 <hr />
+<h2 id="get-metrics"><a class="header" href="#get-metrics">GET /metrics</a></h2>
+<p>Prometheus exposition endpoint.</p>
+<pre><code>GET /metrics
+</code></pre>
+<p>The endpoint is unauthenticated and exempt from the built-in rate limiter so
+monitoring systems can scrape it reliably. In production, expose <code>/metrics</code>
+only to your monitoring network through your reverse proxy, firewall, service
+mesh, or Kubernetes NetworkPolicy.</p>
+<hr />
 <h2 id="post-adminrevoke"><a class="header" href="#post-adminrevoke">POST /admin/revoke</a></h2>
 <p>Mark a delegation receipt as locally revoked by its status list index. Takes effect immediately — does not wait for the remote Bitstring Status List to refresh.</p>
 <p><code>DRS_ADMIN_TOKEN</code> must be set as an environment variable. If not set, the endpoint responds 503.</p>
@@ -3542,9 +3561,13 @@ Content-Type: application/json
 <p><strong>Response — wrong or missing token (401):</strong></p>
 <pre><code class="language-json">{"error": "unauthorized"}
 </code></pre>
-<blockquote>
-<p>The local revocation store is in-memory only. Revocations do not survive process restart. For durable revocation, update the W3C Bitstring Status List at your <code>STATUS_LIST_BASE_URL</code> endpoint.</p>
-</blockquote>
+<p>By default, local revocation is in-memory and affects only the current
+<code>drs-verify</code> process. Set <code>REVOCATION_STORE_PATH</code> to enable the file-backed
+local revocation store; successful <code>/admin/revoke</code> calls are appended and
+fsynced so they survive process restart on that instance.</p>
+<p>For multi-instance or cross-region durability, update the W3C Bitstring Status
+List at your <code>STATUS_LIST_BASE_URL</code> endpoint. The file-backed local store is not
+a distributed revocation backend.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="configuration-reference"><a class="header" href="#configuration-reference">Configuration Reference</a></h1>
 <p>All configuration is via environment variables. No hard-coded URLs, ports, or keys in any DRS component.</p>
 <h2 id="drs-verify-environment-variables"><a class="header" href="#drs-verify-environment-variables">drs-verify environment variables</a></h2>
@@ -3556,9 +3579,19 @@ Content-Type: application/json
 <tr><td><code>STATUS_CACHE_TTL_SECS</code></td><td><code>300</code></td><td>Bitstring Status List cache TTL in seconds. Revocations take effect within this window.</td></tr>
 <tr><td><code>MAX_BODY_BYTES</code></td><td><code>1048576</code></td><td>Maximum request body size in bytes for <code>/verify</code> (default 1 MiB).</td></tr>
 <tr><td><code>LOG_LEVEL</code></td><td><code>info</code></td><td>Log verbosity: <code>debug</code>, <code>info</code>, <code>warn</code>, or <code>error</code>.</td></tr>
+<tr><td><code>LOG_FORMAT</code></td><td><code>text</code></td><td>Log format: <code>text</code> or <code>json</code>. Use <code>json</code> for log aggregation.</td></tr>
+<tr><td><code>SERVER_IDENTITY</code></td><td>—</td><td>This verifier's DID or server identifier. When set, <code>/verify</code> rejects invocations whose <code>tool_server</code> does not match. Empty disables destination binding.</td></tr>
 <tr><td><code>DRS_ADMIN_TOKEN</code></td><td>—</td><td>Bearer token required for <code>POST /admin/revoke</code>. <strong>If not set, the endpoint responds 503.</strong> No default — set explicitly to enable.</td></tr>
+<tr><td><code>REVOCATION_STORE_PATH</code></td><td>—</td><td>Optional file path for durable local <code>/admin/revoke</code> state. Empty uses in-memory local revocation only.</td></tr>
+<tr><td><code>NONCE_STORE_BACKEND</code></td><td><code>memory</code></td><td>Replay-protection backend: <code>memory</code> for single-process deployments, <code>redis</code> for restart-safe and multi-replica deployments.</td></tr>
+<tr><td><code>REDIS_URL</code></td><td>—</td><td>Required when <code>NONCE_STORE_BACKEND=redis</code>. Supports <code>redis://</code> and <code>rediss://</code> URLs.</td></tr>
+<tr><td><code>TRUST_PROXY</code></td><td><code>false</code></td><td>When <code>true</code>, rate limiting uses the rightmost <code>X-Forwarded-For</code> entry. Enable only behind a trusted reverse proxy.</td></tr>
+<tr><td><code>RATE_LIMIT_PER_IP</code></td><td><code>100</code></td><td>Sustained requests per second per client IP.</td></tr>
+<tr><td><code>RATE_LIMIT_GLOBAL</code></td><td><code>1000</code></td><td>Sustained requests per second across all clients.</td></tr>
 <tr><td><code>STORE_DIR</code></td><td>—</td><td>Base directory for the filesystem store. Empty = Tier 0 in-memory (dev/test). Set for Tier 1 or Tier 3.</td></tr>
 <tr><td><code>TSA_URL</code></td><td>—</td><td>RFC 3161 Timestamp Authority endpoint. Enables Tier 3 trusted timestamping <strong>only when <code>STORE_DIR</code> is also set</strong> — if <code>STORE_DIR</code> is empty, <code>TSA_URL</code> is silently ignored and the server falls back to Tier 0 (in-memory). Providers: <code>https://freetsa.org/tsr</code> (free), <code>https://timestamp.digicert.com</code>.</td></tr>
+<tr><td><code>TSA_ROOT_CERT_PEM</code></td><td>—</td><td>Optional PEM root pool for RFC 3161 timestamp verification. Empty uses system roots.</td></tr>
+<tr><td><code>METRICS_ADDR</code></td><td>—</td><td>Listen address for the separate Prometheus <code>/metrics</code> endpoint (e.g. <code>:9090</code> for dev, <code>127.0.0.1:9090</code> for production). Empty disables the metrics endpoint. Served on its own listener so it can be firewalled independently of the main API port.</td></tr>
 </tbody></table>
 </div>
 <h2 id="drs-sdk-cli-environment-variables"><a class="header" href="#drs-sdk-cli-environment-variables">drs-sdk CLI environment variables</a></h2>
@@ -3598,6 +3631,9 @@ services:
       STATUS_LIST_BASE_URL: "https://status.example.com"
       STATUS_CACHE_TTL_SECS: "300"
       DRS_ADMIN_TOKEN: "${DRS_ADMIN_TOKEN}"
+      REVOCATION_STORE_PATH: "/data/revoked.log"
+      NONCE_STORE_BACKEND: "memory"
+      SERVER_IDENTITY: "did:key:z6MkToolServer..."
       STORE_DIR: "/data"
       TSA_URL: "https://freetsa.org/tsr"
     volumes:
@@ -3621,14 +3657,14 @@ volumes:
 </tbody></table>
 </div>
 <h2 id="why-not-ucan"><a class="header" href="#why-not-ucan">Why not UCAN?</a></h2>
-<p>UCAN is technically correct. The reason DRS uses OAuth 2.1 instead is ecosystem adoption:</p>
+<p>UCAN is technically correct. The reason DRS uses a JWT-based design aligned with the OAuth ecosystem instead is ecosystem adoption:</p>
 <ul>
 <li>AT Protocol chose JWT + OAuth 2.1</li>
 <li>MCP (Model Context Protocol) chose JWT + OAuth 2.1</li>
 <li>The LLM agent ecosystem is converging on OAuth-based token exchange</li>
 </ul>
 <p>UCAN's production deployment is approximately one system (Storacha/web3.storage). Building DRS on UCAN would have meant building for a standard that the target ecosystem does not use. You cannot get enterprises to adopt an accountability standard that requires them to also adopt CBOR/IPLD and a new DID infrastructure.</p>
-<p>DRS solves the same cryptographic problem as UCAN (independently verifiable delegation chains) but uses the token format (JWT) and authorisation protocol (OAuth 2.1) that the ecosystem already uses.</p>
+<p>DRS solves the same cryptographic problem as UCAN (independently verifiable delegation chains) but uses JWT receipts, JCS canonicalization, and DRS-specific fields in a shape that fits the surrounding OAuth/MCP ecosystem.</p>
 <h2 id="why-not-opentelemetry"><a class="header" href="#why-not-opentelemetry">Why not OpenTelemetry?</a></h2>
 <p>OpenTelemetry traces are <strong>observability data</strong>. They tell you what happened from the operator's perspective, stored in operator-controlled infrastructure (Jaeger, Grafana, Datadog).</p>
 <p>DRS receipts are <strong>authorisation proofs</strong>. They tell you what was permitted, signed by the authorising party, verifiable by anyone with the public key.</p>
@@ -3717,7 +3753,7 @@ work are now implemented.</p>
 <p><strong>Multicodec</strong> — A self-describing binary encoding prefix used in <code>did:key</code>. For Ed25519, the prefix is <code>[0xed, 0x01]</code>. DRS uses constant-time comparison to check this prefix.</p>
 <p><strong>POLA (Principle of Least Authority)</strong> — Each delegation grants only the authority needed for the specific task. Sub-delegations must be strictly less permissive than their parent. POLA is enforced both at issuance (SDK) and at verification (Block D).</p>
 <p><strong>prev_dr_hash</strong> — The field in each sub-DR that links it to its parent: <code>"sha256:{lowercase hex of SHA-256 of parent DR JWT bytes}"</code>. Null at the chain root. Creates a tamper-evident chain — any modification to any DR changes its hash and breaks subsequent links.</p>
-<p><strong>RFC 8693</strong> — IETF Token Exchange. Defines how one OAuth bearer token can be exchanged for another representing a different principal acting on behalf of the original user. DRS adds per-step receipts to close the chain splicing gap that RFC 8693 leaves open.</p>
+<p><strong>RFC 8693</strong> — IETF Token Exchange. Defines how one OAuth bearer token can be exchanged for another representing a different principal acting on behalf of the original user. DRS is designed to address the same chain-splicing problem space, but this repository does not itself implement RFC 8693 token-exchange flows.</p>
 <p><strong>sub (Subject)</strong> — The JWT claim identifying the original resource owner — always the human at the root of the chain. The <code>sub</code> field must remain identical through every delegation hop. It is never the agent.</p>
 <p><strong>Verify_chain</strong> — The Go function that runs all six verification blocks (A–F) on a DRS bundle. Fail-closed: any error immediately rejects the request without continuing.</p>
 

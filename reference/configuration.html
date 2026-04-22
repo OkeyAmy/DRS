@@ -191,9 +191,19 @@
 <tr><td><code>STATUS_CACHE_TTL_SECS</code></td><td><code>300</code></td><td>Bitstring Status List cache TTL in seconds. Revocations take effect within this window.</td></tr>
 <tr><td><code>MAX_BODY_BYTES</code></td><td><code>1048576</code></td><td>Maximum request body size in bytes for <code>/verify</code> (default 1 MiB).</td></tr>
 <tr><td><code>LOG_LEVEL</code></td><td><code>info</code></td><td>Log verbosity: <code>debug</code>, <code>info</code>, <code>warn</code>, or <code>error</code>.</td></tr>
+<tr><td><code>LOG_FORMAT</code></td><td><code>text</code></td><td>Log format: <code>text</code> or <code>json</code>. Use <code>json</code> for log aggregation.</td></tr>
+<tr><td><code>SERVER_IDENTITY</code></td><td>—</td><td>This verifier's DID or server identifier. When set, <code>/verify</code> rejects invocations whose <code>tool_server</code> does not match. Empty disables destination binding.</td></tr>
 <tr><td><code>DRS_ADMIN_TOKEN</code></td><td>—</td><td>Bearer token required for <code>POST /admin/revoke</code>. <strong>If not set, the endpoint responds 503.</strong> No default — set explicitly to enable.</td></tr>
+<tr><td><code>REVOCATION_STORE_PATH</code></td><td>—</td><td>Optional file path for durable local <code>/admin/revoke</code> state. Empty uses in-memory local revocation only.</td></tr>
+<tr><td><code>NONCE_STORE_BACKEND</code></td><td><code>memory</code></td><td>Replay-protection backend: <code>memory</code> for single-process deployments, <code>redis</code> for restart-safe and multi-replica deployments.</td></tr>
+<tr><td><code>REDIS_URL</code></td><td>—</td><td>Required when <code>NONCE_STORE_BACKEND=redis</code>. Supports <code>redis://</code> and <code>rediss://</code> URLs.</td></tr>
+<tr><td><code>TRUST_PROXY</code></td><td><code>false</code></td><td>When <code>true</code>, rate limiting uses the rightmost <code>X-Forwarded-For</code> entry. Enable only behind a trusted reverse proxy.</td></tr>
+<tr><td><code>RATE_LIMIT_PER_IP</code></td><td><code>100</code></td><td>Sustained requests per second per client IP.</td></tr>
+<tr><td><code>RATE_LIMIT_GLOBAL</code></td><td><code>1000</code></td><td>Sustained requests per second across all clients.</td></tr>
 <tr><td><code>STORE_DIR</code></td><td>—</td><td>Base directory for the filesystem store. Empty = Tier 0 in-memory (dev/test). Set for Tier 1 or Tier 3.</td></tr>
 <tr><td><code>TSA_URL</code></td><td>—</td><td>RFC 3161 Timestamp Authority endpoint. Enables Tier 3 trusted timestamping <strong>only when <code>STORE_DIR</code> is also set</strong> — if <code>STORE_DIR</code> is empty, <code>TSA_URL</code> is silently ignored and the server falls back to Tier 0 (in-memory). Providers: <code>https://freetsa.org/tsr</code> (free), <code>https://timestamp.digicert.com</code>.</td></tr>
+<tr><td><code>TSA_ROOT_CERT_PEM</code></td><td>—</td><td>Optional PEM root pool for RFC 3161 timestamp verification. Empty uses system roots.</td></tr>
+<tr><td><code>METRICS_ADDR</code></td><td>—</td><td>Listen address for the separate Prometheus <code>/metrics</code> endpoint (e.g. <code>:9090</code> for dev, <code>127.0.0.1:9090</code> for production). Empty disables the metrics endpoint. Served on its own listener so it can be firewalled independently of the main API port.</td></tr>
 </tbody></table>
 </div>
 <h2 id="drs-sdk-cli-environment-variables"><a class="header" href="#drs-sdk-cli-environment-variables">drs-sdk CLI environment variables</a></h2>
@@ -233,6 +243,9 @@ services:
       STATUS_LIST_BASE_URL: "https://status.example.com"
       STATUS_CACHE_TTL_SECS: "300"
       DRS_ADMIN_TOKEN: "${DRS_ADMIN_TOKEN}"
+      REVOCATION_STORE_PATH: "/data/revoked.log"
+      NONCE_STORE_BACKEND: "memory"
+      SERVER_IDENTITY: "did:key:z6MkToolServer..."
       STORE_DIR: "/data"
       TSA_URL: "https://freetsa.org/tsr"
     volumes:

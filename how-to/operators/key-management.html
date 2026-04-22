@@ -184,7 +184,7 @@
 <h2 id="key-types-and-requirements"><a class="header" href="#key-types-and-requirements">Key types and requirements</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Key type</th><th>Recommended storage</th><th>Rotation</th></tr></thead><tbody>
 <tr><td>Human root key</td><td>Hardware Security Module or device Secure Enclave</td><td>Not rotated — DID is derived from key</td></tr>
-<tr><td>Operator root key</td><td>HSM required for production</td><td>Annual with overlap period</td></tr>
+<tr><td>Operator root key</td><td>HSM/KMS or equivalent external signer for production</td><td>Annual with overlap period</td></tr>
 <tr><td>Agent session key</td><td>Ephemeral — generated per session, never stored</td><td>Per-session</td></tr>
 </tbody></table>
 </div>
@@ -196,16 +196,12 @@
 # Private key: &lt;base64url 32 bytes&gt;
 # DID:         did:key:z6Mk...
 </code></pre>
-<p><strong>Production operator key (AWS KMS):</strong></p>
-<pre><code class="language-bash"># Create an Ed25519 key in AWS KMS
-aws kms create-key \
-  --key-spec ECC_NIST_P256 \
-  --key-usage SIGN_VERIFY \
-  --description "DRS operator key - production"
-
-# Set the key ID in operator config
-echo "DRS_KMS_KEY_ID=&lt;key-id&gt;" &gt;&gt; .env
-</code></pre>
+<p><strong>Production operator keys:</strong></p>
+<p>Use a KMS/HSM-backed signer or another reviewed external signing service for
+operator keys with regulatory significance. The current repository parses
+<code>operator_key_management</code> values such as <code>"aws-kms"</code> and <code>"gcp-kms"</code> in
+configuration, but it does not include built-in KMS signing code. Do not assume
+that setting those values alone moves signing out of local process memory.</p>
 <h2 id="did-method-choices"><a class="header" href="#did-method-choices">DID method choices</a></h2>
 <p><strong><code>did:key</code> (recommended):</strong> The DID is derived directly from the public key. No registry, no DNS, no trust anchor beyond the key itself. The verification key is self-contained in the DID string.</p>
 <p><strong><code>did:web</code>:</strong> The DID is resolved by fetching a DID document from an HTTPS URL. Useful when you need to rotate keys without changing the DID (the DID document can be updated). Requires your domain's DNS and TLS to be secure — a compromised domain means a compromised DID.</p>
@@ -221,7 +217,8 @@ echo "DRS_KMS_KEY_ID=&lt;key-id&gt;" &gt;&gt; .env
 <h2 id="protecting-signing-keys"><a class="header" href="#protecting-signing-keys">Protecting signing keys</a></h2>
 <ul>
 <li>Never log private key material, even in debug builds</li>
-<li>Never store private keys in environment variables in production (use <code>aws-kms</code> or <code>gcp-kms</code>)</li>
+<li>Never store private keys in environment variables in production</li>
+<li>Do not treat <code>aws-kms</code> or <code>gcp-kms</code> config values as built-in signing support until your deployment supplies and tests that signer integration</li>
 <li>Never include private keys in Docker images</li>
 <li>Never commit keys to version control</li>
 </ul>

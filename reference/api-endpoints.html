@@ -224,51 +224,48 @@ Content-Type: application/json
 <p><strong>Response — malformed input (400):</strong></p>
 <pre><code class="language-json">{"error": "invalid character 'x' looking for beginning of value"}
 </code></pre>
-<hr />
-<h2 id="post-mcp-and-a2a-verifier-stubs-not-proxies"><a class="header" href="#post-mcp-and-a2a-verifier-stubs-not-proxies">POST /mcp/* and /a2a/* (verifier stubs, not proxies)</a></h2>
-<p><strong>drs-verify does not proxy, transform, or execute MCP/A2A traffic.</strong>
-It is a verification service: it validates a bundle, reports the outcome,
-and — for requests that arrive on <code>/mcp/*</code> or <code>/a2a/*</code> — returns a JSON
-stub confirming the bundle was accepted.</p>
-<p>Production integrations embed the middleware package directly into the
-caller's own HTTP server, so DRS enforcement sits in front of the caller's
-actual MCP/A2A handlers. The <code>/mcp/*</code> and <code>/a2a/*</code> routes on the hosted
-verifier are kept for demos and smoke tests only.</p>
-<pre><code class="language-go">import "github.com/drs-protocol/drs-verify/pkg/middleware"
-
-mux := http.NewServeMux()
-mux.Handle("/tools/call", middleware.MCPMiddleware(deps, nonceStore, myHandler))
+<h3 id="optional-request-body-binding-check"><a class="header" href="#optional-request-body-binding-check">Optional: request-body binding check</a></h3>
+<p><code>POST /verify</code> accepts an optional <code>body</code> field in the JSON request — the
+parsed request body the tool server received from its client. When present,
+drs-verify canonicalises both the body and <code>invocation.args</code> using
+RFC 8785 (JCS) and reports the relationship in <code>result.binding</code>:</p>
+<div class="table-wrapper"><table><thead><tr><th><code>binding</code> value</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>"match"</code></td><td>Body canonically equals <code>invocation.args</code>. The body is bound to what was signed.</td></tr>
+<tr><td><code>"mismatch"</code></td><td>Chain verified but body diverges from args. Likely tampering between signing and execution.</td></tr>
+<tr><td><code>"invalid_body"</code></td><td>Body was included but could not be parsed as JSON.</td></tr>
+<tr><td>(field absent)</td><td>Body was not sent; no binding check ran.</td></tr>
+</tbody></table>
+</div>
+<p><code>result.valid</code> stays cryptographic truth (chain + policy + signature).
+<code>binding</code> is a distinct signal; the tool server decides what to do with
+<code>"mismatch"</code>. A common pattern:</p>
+<pre><code class="language-js">if (!result.valid) return reject(result.error);
+if (result.binding === "mismatch") return reject({ code: "BINDING_MISMATCH" });
+// proceed to execute the tool against the verified body
 </code></pre>
-<p><strong>Request to the stub:</strong> any MCP request with <code>X-DRS-Bundle</code> header:</p>
-<pre><code>POST /mcp/tools/call
-X-DRS-Bundle: &lt;base64url bundle&gt;
-Content-Type: application/json
-</code></pre>
-<p><strong>On valid bundle (200) — verifier stub response</strong>:</p>
-<pre><code class="language-json">{
-  "verified": true,
-  "role": "verifier-stub",
-  "detail": "DRS bundle accepted. This endpoint is a verifier stub — drs-verify does not proxy MCP/A2A traffic. Import github.com/drs-protocol/drs-verify/pkg/middleware to wire DRS into your own server."
+<p><strong>Example request:</strong></p>
+<pre><code class="language-json">POST /verify
+{
+  "bundle_version": "4.0",
+  "invocation": "&lt;invocation-receipt-jwt&gt;",
+  "receipts": ["&lt;root-dr-jwt&gt;", "&lt;sub-dr-jwt&gt;"],
+  "body": { "tool": "approve_payment", "transaction_id": "T1" }
 }
 </code></pre>
-<p><strong>On invalid bundle (403):</strong></p>
+<p><strong>Example response with binding match:</strong></p>
 <pre><code class="language-json">{
-  "valid": false,
-  "error": {
-    "code": "SIGNATURE_INVALID",
-    "message": "Ed25519 signature verification failed for issuer did:key:z6Mk...",
-    "suggestion": "Ensure the receipt chain was signed by the listed issuers."
-  }
+  "valid": true,
+  "context": { ... },
+  "binding": "match"
 }
 </code></pre>
-<p><strong>On missing bundle (401):</strong></p>
-<pre><code class="language-json">{
-  "error": "Missing X-DRS-Bundle header — DRS verification is required on this route."
-}
-</code></pre>
-<p><strong>On malformed bundle (400):</strong></p>
-<pre><code class="language-json">{"error":"X-DRS-Bundle header is not valid base64url JSON"}
-</code></pre>
+<h3 id="what-drs-verify-does-not-do"><a class="header" href="#what-drs-verify-does-not-do">What drs-verify does NOT do</a></h3>
+<p>drs-verify is a verification service only. It does not proxy, transform,
+or execute MCP/A2A traffic. Tool servers own their own endpoints and call
+<code>POST /verify</code> on a local drs-verify instance for each request. See
+<code>examples/drs-expense-agent/src/tool-server.ts</code> for the canonical
+tool-server pattern, or import <code>github.com/drs-protocol/drs-verify/pkg/middleware</code>
+for in-process Go integrations.</p>
 <hr />
 <h2 id="get-healthz"><a class="header" href="#get-healthz">GET /healthz</a></h2>
 <p>Liveness check.</p>
@@ -294,6 +291,15 @@ Content-Type: application/json
 <p><strong>Note:</strong> If <code>STATUS_LIST_BASE_URL</code> is not configured, the status list cache is skipped and <code>/readyz</code> always returns 200 immediately.</p>
 </blockquote>
 <hr />
+<h2 id="get-metrics"><a class="header" href="#get-metrics">GET /metrics</a></h2>
+<p>Prometheus exposition endpoint.</p>
+<pre><code>GET /metrics
+</code></pre>
+<p>The endpoint is unauthenticated and exempt from the built-in rate limiter so
+monitoring systems can scrape it reliably. In production, expose <code>/metrics</code>
+only to your monitoring network through your reverse proxy, firewall, service
+mesh, or Kubernetes NetworkPolicy.</p>
+<hr />
 <h2 id="post-adminrevoke"><a class="header" href="#post-adminrevoke">POST /admin/revoke</a></h2>
 <p>Mark a delegation receipt as locally revoked by its status list index. Takes effect immediately — does not wait for the remote Bitstring Status List to refresh.</p>
 <p><code>DRS_ADMIN_TOKEN</code> must be set as an environment variable. If not set, the endpoint responds 503.</p>
@@ -313,9 +319,13 @@ Content-Type: application/json
 <p><strong>Response — wrong or missing token (401):</strong></p>
 <pre><code class="language-json">{"error": "unauthorized"}
 </code></pre>
-<blockquote>
-<p>The local revocation store is in-memory only. Revocations do not survive process restart. For durable revocation, update the W3C Bitstring Status List at your <code>STATUS_LIST_BASE_URL</code> endpoint.</p>
-</blockquote>
+<p>By default, local revocation is in-memory and affects only the current
+<code>drs-verify</code> process. Set <code>REVOCATION_STORE_PATH</code> to enable the file-backed
+local revocation store; successful <code>/admin/revoke</code> calls are appended and
+fsynced so they survive process restart on that instance.</p>
+<p>For multi-instance or cross-region durability, update the W3C Bitstring Status
+List at your <code>STATUS_LIST_BASE_URL</code> endpoint. The file-backed local store is not
+a distributed revocation backend.</p>
 
                     </main>
 

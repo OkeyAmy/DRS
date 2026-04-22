@@ -189,7 +189,7 @@
 <li>Only 5.2% of enterprises have AI agents in production today — the accountability gap is the primary blocker</li>
 </ul>
 <p>The question every CISO asks before approving an agent deployment: <em>"If this agent does something it shouldn't, can we prove exactly who authorised it, and what they authorised?"</em></p>
-<p>OAuth 2.1 + server logs cannot answer that question. DRS can.</p>
+<p>Server logs and bearer-token context alone cannot answer that question. DRS can.</p>
 <h2 id="the-rfc-8693-gap"><a class="header" href="#the-rfc-8693-gap">The RFC 8693 gap</a></h2>
 <p>RFC 8693 (Token Exchange) defines how Agent A exchanges its bearer token for a new token representing Agent B acting on behalf of the user. This is the correct building block for agentic delegation.</p>
 <p>The gap: RFC 8693 tokens are bearer tokens. Any agent that obtains a valid token can present it as if it were the legitimate holder. There is no per-step binding between the token and the specific delegation act that produced it.</p>
@@ -208,8 +208,8 @@
 <h3 id="v2--ucan-profile-against-wrong-version"><a class="header" href="#v2--ucan-profile-against-wrong-version">v2 — UCAN profile (against wrong version)</a></h3>
 <p>Correctly identified DRS should be a UCAN Profile — but built against UCAN 0.x (JWT) while the actual spec was UCAN v1.0-rc.1 (CBOR/IPLD). Additional problems: TypeScript-only verification with V8 GC pauses destroying the &lt;5ms latency requirement, unbounded DID resolver cache, status list race condition, O(n·m) policy check.</p>
 <p><strong>v2 was scrapped.</strong> The document is preserved in <code>docs/Drs_architecture_v2.md</code>.</p>
-<h3 id="v3v4--oauth-21-profile-current"><a class="header" href="#v3v4--oauth-21-profile-current">v3/v4 — OAuth 2.1 profile (current)</a></h3>
-<p>The final pivot was from UCAN to OAuth 2.1. The reason: the ecosystem standardised on OAuth. AT Protocol and MCP both chose JWT + OAuth. UCAN's production adoption is near-zero. Building on UCAN would have meant building on a standard nobody uses.</p>
+<h3 id="v3v4--jwt-based-drs-for-oauthmcp-ecosystems-current-implementation"><a class="header" href="#v3v4--jwt-based-drs-for-oauthmcp-ecosystems-current-implementation">v3/v4 — JWT-based DRS for OAuth/MCP ecosystems (current implementation)</a></h3>
+<p>The final pivot was away from UCAN envelopes and toward a JWT/JCS/Ed25519 implementation that fits the MCP and OAuth-oriented agent ecosystem. The reason was practical: AT Protocol, MCP, and the broader deployment environment already converge on JWT-based infrastructure, while UCAN adoption remained niche.</p>
 <p>The current architecture separates concerns by language: Rust for crypto (zero GC), Go for verification middleware (goroutines), TypeScript for the developer SDK (npm ecosystem).</p>
 
                     </main>

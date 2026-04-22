@@ -219,17 +219,18 @@ const cfg = parseOperatorConfig(
 <div class="table-wrapper"><table><thead><tr><th><code>operator_key_management</code></th><th>Where the key lives</th></tr></thead><tbody>
 <tr><td><code>"env"</code></td><td><code>DRS_OPERATOR_KEY</code> environment variable (base64url-encoded 32 bytes)</td></tr>
 <tr><td><code>"file"</code></td><td>Path in <code>operator_key_path</code> — raw 32-byte Ed25519 key file</td></tr>
-<tr><td><code>"aws-kms"</code></td><td>AWS KMS — requires <code>DRS_KMS_KEY_ID</code> env var</td></tr>
-<tr><td><code>"gcp-kms"</code></td><td>GCP Cloud KMS — requires <code>DRS_GCP_KEY_NAME</code> env var</td></tr>
+<tr><td><code>"aws-kms"</code></td><td>Configuration value reserved for an external AWS KMS signer integration</td></tr>
+<tr><td><code>"gcp-kms"</code></td><td>Configuration value reserved for an external GCP Cloud KMS signer integration</td></tr>
 </tbody></table>
 </div>
 <blockquote>
-<p><strong>Security:</strong> Never use <code>"file"</code> or <code>"env"</code> in production with keys that have regulatory significance. Use <code>"aws-kms"</code> or <code>"gcp-kms"</code> for production operator keys. See <a href="./key-management.html">Key Management</a>.</p>
+<p><strong>Security:</strong> Never use <code>"file"</code> or <code>"env"</code> in production with keys that have regulatory significance unless your deployment wraps signing in a separately reviewed secrets boundary.</p>
 </blockquote>
 <blockquote>
-<p><strong>Implementation note:</strong> these values are accepted by the configuration model.
-Full KMS integration work is separate from config parsing and should be treated
-as production-hardening work rather than assumed runtime support.</p>
+<p><strong>Implementation note:</strong> these values are accepted by the configuration model only.
+This repository does not currently implement KMS-backed signing. Treat KMS/HSM
+signing as an external integration or production-hardening task, not as built-in
+runtime support.</p>
 </blockquote>
 <h2 id="root-type"><a class="header" href="#root-type">Root type</a></h2>
 <div class="table-wrapper"><table><thead><tr><th><code>drs_root_type</code></th><th>When to use</th></tr></thead><tbody>
@@ -261,6 +262,20 @@ as production-hardening work rather than assumed runtime support.</p>
 <blockquote>
 <p><strong>Security:</strong> <code>"allow-degraded"</code> should never be the default in regulated deployments. Discuss with your security team before enabling it.</p>
 </blockquote>
+<h2 id="storage-tier-field"><a class="header" href="#storage-tier-field">Storage tier field</a></h2>
+<p><code>storage_tier</code> records the operator's intended receipt-retention posture. The
+configuration schema accepts <code>0</code> through <code>5</code> so operator files can use the full
+DRS vocabulary, but not every tier is implemented by the current verifier.</p>
+<div class="table-wrapper"><table><thead><tr><th>Value</th><th>Current verifier behavior</th></tr></thead><tbody>
+<tr><td><code>0</code></td><td>In-memory store when <code>STORE_DIR</code> is unset</td></tr>
+<tr><td><code>1</code></td><td>Local filesystem store when <code>STORE_DIR</code> is set</td></tr>
+<tr><td><code>2</code></td><td>Roadmap only — no S3-compatible object-store backend in this release</td></tr>
+<tr><td><code>3</code></td><td>Filesystem store plus RFC 3161 timestamp attempt when <code>STORE_DIR</code> and <code>TSA_URL</code> are set; WORM must be supplied by deployment infrastructure</td></tr>
+<tr><td><code>4</code></td><td>Same backend as Tier 3, with timestamp verification/reporting requested by callers</td></tr>
+<tr><td><code>5</code></td><td>Roadmap only — no Ethereum anchoring backend in this release</td></tr>
+</tbody></table>
+</div>
+<p>See <a href="./storage-tiers.html">Storage Tiers</a> for the canonical status table.</p>
 
                     </main>
 
