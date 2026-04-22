@@ -105,12 +105,32 @@ export interface TimestampResult {
   error?: string;
 }
 
+/**
+ * Result of the body↔invocation.args binding check on /verify.
+ *
+ * Only populated when the caller passed a `body` to `VerifyClient.verify`.
+ * Undefined / absent when no body was sent.
+ *
+ * - "match"        — body JCS-equals invocation.args (bound to signed intent)
+ * - "mismatch"     — chain valid but body diverges from signed args
+ * - "invalid_body" — body present but not parseable as JSON
+ * - "empty_match"  — both body and args empty (pkg/middleware path only)
+ */
+export type BindingResult = "match" | "mismatch" | "invalid_body" | "empty_match";
+
 export interface VerificationResult {
   valid: boolean;
   context?: VerificationContext;
   error?: VerificationError;
   /** Per-receipt RFC 3161 timestamp verification results; present when include_timestamps was requested. */
   timestamps?: TimestampResult[];
+  /**
+   * Result of the optional body↔invocation.args binding check. Present only
+   * when the caller passed a `body` to VerifyClient.verify; undefined
+   * otherwise. `valid` remains cryptographic truth — the tool server
+   * decides whether to reject on `binding === "mismatch"`.
+   */
+  binding?: BindingResult;
 }
 
 /** Typed error class for DRS SDK operations. */

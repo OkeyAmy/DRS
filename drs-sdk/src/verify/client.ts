@@ -31,20 +31,35 @@ export class VerifyClient {
    * Returns a VerificationResult — never throws for verification failures
    * (only throws for network errors or invalid server responses).
    *
-   * When options.includeTimestamps is true, the server retrieves and verifies
+   * When `options.includeTimestamps` is true, the server retrieves and verifies
    * the RFC 3161 timestamp token for each receipt and includes the results
-   * in VerificationResult.timestamps.
+   * in `VerificationResult.timestamps`.
+   *
+   * When `options.body` is provided, drs-verify canonicalises it via RFC 8785
+   * (JCS) and compares with `invocation.args`. The outcome is reported in
+   * `result.binding` — "match" | "mismatch" | "invalid_body" (or "empty_match"
+   * from the middleware path). `valid` stays cryptographic truth; the caller
+   * decides whether to reject on `binding === "mismatch"`.
+   *
+   * Pass the parsed request body the tool server received from its client —
+   * e.g. the result of `JSON.parse(rawHttpBody)`. drs-verify canonicalises
+   * both sides, so key order and numeric form do not affect equality.
    */
   async verify(
     bundle: ChainBundle,
-    options?: { includeTimestamps?: boolean },
+    options?: { includeTimestamps?: boolean; body?: unknown },
   ): Promise<VerificationResult> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
-    const body = options?.includeTimestamps
-      ? JSON.stringify({ ...bundle, include_timestamps: true })
-      : JSON.stringify(bundle);
+    const payload: Record<string, unknown> = { ...bundle };
+    if (options?.includeTimestamps) {
+      payload["include_timestamps"] = true;
+    }
+    if (options && "body" in options) {
+      payload["body"] = options.body;
+    }
+    const body = JSON.stringify(payload);
 
     let response: Response;
     try {
