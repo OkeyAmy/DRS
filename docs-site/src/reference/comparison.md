@@ -16,7 +16,7 @@ DRS is a narrow standard solving a specific problem. Understanding what it is an
 
 ## Why not UCAN?
 
-UCAN is technically correct. The reason DRS uses OAuth 2.1 instead is ecosystem adoption:
+UCAN is technically correct. The reason DRS uses a JWT-based design aligned with the OAuth ecosystem instead is ecosystem adoption:
 
 - AT Protocol chose JWT + OAuth 2.1
 - MCP (Model Context Protocol) chose JWT + OAuth 2.1
@@ -24,7 +24,7 @@ UCAN is technically correct. The reason DRS uses OAuth 2.1 instead is ecosystem 
 
 UCAN's production deployment is approximately one system (Storacha/web3.storage). Building DRS on UCAN would have meant building for a standard that the target ecosystem does not use. You cannot get enterprises to adopt an accountability standard that requires them to also adopt CBOR/IPLD and a new DID infrastructure.
 
-DRS solves the same cryptographic problem as UCAN (independently verifiable delegation chains) but uses the token format (JWT) and authorisation protocol (OAuth 2.1) that the ecosystem already uses.
+DRS solves the same cryptographic problem as UCAN (independently verifiable delegation chains) but uses JWT receipts, JCS canonicalization, and DRS-specific fields in a shape that fits the surrounding OAuth/MCP ecosystem.
 
 ## Why not OpenTelemetry?
 

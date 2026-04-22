@@ -47,7 +47,7 @@ SOC 2 requires continuous evidence of access controls. DRS provides:
 ## FINOS AI Governance Framework
 
 FINOS Tier 3–4 levels require chain-of-custody evidence admissible in legal proceedings. DRS Delegation Receipts are:
-- Based on open standards (Ed25519, JWT, OAuth 2.1) — no proprietary formats
+- Based on open standards (Ed25519, JWT, RFC 8785 JCS) and designed for OAuth-oriented ecosystems — no proprietary formats
 - Independently verifiable — no vendor lock-in for evidence authentication
 - Exportable in structured formats
 

@@ -5,7 +5,11 @@
 **Organisation:** Quorum  
 **Author:** Okey  
 **Date:** March 2026  
-**Status:** Primary Technical Reference — v4.0  
+**Status:** Historical Research Reference — v4.0  
+
+---
+
+> **Status note.** This document is a historical research reference, not the current implementation contract. Use `docs/drs-source-of-truth.md` and the codebase for current protocol behavior.
 
 ---
 

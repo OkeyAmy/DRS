@@ -50,14 +50,14 @@ This is a research project. Three architectural approaches were designed and dis
 
 ---
 
-## v3/v4: OAuth 2.1 Profile (current)
+## v3/v4: JWT-based DRS for OAuth/MCP ecosystems (current)
 
-**The pivot:** From UCAN to OAuth 2.1.
+**The pivot:** From UCAN to JWT-based DRS aligned with the OAuth/MCP ecosystem.
 
-**Why the pivot:** The ecosystem standardised on OAuth. AT Protocol chose JWT + OAuth. MCP chose JWT + OAuth. UCAN's production adoption is near-zero (Storacha is the only known production deployment). Building on UCAN would have meant building for a standard that the target ecosystem does not use.
+**Why the pivot:** The ecosystem standardised on JWT-based infrastructure around OAuth and MCP. UCAN's production adoption is near-zero (Storacha is the only known production deployment). Building on UCAN would have meant building for a standard that the target ecosystem does not use.
 
 **What changed:**
-- UCAN → OAuth 2.1 + RFC 8693 as the base layer
+- UCAN envelopes/CBOR assumptions → DRS JWT receipts with RFC 8785 JCS canonicalisation
 - TypeScript verification → Go verification server (goroutines, predictable GC)
 - Unbounded cache → `golang-lru/v2` with hard cap of 10,000 entries
 - Race condition → `sync.Once` on status list fetch

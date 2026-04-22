@@ -47,14 +47,15 @@ const cfg = parseOperatorConfig(
 |---|---|
 | `"env"` | `DRS_OPERATOR_KEY` environment variable (base64url-encoded 32 bytes) |
 | `"file"` | Path in `operator_key_path` — raw 32-byte Ed25519 key file |
-| `"aws-kms"` | AWS KMS — requires `DRS_KMS_KEY_ID` env var |
-| `"gcp-kms"` | GCP Cloud KMS — requires `DRS_GCP_KEY_NAME` env var |
+| `"aws-kms"` | Configuration value reserved for an external AWS KMS signer integration |
+| `"gcp-kms"` | Configuration value reserved for an external GCP Cloud KMS signer integration |
 
-> **Security:** Never use `"file"` or `"env"` in production with keys that have regulatory significance. Use `"aws-kms"` or `"gcp-kms"` for production operator keys. See [Key Management](./key-management.md).
+> **Security:** Never use `"file"` or `"env"` in production with keys that have regulatory significance unless your deployment wraps signing in a separately reviewed secrets boundary.
 
-> **Implementation note:** these values are accepted by the configuration model.
-> Full KMS integration work is separate from config parsing and should be treated
-> as production-hardening work rather than assumed runtime support.
+> **Implementation note:** these values are accepted by the configuration model only.
+> This repository does not currently implement KMS-backed signing. Treat KMS/HSM
+> signing as an external integration or production-hardening task, not as built-in
+> runtime support.
 
 ## Root type
 
@@ -87,3 +88,20 @@ When an agent requests an action exceeding the `standing_policy`:
 | `"allow-degraded"` | Request is allowed with a degraded policy — only use when availability is more critical than strict policy enforcement |
 
 > **Security:** `"allow-degraded"` should never be the default in regulated deployments. Discuss with your security team before enabling it.
+
+## Storage tier field
+
+`storage_tier` records the operator's intended receipt-retention posture. The
+configuration schema accepts `0` through `5` so operator files can use the full
+DRS vocabulary, but not every tier is implemented by the current verifier.
+
+| Value | Current verifier behavior |
+|---|---|
+| `0` | In-memory store when `STORE_DIR` is unset |
+| `1` | Local filesystem store when `STORE_DIR` is set |
+| `2` | Roadmap only — no S3-compatible object-store backend in this release |
+| `3` | Filesystem store plus RFC 3161 timestamp attempt when `STORE_DIR` and `TSA_URL` are set; WORM must be supplied by deployment infrastructure |
+| `4` | Same backend as Tier 3, with timestamp verification/reporting requested by callers |
+| `5` | Roadmap only — no Ethereum anchoring backend in this release |
+
+See [Storage Tiers](./storage-tiers.md) for the canonical status table.

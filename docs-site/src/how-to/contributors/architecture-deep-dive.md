@@ -7,8 +7,10 @@ Read this before touching the crypto layer or the verification path.
 Before making changes to the core verification logic:
 
 1. `docs/Drs_language&algorithms.md` — authoritative reference for language choices and corrected algorithms
-2. `docs/Drs_architecture_v2.md` — the full DRS 4.0.0 specification
+2. `docs/drs-source-of-truth.md` — current implementation contract
 3. [False Positives: What We Tried](./false-positives.md) — the v1 and v2 failures
+
+`docs/Drs_architecture_v2.md` is still useful, but as a historical prior-working-path document rather than the live implementation spec.
 
 ## Module boundaries
 

@@ -4,8 +4,12 @@
 **Version:** 4.0.0  
 **Date:** March 2026  
 **Author:** Okey — Founder, Quorum  
-**Status:** Working Draft — Primary Specification  
+**Status:** Historical Working Draft — Prior Working Path  
 **Classification:** Confidential
+
+---
+
+> **Historical archive.** This document captures the v2/v4 research path you were working through. Keep it for design history and tradeoff analysis, but do not treat it as the current implementation contract. For current implementation behavior, use `docs/drs-source-of-truth.md` and the code in `drs-core`, `drs-verify`, and `drs-sdk`.
 
 ---
 

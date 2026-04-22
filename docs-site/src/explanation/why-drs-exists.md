@@ -10,7 +10,7 @@ DRS exists because the AI agent ecosystem is deploying faster than the accountab
 
 The question every CISO asks before approving an agent deployment: *"If this agent does something it shouldn't, can we prove exactly who authorised it, and what they authorised?"*
 
-OAuth 2.1 + server logs cannot answer that question. DRS can.
+Server logs and bearer-token context alone cannot answer that question. DRS can.
 
 ## The RFC 8693 gap
 
@@ -39,8 +39,8 @@ Correctly identified DRS should be a UCAN Profile — but built against UCAN 0.x
 
 **v2 was scrapped.** The document is preserved in `docs/Drs_architecture_v2.md`.
 
-### v3/v4 — OAuth 2.1 profile (current)
+### v3/v4 — JWT-based DRS for OAuth/MCP ecosystems (current implementation)
 
-The final pivot was from UCAN to OAuth 2.1. The reason: the ecosystem standardised on OAuth. AT Protocol and MCP both chose JWT + OAuth. UCAN's production adoption is near-zero. Building on UCAN would have meant building on a standard nobody uses.
+The final pivot was away from UCAN envelopes and toward a JWT/JCS/Ed25519 implementation that fits the MCP and OAuth-oriented agent ecosystem. The reason was practical: AT Protocol, MCP, and the broader deployment environment already converge on JWT-based infrastructure, while UCAN adoption remained niche.
 
 The current architecture separates concerns by language: Rust for crypto (zero GC), Go for verification middleware (goroutines), TypeScript for the developer SDK (npm ecosystem).

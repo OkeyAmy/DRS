@@ -7,6 +7,10 @@
 
 ---
 
+> **Historical audit record.** This document captures a March 2026 validation snapshot. If the code and docs later diverge, current protocol behavior is defined by the codebase and the current implementation docs.
+
+---
+
 ## 1. Executive Summary
 
 This report presents an independent technical validation of the Delegation Receipt Standard (DRS) system as detailed in `Drs_architecture_v2.md` and `technical_audit.md`. The objective was to strictly verify whether the claims documented in the architectural research align with the software built in `drs-core` (Rust), `drs-verify` (Go), and `drs-sdk` (TypeScript).

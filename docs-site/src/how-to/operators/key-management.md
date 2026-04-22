@@ -5,7 +5,7 @@
 | Key type | Recommended storage | Rotation |
 |---|---|---|
 | Human root key | Hardware Security Module or device Secure Enclave | Not rotated — DID is derived from key |
-| Operator root key | HSM required for production | Annual with overlap period |
+| Operator root key | HSM/KMS or equivalent external signer for production | Annual with overlap period |
 | Agent session key | Ephemeral — generated per session, never stored | Per-session |
 
 ## Why agent keys must be ephemeral
@@ -21,17 +21,13 @@ pnpm exec drs keygen
 # DID:         did:key:z6Mk...
 ```
 
-**Production operator key (AWS KMS):**
-```bash
-# Create an Ed25519 key in AWS KMS
-aws kms create-key \
-  --key-spec ECC_NIST_P256 \
-  --key-usage SIGN_VERIFY \
-  --description "DRS operator key - production"
+**Production operator keys:**
 
-# Set the key ID in operator config
-echo "DRS_KMS_KEY_ID=<key-id>" >> .env
-```
+Use a KMS/HSM-backed signer or another reviewed external signing service for
+operator keys with regulatory significance. The current repository parses
+`operator_key_management` values such as `"aws-kms"` and `"gcp-kms"` in
+configuration, but it does not include built-in KMS signing code. Do not assume
+that setting those values alone moves signing out of local process memory.
 
 ## DID method choices
 
@@ -52,6 +48,7 @@ For `did:key` DIDs, rotating the key means generating a new key and a new DID. T
 ## Protecting signing keys
 
 - Never log private key material, even in debug builds
-- Never store private keys in environment variables in production (use `aws-kms` or `gcp-kms`)
+- Never store private keys in environment variables in production
+- Do not treat `aws-kms` or `gcp-kms` config values as built-in signing support until your deployment supplies and tests that signer integration
 - Never include private keys in Docker images
 - Never commit keys to version control

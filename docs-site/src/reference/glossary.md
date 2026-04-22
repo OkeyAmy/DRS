@@ -32,7 +32,7 @@
 
 **prev_dr_hash** — The field in each sub-DR that links it to its parent: `"sha256:{lowercase hex of SHA-256 of parent DR JWT bytes}"`. Null at the chain root. Creates a tamper-evident chain — any modification to any DR changes its hash and breaks subsequent links.
 
-**RFC 8693** — IETF Token Exchange. Defines how one OAuth bearer token can be exchanged for another representing a different principal acting on behalf of the original user. DRS adds per-step receipts to close the chain splicing gap that RFC 8693 leaves open.
+**RFC 8693** — IETF Token Exchange. Defines how one OAuth bearer token can be exchanged for another representing a different principal acting on behalf of the original user. DRS is designed to address the same chain-splicing problem space, but this repository does not itself implement RFC 8693 token-exchange flows.
 
 **sub (Subject)** — The JWT claim identifying the original resource owner — always the human at the root of the chain. The `sub` field must remain identical through every delegation hop. It is never the agent.
 

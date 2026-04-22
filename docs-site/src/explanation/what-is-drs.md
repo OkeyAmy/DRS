@@ -1,19 +1,19 @@
 # What is DRS?
 
-**DRS (Delegation Receipt Standard) is a per-step delegation receipt standard built on OAuth 2.1 + RFC 8693 + MCP.**
+**DRS (Delegation Receipt Standard) is a JWT-based, per-step delegation receipt standard for MCP and OAuth-oriented agent ecosystems.**
 
 It produces a cryptographically signed receipt at every step of an agent delegation chain so that any party — the tool server, a regulator, an auditor — can independently verify the complete provenance of any agent action without contacting a central authority.
 
 ## The one-sentence definition
 
-> DRS adds a tamper-evident, independently verifiable receipt to every hop of an OAuth delegation chain.
+> DRS adds a tamper-evident, independently verifiable receipt to every hop of an agent delegation chain.
 
-## What DRS adds to existing standards
+## What DRS adds around existing standards
 
 ```
-OAuth 2.1         → handles the first delegation hop (user → agent)
-RFC 8693          → defines token exchange between agents
-RFC 8693 + DRS    → adds a signed receipt at EVERY hop
+OAuth / token exchange ecosystems → common surrounding auth context
+DRS JWT receipts                  → signed proof for each delegation step
+DRS verification                  → independent chain validation at the tool boundary
 ```
 
 Without DRS, an audit trail exists only in server logs controlled by the operator. With DRS, the audit trail is in the receipts themselves — signed by the delegating party, verifiable by anyone with the public key.
@@ -40,8 +40,8 @@ DRS is frequently confused with systems it is adjacent to but distinct from:
 
 | System | What it does | How it differs from DRS |
 |---|---|---|
-| OAuth 2.1 | Delegates access | DRS extends it with per-step receipts |
-| UCAN | Capability tokens (CBOR/IPLD) | DRS uses JWTs and OAuth — different ecosystem |
+| OAuth 2.1 | Delegates access | DRS is designed to complement that ecosystem, but the implemented runtime here is JWT/JCS receipt verification |
+| UCAN | Capability tokens (CBOR/IPLD) | DRS uses JWT receipts and DRS-specific fields, not UCAN envelopes |
 | OpenTelemetry | Distributed tracing | Observability vs. authorisation provenance |
 | Langfuse / Arize | LLM observability | Logs vs. cryptographic proofs |
 | Agentic JWT | JWT profile for agent identity | Identity vs. delegation chain receipts |

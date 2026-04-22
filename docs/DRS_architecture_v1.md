@@ -1,6 +1,8 @@
 # Delegation Receipt Standard (DRS) — Complete Architecture v3
 ### Built from human flows outward. Aligned to UCAN v1.0.0-rc.1.
 
+> **Historical archive.** This document preserves an earlier UCAN-era design path. It is not the current implementation contract for the JWT/JCS/Ed25519 system in this repository.
+
 **Version:** 3.0.0  
 **Date:** March 2026  
 **Author:** Okey  
