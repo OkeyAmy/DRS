@@ -19,6 +19,11 @@ type jtiPayload struct {
 	Jti string `json:"jti"`
 }
 
+// argsPayload extracts only the args field from an invocation JWT payload.
+type argsPayload struct {
+	Args interface{} `json:"args"`
+}
+
 // decodeInvocationJTI extracts the jti field from an invocation JWT without
 // fully decoding the receipt. Splits on ".", base64url-decodes the payload
 // segment, and unmarshals only the jti field.
@@ -36,6 +41,26 @@ func decodeInvocationJTI(jwt string) (string, error) {
 		return "", fmt.Errorf("JSON unmarshal: %w", err)
 	}
 	return p.Jti, nil
+}
+
+// decodeInvocationArgs extracts the args field from an invocation JWT payload
+// without decoding the entire receipt. Returns nil if the field is absent.
+// The caller is expected to have passed chain verification before relying on
+// this value.
+func decodeInvocationArgs(jwt string) (interface{}, error) {
+	parts := strings.SplitN(jwt, ".", 4)
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("expected 3 dot-separated parts, got %d", len(parts))
+	}
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("base64 decode: %w", err)
+	}
+	var p argsPayload
+	if err := json.Unmarshal(payloadBytes, &p); err != nil {
+		return nil, fmt.Errorf("JSON unmarshal: %w", err)
+	}
+	return p.Args, nil
 }
 
 // CheckNonceReplay extracts the invocation JTI and commits it to the nonce

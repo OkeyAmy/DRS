@@ -79,6 +79,48 @@ func TestCheckNonceReplayExported(t *testing.T) {
 	}
 }
 
+func TestDecodeInvocationArgs(t *testing.T) {
+	payload := map[string]interface{}{
+		"jti":  "inv:1",
+		"args": map[string]interface{}{"to": "amara@example.com", "count": 3},
+	}
+	jwt := fakeJWT(t, payload)
+
+	args, err := decodeInvocationArgs(jwt)
+	if err != nil {
+		t.Fatalf("decodeInvocationArgs: %v", err)
+	}
+	argsMap, ok := args.(map[string]interface{})
+	if !ok {
+		t.Fatalf("args type = %T, want map[string]interface{}", args)
+	}
+	if argsMap["to"] != "amara@example.com" {
+		t.Errorf("args.to = %v, want amara@example.com", argsMap["to"])
+	}
+}
+
+func TestDecodeInvocationArgsMalformed(t *testing.T) {
+	if _, err := decodeInvocationArgs("not-a-jwt"); err == nil {
+		t.Error("malformed JWT should fail")
+	}
+	if _, err := decodeInvocationArgs("bad!!.payload!!.sig"); err == nil {
+		t.Error("non-base64 payload should fail")
+	}
+}
+
+func TestDecodeInvocationArgsAbsent(t *testing.T) {
+	payload := map[string]interface{}{"jti": "inv:1"}
+	jwt := fakeJWT(t, payload)
+
+	args, err := decodeInvocationArgs(jwt)
+	if err != nil {
+		t.Fatalf("decodeInvocationArgs: %v", err)
+	}
+	if args != nil {
+		t.Errorf("args should be nil when absent, got %v", args)
+	}
+}
+
 // fakeJWT builds a three-segment JWT string with the given payload.
 // The header and signature are valid base64url but not cryptographically meaningful.
 func fakeJWT(t *testing.T, payload map[string]interface{}) string {
