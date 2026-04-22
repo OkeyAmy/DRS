@@ -64,6 +64,22 @@ var NonceChecks = promauto.NewCounterVec(prometheus.CounterOpts{
 	Help:      "Nonce replay check outcomes.",
 }, []string{"result"})
 
+// BindingChecks counts request-body binding outcomes.
+//
+// result labels:
+//   - match              — body JCS-equals invocation.args
+//   - empty_match        — both body and args empty (trivially matches)
+//   - mismatch_lenient   — mismatch observed, request passed through (DRS_BINDING_MODE=lenient)
+//   - mismatch_enforced  — mismatch observed, request rejected 403 (DRS_BINDING_MODE=enforced)
+//   - invalid_body       — invocation args could not be decoded
+//   - off                — binding check disabled (DRS_BINDING_MODE=off)
+var BindingChecks = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "drs",
+	Subsystem: "binding",
+	Name:      "checks_total",
+	Help:      "Request-body binding check outcomes.",
+}, []string{"result"})
+
 // RequestDuration times HTTP handlers.
 //
 // endpoint: /verify | /mcp | /a2a | /admin/revoke
