@@ -26,7 +26,6 @@ All configuration is via environment variables. No hard-coded URLs, ports, or ke
 | `TSA_URL` | — | RFC 3161 Timestamp Authority endpoint. Enables Tier 3 trusted timestamping **only when `STORE_DIR` is also set** — if `STORE_DIR` is empty, `TSA_URL` is silently ignored and the server falls back to Tier 0 (in-memory). Providers: `https://freetsa.org/tsr` (free), `https://timestamp.digicert.com`. |
 | `TSA_ROOT_CERT_PEM` | — | Optional PEM root pool for RFC 3161 timestamp verification. Empty uses system roots. |
 | `METRICS_ADDR` | — | Listen address for the separate Prometheus `/metrics` endpoint (e.g. `:9090` for dev, `127.0.0.1:9090` for production). Empty disables the metrics endpoint. Served on its own listener so it can be firewalled independently of the main API port. |
-| `DRS_BINDING_MODE` | `lenient` | Request-body ↔ `invocation.args` binding check on MCP/A2A middleware: `off` \| `lenient` \| `enforced`. In `lenient` (default) mismatches are logged + metered and the request passes through; in `enforced` they return 403 with `BINDING_MISMATCH`. Roll out lenient, flip to enforced once `drs_binding_checks_total{result="mismatch_lenient"}` stays at zero. |
 
 ## drs-sdk CLI environment variables
 

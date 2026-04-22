@@ -50,10 +50,6 @@ services:
       # Set to :9090 and uncomment the port mapping below for local monitoring.
       METRICS_ADDR: "${METRICS_ADDR:-}"
 
-      # Request binding (body↔invocation.args check on MCP/A2A routes).
-      # Values: off | lenient (default) | enforced. See .env.example for rollout.
-      DRS_BINDING_MODE: "${DRS_BINDING_MODE:-lenient}"
-
       # Circuit breaker for did:web
       CIRCUIT_BREAKER_THRESHOLD: "${CIRCUIT_BREAKER_THRESHOLD:-5}"
       CIRCUIT_BREAKER_COOLDOWN_SECS: "${CIRCUIT_BREAKER_COOLDOWN_SECS:-60}"

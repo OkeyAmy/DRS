@@ -250,7 +250,6 @@ These are the operator checks that should be complete before launch.
 - [ ] `LOG_LEVEL` intentionally set
 - [ ] `MAX_BODY_BYTES` reviewed for your deployment shape
 - [ ] `METRICS_ADDR` intentionally set or intentionally left empty (empty = metrics disabled; set to `127.0.0.1:9090` for production, `:9090` for dev)
-- [ ] `DRS_BINDING_MODE` set to `lenient` at launch; flipped to `enforced` only after `drs_binding_checks_total{result="mismatch_lenient"}` stays at zero for 7+ days
 
 **Why it matters**
 
