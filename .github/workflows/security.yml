@@ -27,7 +27,7 @@ jobs:
     name: Trivy filesystem scan (code + dependencies)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # First pass: table format, non-fatal — so findings are visible in the
       # workflow log. The second pass below is the gate that fails the build.
@@ -66,7 +66,7 @@ jobs:
     name: govulncheck (Go-specific CVEs)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -85,7 +85,7 @@ jobs:
     name: cargo audit (Rust advisories)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -101,7 +101,7 @@ jobs:
     name: pnpm audit (npm advisories)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
