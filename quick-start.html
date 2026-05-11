@@ -241,20 +241,19 @@ curl http://localhost:8080/readyz
 <p>No clone, no Go build — the image is published to GHCR from this
 repo's release pipeline.</p>
 <h2 id="5-build-and-verify-a-bundle"><a class="header" href="#5-build-and-verify-a-bundle">5. Build and verify a bundle</a></h2>
-<pre><code class="language-typescript">import { buildBundle, serialiseBundle, issueInvocation, computeChainHash } from "@okeyamy/drs-sdk";
+<pre><code class="language-typescript">import { createInvocationBundle, serialiseBundle } from "@okeyamy/drs-sdk";
 import { writeFileSync } from "node:fs";
 
-const invocation = await issueInvocation({
+const bundle = await createInvocationBundle({
+  rootReceipt: rootDR,
   signingKey: agentPrivateKey,
   issuerDid: "did:key:z6MkAGENT_DID",
   subjectDid: "did:key:z6MkYOUR_DID",
-  cmd: "/mcp/tools/call",
-  args: { tool: "web_search", query: "hello", estimated_cost_usd: 0.01 },
-  drChain: [computeChainHash(rootDR)],
   toolServer: "did:key:z6MkTOOL_DID",
+  tool: "web_search",
+  args: { query: "hello", estimated_cost_usd: 0.01 },
 });
 
-const bundle = buildBundle({ invocation, receipts: [rootDR] });
 writeFileSync("bundle.json", serialiseBundle(bundle));
 </code></pre>
 <pre><code class="language-bash">DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json

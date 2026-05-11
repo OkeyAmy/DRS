@@ -207,10 +207,11 @@ same as <a href="./react-native.html">React Native issuance</a> and
 inbound bundle before executing. If you've already set up the
 <a href="./mcp-node.html">MCP integration</a> the code here is almost identical.</p>
 <h2 id="install"><a class="header" href="#install">Install</a></h2>
-<pre><code class="language-bash">pnpm add -D @okeyamy/drs-sdk
+<pre><code class="language-bash">pnpm add @drs/mcp-server
 </code></pre>
-<p>Type-only. The actual verification happens in the <code>drs-verify</code>
-container.</p>
+<p>The actual cryptographic verification happens in the <code>drs-verify</code> container.
+The Node package gives your receiver a secure enforcement point that rejects
+invalid chains and body-binding mismatches before task execution.</p>
 <h2 id="compose-with-redis-for-shared-replay-protection"><a class="header" href="#compose-with-redis-for-shared-replay-protection">Compose with Redis for shared replay protection</a></h2>
 <p>If Agent B is horizontally scaled across multiple instances, you need
 shared replay protection or an attacker can submit the same bundle to
@@ -236,31 +237,24 @@ each replica in turn.</p>
 </code></pre>
 <h2 id="a2a-middleware"><a class="header" href="#a2a-middleware">A2A middleware</a></h2>
 <pre><code class="language-ts">// a2a-middleware.ts
-import type { ChainBundle, VerificationResult } from "@okeyamy/drs-sdk";
+import { createDrsHttpMiddleware } from "@drs/mcp-server";
 
 const VERIFY_URL = process.env.DRS_VERIFY_URL ?? "http://localhost:8080";
+const drs = createDrsHttpMiddleware({ verifyUrl: VERIFY_URL });
 
 export async function drsA2A(req, res, next) {
-  const bundleHeader = req.headers["x-drs-bundle"];
-  if (!bundleHeader || typeof bundleHeader !== "string") {
-    return res.status(401).json({ error: "Missing X-DRS-Bundle" });
-  }
-
-  const bundle: ChainBundle = JSON.parse(
-    Buffer.from(bundleHeader, "base64url").toString("utf8"),
+  const result = await drs(
+    {
+      headers: req.headers,
+      body: req.body,
+    },
+    (verifiedReq) =&gt; {
+      req.drs = verifiedReq.drs;
+      next();
+    },
   );
 
-  const r = await fetch(`${VERIFY_URL}/verify`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(bundle),
-  });
-  const result = (await r.json()) as VerificationResult;
-
-  if (!result.valid) return res.status(403).json(result);
-
-  (req as any).drs = result.context;
-  next();
+  if (!result.ok) return res.status(result.status).json({ drs_error: result.error });
 }
 </code></pre>
 <h2 id="task-handler"><a class="header" href="#task-handler">Task handler</a></h2>

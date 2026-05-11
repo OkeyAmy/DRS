@@ -284,20 +284,19 @@ curl http://localhost:8080/readyz
 <p>No clone, no Go build — the image is published to GHCR from this
 repo's release pipeline.</p>
 <h2 id="5-build-and-verify-a-bundle"><a class="header" href="#5-build-and-verify-a-bundle">5. Build and verify a bundle</a></h2>
-<pre><code class="language-typescript">import { buildBundle, serialiseBundle, issueInvocation, computeChainHash } from "@okeyamy/drs-sdk";
+<pre><code class="language-typescript">import { createInvocationBundle, serialiseBundle } from "@okeyamy/drs-sdk";
 import { writeFileSync } from "node:fs";
 
-const invocation = await issueInvocation({
+const bundle = await createInvocationBundle({
+  rootReceipt: rootDR,
   signingKey: agentPrivateKey,
   issuerDid: "did:key:z6MkAGENT_DID",
   subjectDid: "did:key:z6MkYOUR_DID",
-  cmd: "/mcp/tools/call",
-  args: { tool: "web_search", query: "hello", estimated_cost_usd: 0.01 },
-  drChain: [computeChainHash(rootDR)],
   toolServer: "did:key:z6MkTOOL_DID",
+  tool: "web_search",
+  args: { query: "hello", estimated_cost_usd: 0.01 },
 });
 
-const bundle = buildBundle({ invocation, receipts: [rootDR] });
 writeFileSync("bundle.json", serialiseBundle(bundle));
 </code></pre>
 <pre><code class="language-bash">DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
@@ -1603,14 +1602,14 @@ logic runs. This is the sidecar pattern.</p>
 │  4. else → 403             │◀──────│                       │
 └────────────────────────────┘       └───────────────────────┘
 </code></pre>
-<h2 id="install-nothing-extra-on-your-server"><a class="header" href="#install-nothing-extra-on-your-server">Install nothing extra on your server</a></h2>
-<p>DRS verification in this pattern needs only the SDK's <strong>types</strong> — the
-actual verification happens inside the <code>drs-verify</code> container. So:</p>
+<h2 id="install-the-enforcement-middleware"><a class="header" href="#install-the-enforcement-middleware">Install the enforcement middleware</a></h2>
+<p>The secure default path is the reusable HTTP middleware from <code>@drs/mcp-server</code>.
+It extracts <code>X-DRS-Bundle</code>, sends the decoded bundle plus the actual request body
+to <code>drs-verify</code>, rejects invalid chains, rejects body-binding mismatches, and
+only then lets your handler run.</p>
 <pre><code class="language-bash"># On your MCP server
-pnpm add -D @okeyamy/drs-sdk    # dev-only, for TypeScript types
+pnpm add @drs/mcp-server
 </code></pre>
-<p>The <code>-D</code> is intentional — you import types at compile time, but you do
-not call any SDK function on the server.</p>
 <h2 id="docker-compose-for-local-dev"><a class="header" href="#docker-compose-for-local-dev">Docker Compose for local dev</a></h2>
 <pre><code class="language-yaml"># docker-compose.yml at the root of YOUR project
 services:
@@ -1640,42 +1639,27 @@ services:
 <h2 id="middleware-for-your-mcp-server"><a class="header" href="#middleware-for-your-mcp-server">Middleware for your MCP server</a></h2>
 <p>Express / Fastify / raw <code>http.Server</code> — the pattern is the same.</p>
 <pre><code class="language-ts">// drs-middleware.ts
-import type { ChainBundle, VerificationResult } from "@okeyamy/drs-sdk";
+import { createDrsHttpMiddleware } from "@drs/mcp-server";
 
 const VERIFY_URL = process.env.DRS_VERIFY_URL ?? "http://localhost:8080";
 
+const drs = createDrsHttpMiddleware({ verifyUrl: VERIFY_URL });
+
 export async function drsVerify(req, res, next) {
-  const bundleHeader = req.headers["x-drs-bundle"];
-  if (!bundleHeader || typeof bundleHeader !== "string") {
-    return res.status(401).json({
-      error: "Missing X-DRS-Bundle header — DRS verification is required.",
-    });
+  const result = await drs(
+    {
+      headers: req.headers,
+      body: req.body,
+    },
+    (verifiedReq) =&gt; {
+      req.drs = verifiedReq.drs;
+      next();
+    },
+  );
+
+  if (!result.ok) {
+    return res.status(result.status).json({ drs_error: result.error });
   }
-
-  let bundle: ChainBundle;
-  try {
-    const json = Buffer.from(bundleHeader, "base64url").toString("utf8");
-    bundle = JSON.parse(json);
-  } catch {
-    return res.status(400).json({
-      error: "X-DRS-Bundle is not valid base64url JSON.",
-    });
-  }
-
-  const verifyRes = await fetch(`${VERIFY_URL}/verify`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(bundle),
-  });
-  const result = (await verifyRes.json()) as VerificationResult;
-
-  if (!result.valid) {
-    return res.status(403).json(result);
-  }
-
-  // Attach the verified context for downstream handlers.
-  (req as any).drs = result.context;
-  next();
 }
 </code></pre>
 <h2 id="wiring-it-in-express"><a class="header" href="#wiring-it-in-express">Wiring it in Express</a></h2>
@@ -1737,23 +1721,10 @@ are warm).</li>
 <a href="how-to/builders/../developers/mcp-middleware.html">embedded Go middleware pattern</a> —
 but that forces your tool server to be in Go.</li>
 </ul>
-<h2 id="request-binding-caveat"><a class="header" href="#request-binding-caveat">Request-binding caveat</a></h2>
-<p>The middleware above verifies the delegation chain. It does <strong>not</strong>
-yet compare the signed <code>invocation.args</code> against the actual request
-body. If an attacker replaces the body while keeping the header, DRS
-will still say "valid" — because the header's invocation and the body
-are decoupled.</p>
-<p>Either:</p>
-<ol>
-<li><strong>Execute from the signed args</strong> (preferred): trust
-<code>req.drs.invocation.args</code> instead of <code>req.body</code> when invoking the
-tool. This is the strongest guarantee.</li>
-<li><strong>Hash-compare</strong>: in your handler, canonicalise the parts of
-<code>req.body</code> that correspond to <code>invocation.args</code> and reject if they
-differ.</li>
-</ol>
-<p>The first option is the DRS-native answer. The invocation receipt <em>is</em>
-the authenticated payload.</p>
+<h2 id="request-binding-behavior"><a class="header" href="#request-binding-behavior">Request-binding behavior</a></h2>
+<p><code>createDrsHttpMiddleware</code> passes the actual parsed request body to <code>/verify</code>.
+The verifier compares that body with the signed <code>invocation.args</code> using JCS. If
+they differ, the middleware rejects the request before your handler runs.</p>
 <h2 id="related-1"><a class="header" href="#related-1">Related</a></h2>
 <ul>
 <li><a href="how-to/builders/./choosing-your-path.html">Choosing your path</a></li>
@@ -1788,10 +1759,11 @@ same as <a href="how-to/builders/./react-native.html">React Native issuance</a> 
 inbound bundle before executing. If you've already set up the
 <a href="how-to/builders/./mcp-node.html">MCP integration</a> the code here is almost identical.</p>
 <h2 id="install-1"><a class="header" href="#install-1">Install</a></h2>
-<pre><code class="language-bash">pnpm add -D @okeyamy/drs-sdk
+<pre><code class="language-bash">pnpm add @drs/mcp-server
 </code></pre>
-<p>Type-only. The actual verification happens in the <code>drs-verify</code>
-container.</p>
+<p>The actual cryptographic verification happens in the <code>drs-verify</code> container.
+The Node package gives your receiver a secure enforcement point that rejects
+invalid chains and body-binding mismatches before task execution.</p>
 <h2 id="compose-with-redis-for-shared-replay-protection"><a class="header" href="#compose-with-redis-for-shared-replay-protection">Compose with Redis for shared replay protection</a></h2>
 <p>If Agent B is horizontally scaled across multiple instances, you need
 shared replay protection or an attacker can submit the same bundle to
@@ -1817,31 +1789,24 @@ each replica in turn.</p>
 </code></pre>
 <h2 id="a2a-middleware"><a class="header" href="#a2a-middleware">A2A middleware</a></h2>
 <pre><code class="language-ts">// a2a-middleware.ts
-import type { ChainBundle, VerificationResult } from "@okeyamy/drs-sdk";
+import { createDrsHttpMiddleware } from "@drs/mcp-server";
 
 const VERIFY_URL = process.env.DRS_VERIFY_URL ?? "http://localhost:8080";
+const drs = createDrsHttpMiddleware({ verifyUrl: VERIFY_URL });
 
 export async function drsA2A(req, res, next) {
-  const bundleHeader = req.headers["x-drs-bundle"];
-  if (!bundleHeader || typeof bundleHeader !== "string") {
-    return res.status(401).json({ error: "Missing X-DRS-Bundle" });
-  }
-
-  const bundle: ChainBundle = JSON.parse(
-    Buffer.from(bundleHeader, "base64url").toString("utf8"),
+  const result = await drs(
+    {
+      headers: req.headers,
+      body: req.body,
+    },
+    (verifiedReq) =&gt; {
+      req.drs = verifiedReq.drs;
+      next();
+    },
   );
 
-  const r = await fetch(`${VERIFY_URL}/verify`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(bundle),
-  });
-  const result = (await r.json()) as VerificationResult;
-
-  if (!result.valid) return res.status(403).json(result);
-
-  (req as any).drs = result.context;
-  next();
+  if (!result.ok) return res.status(result.status).json({ drs_error: result.error });
 }
 </code></pre>
 <h2 id="task-handler"><a class="header" href="#task-handler">Task handler</a></h2>
@@ -2072,6 +2037,7 @@ paths exactly as shown in each page. Do not switch to legacy aliases.</p>
   issueRootDelegation,
   issueSubDelegation,
   issueInvocation,
+  createInvocationBundle,
   buildBundle,
   serialiseBundle,
   parseBundle,
@@ -3709,6 +3675,7 @@ work are now implemented.</p>
 </ul>
 <h2 id="phase-2--production-hardening"><a class="header" href="#phase-2--production-hardening">Phase 2 — Production hardening</a></h2>
 <ul>
+<li>secure-by-default Node HTTP enforcement middleware (<code>@drs/mcp-server</code>)</li>
 <li>HSM / KMS integration in the verifier</li>
 <li>durable object-store backend (Tier 2 roadmap)</li>
 <li>stronger retention / immutability story for regulated deployments</li>
@@ -3718,7 +3685,7 @@ work are now implemented.</p>
 </ul>
 <h2 id="phase-3--ecosystem-integration"><a class="header" href="#phase-3--ecosystem-integration">Phase 3 — Ecosystem integration</a></h2>
 <ul>
-<li>richer MCP integration guidance and examples</li>
+<li>richer MCP/A2A integration guidance and examples built around reusable middleware</li>
 <li>browser-focused verification flows using the WASM build</li>
 <li>stronger TypeScript packages for pure JSON-RPC MCP transport</li>
 <li>Ethereum anchoring as explicit <strong>Tier 5</strong> opt-in</li>
