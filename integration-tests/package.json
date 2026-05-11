@@ -5,10 +5,12 @@
   "type": "module",
   "description": "End-to-end integration tests against published DRS artifacts.",
   "scripts": {
-    "test": "node --test tests/"
+    "test": "node --test tests/",
+    "test:e2e": "./run.sh"
   },
   "dependencies": {
-    "@okeyamy/drs-sdk": "latest"
+    "@drs/mcp-server": "workspace:*",
+    "@okeyamy/drs-sdk": "workspace:*"
   },
   "engines": {
     "node": ">=20"

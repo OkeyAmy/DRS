@@ -54,6 +54,7 @@ import {
   issueRootDelegation,
   issueSubDelegation,
   issueInvocation,
+  createInvocationBundle,
   buildBundle,
   serialiseBundle,
   parseBundle,

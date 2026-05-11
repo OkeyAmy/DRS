@@ -12,7 +12,9 @@ export async function audit(args: string[]): Promise<void> {
   try {
     content = readFileSync(bundlePath, "utf8");
   } catch (error: unknown) {
-    console.error(`Cannot read ${bundlePath}: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Cannot read ${bundlePath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     process.exit(1);
   }
 
@@ -29,7 +31,10 @@ export async function audit(args: string[]): Promise<void> {
     let payload: Record<string, unknown> = {};
     try {
       const padded = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
-      payload = JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as Record<string, unknown>;
+      payload = JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as Record<
+        string,
+        unknown
+      >;
     } catch {
       payload = { error: "failed to decode" };
     }
@@ -46,7 +51,10 @@ export async function audit(args: string[]): Promise<void> {
   const invPayloadB64 = bundle.invocation.split(".")[1] ?? "";
   try {
     const padded = invPayloadB64.replace(/-/g, "+").replace(/_/g, "/");
-    const inv = JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as Record<string, unknown>;
+    const inv = JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as Record<
+      string,
+      unknown
+    >;
     console.log(`  iss         : ${inv["iss"] as string}`);
     console.log(`  cmd         : ${inv["cmd"] as string}`);
     console.log(`  tool_server : ${inv["tool_server"] as string}`);

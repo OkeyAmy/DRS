@@ -28,7 +28,9 @@ function mockFetchError(error: Error): typeof fetch {
 
 function mockFetchNonJson(status = 200): typeof fetch {
   return vi.fn(async () => ({
-    json: async () => { throw new SyntaxError("Unexpected token"); },
+    json: async () => {
+      throw new SyntaxError("Unexpected token");
+    },
     ok: status >= 200 && status < 300,
     status,
   })) as unknown as typeof fetch;
@@ -80,7 +82,10 @@ describe("drsMcpMiddleware", () => {
       jsonrpc: "2.0",
       method: "tools/call",
       id: 1,
-      params: { name: "web_search", _meta: { "X-DRS-Bundle": validBundleEncoded() } },
+      params: {
+        name: "web_search",
+        _meta: { "X-DRS-Bundle": validBundleEncoded() },
+      },
     });
 
     expect(result.verified).toBe(true);

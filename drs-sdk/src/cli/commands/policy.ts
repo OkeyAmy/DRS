@@ -13,7 +13,9 @@ export async function policy(args: string[]): Promise<void> {
   try {
     json = readFileSync(receiptPath, "utf8");
   } catch (error: unknown) {
-    console.error(`Cannot read ${receiptPath}: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Cannot read ${receiptPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     process.exit(1);
   }
 
@@ -25,6 +27,7 @@ export async function policy(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const pol = (parsed as Record<string, unknown>)["policy"] as Policy | undefined ?? parsed as Policy;
+  const pol =
+    ((parsed as Record<string, unknown>)["policy"] as Policy | undefined) ?? (parsed as Policy);
   console.log(translatePolicy(pol));
 }

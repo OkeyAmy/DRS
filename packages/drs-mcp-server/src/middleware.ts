@@ -29,6 +29,7 @@ export interface VerificationResult {
   valid: boolean;
   context?: VerificationContext;
   error?: VerificationError;
+  binding?: "match" | "mismatch" | "invalid_body" | "empty_match";
 }
 
 export interface DrsVerifiedRequest {
@@ -56,7 +57,11 @@ const DEFAULT_TIMEOUT_MS = 5000;
 
 const TOOL_CALL_METHODS = new Set(["tools/call"]);
 
-function failClosed(code: string, message: string, suggestion: string): DrsVerifiedRequest {
+function failClosed(
+  code: string,
+  message: string,
+  suggestion: string,
+): DrsVerifiedRequest {
   return {
     verified: false,
     result: {
@@ -96,7 +101,9 @@ export function drsMcpMiddleware(config: DrsServerConfig) {
   const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const fetchImpl = config.fetchFn ?? globalThis.fetch;
 
-  return async function verify(message: McpMessage): Promise<DrsVerifiedRequest> {
+  return async function verify(
+    message: McpMessage,
+  ): Promise<DrsVerifiedRequest> {
     if (!message.method || !TOOL_CALL_METHODS.has(message.method)) {
       return { verified: true, result: { valid: true } };
     }
@@ -177,7 +184,8 @@ export function drsMcpMiddleware(config: DrsServerConfig) {
         result: body,
       };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Verification request failed";
+      const msg =
+        err instanceof Error ? err.message : "Verification request failed";
       return failClosed(
         "VERIFICATION_UNAVAILABLE",
         msg,

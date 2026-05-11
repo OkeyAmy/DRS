@@ -191,9 +191,7 @@ describe("conformance: full chain bundle structure", () => {
 
   test("bundle receipts chain hashes match invocation dr_chain", () => {
     const fixture = loadFixture<FullChainFixture>("receipts/full-chain-bundle.json");
-    const invFixture = loadFixture<{ payload: { dr_chain: string[] } }>(
-      "receipts/invocation.json",
-    );
+    const invFixture = loadFixture<{ payload: { dr_chain: string[] } }>("receipts/invocation.json");
 
     for (let i = 0; i < fixture.bundle.receipts.length; i++) {
       const receiptHash = computeChainHash(fixture.bundle.receipts[i]!);
@@ -204,9 +202,7 @@ describe("conformance: full chain bundle structure", () => {
   test("bundle has expected structure", () => {
     const fixture = loadFixture<FullChainFixture>("receipts/full-chain-bundle.json");
     expect(fixture.bundle.bundle_version).toBe("4.0");
-    expect(fixture.bundle.receipts.length).toBe(
-      fixture.expected_result.context.chain_depth,
-    );
+    expect(fixture.bundle.receipts.length).toBe(fixture.expected_result.context.chain_depth);
     expect(fixture.bundle.invocation).toBeTruthy();
   });
 });

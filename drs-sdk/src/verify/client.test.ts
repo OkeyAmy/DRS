@@ -104,12 +104,10 @@ describe("VerifyClient", () => {
 
   it("sends include_timestamps:true in the request body when the option is set", async () => {
     let capturedBody: Record<string, unknown> | null = null;
-    const mockFetch = vi
-      .fn()
-      .mockImplementation(async (_url: unknown, init?: RequestInit) => {
-        capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
-        return { ok: true, status: 200, json: async () => validResult };
-      });
+    const mockFetch = vi.fn().mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return { ok: true, status: 200, json: async () => validResult };
+    });
     vi.stubGlobal("fetch", mockFetch);
 
     const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
@@ -125,12 +123,10 @@ describe("VerifyClient", () => {
 
   it("does not include include_timestamps in the request body by default", async () => {
     let capturedBody: Record<string, unknown> | null = null;
-    const mockFetch = vi
-      .fn()
-      .mockImplementation(async (_url: unknown, init?: RequestInit) => {
-        capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
-        return { ok: true, status: 200, json: async () => validResult };
-      });
+    const mockFetch = vi.fn().mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return { ok: true, status: 200, json: async () => validResult };
+    });
     vi.stubGlobal("fetch", mockFetch);
 
     const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
@@ -143,12 +139,10 @@ describe("VerifyClient", () => {
 
   it("sends body in the request when options.body is provided", async () => {
     let capturedBody: Record<string, unknown> | null = null;
-    const mockFetch = vi
-      .fn()
-      .mockImplementation(async (_url: unknown, init?: RequestInit) => {
-        capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
-        return { ok: true, status: 200, json: async () => ({ ...validResult, binding: "match" }) };
-      });
+    const mockFetch = vi.fn().mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return { ok: true, status: 200, json: async () => ({ ...validResult, binding: "match" }) };
+    });
     vi.stubGlobal("fetch", mockFetch);
 
     const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
@@ -166,12 +160,10 @@ describe("VerifyClient", () => {
 
   it("does not include body in the request when options.body is absent", async () => {
     let capturedBody: Record<string, unknown> | null = null;
-    const mockFetch = vi
-      .fn()
-      .mockImplementation(async (_url: unknown, init?: RequestInit) => {
-        capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
-        return { ok: true, status: 200, json: async () => validResult };
-      });
+    const mockFetch = vi.fn().mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return { ok: true, status: 200, json: async () => validResult };
+    });
     vi.stubGlobal("fetch", mockFetch);
 
     const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
@@ -185,12 +177,10 @@ describe("VerifyClient", () => {
   it("sends body even when the value is null (explicit opt-in)", async () => {
     // Distinguishes "I sent null on purpose" from "I didn't pass body."
     let capturedBody: Record<string, unknown> | null = null;
-    const mockFetch = vi
-      .fn()
-      .mockImplementation(async (_url: unknown, init?: RequestInit) => {
-        capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
-        return { ok: true, status: 200, json: async () => validResult };
-      });
+    const mockFetch = vi.fn().mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return { ok: true, status: 200, json: async () => validResult };
+    });
     vi.stubGlobal("fetch", mockFetch);
 
     const client = new VerifyClient({ baseUrl: "http://localhost:8080" });

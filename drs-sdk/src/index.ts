@@ -23,11 +23,17 @@ export {
   issueRootDelegation,
   issueSubDelegation,
   issueInvocation,
+  createInvocationBundle,
   buildJwt,
   computeChainHash,
   derivePublicKey,
 } from "./sdk/issue.js";
-export type { RootDelegationParams, SubDelegationParams, InvocationParams } from "./sdk/issue.js";
+export type {
+  RootDelegationParams,
+  SubDelegationParams,
+  InvocationParams,
+  CreateInvocationBundleParams,
+} from "./sdk/issue.js";
 
 // Bundle assembly
 export { buildBundle, serialiseBundle, parseBundle } from "./sdk/bundle.js";

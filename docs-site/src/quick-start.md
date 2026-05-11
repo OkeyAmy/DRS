@@ -79,20 +79,19 @@ repo's release pipeline.
 ## 5. Build and verify a bundle
 
 ```typescript
-import { buildBundle, serialiseBundle, issueInvocation, computeChainHash } from "@okeyamy/drs-sdk";
+import { createInvocationBundle, serialiseBundle } from "@okeyamy/drs-sdk";
 import { writeFileSync } from "node:fs";
 
-const invocation = await issueInvocation({
+const bundle = await createInvocationBundle({
+  rootReceipt: rootDR,
   signingKey: agentPrivateKey,
   issuerDid: "did:key:z6MkAGENT_DID",
   subjectDid: "did:key:z6MkYOUR_DID",
-  cmd: "/mcp/tools/call",
-  args: { tool: "web_search", query: "hello", estimated_cost_usd: 0.01 },
-  drChain: [computeChainHash(rootDR)],
   toolServer: "did:key:z6MkTOOL_DID",
+  tool: "web_search",
+  args: { query: "hello", estimated_cost_usd: 0.01 },
 });
 
-const bundle = buildBundle({ invocation, receipts: [rootDR] });
 writeFileSync("bundle.json", serialiseBundle(bundle));
 ```
 

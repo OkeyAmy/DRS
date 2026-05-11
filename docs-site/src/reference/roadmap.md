@@ -16,6 +16,7 @@ work are now implemented.
 
 ## Phase 2 — Production hardening
 
+- secure-by-default Node HTTP enforcement middleware (`@drs/mcp-server`)
 - HSM / KMS integration in the verifier
 - durable object-store backend (Tier 2 roadmap)
 - stronger retention / immutability story for regulated deployments
@@ -25,7 +26,7 @@ work are now implemented.
 
 ## Phase 3 — Ecosystem integration
 
-- richer MCP integration guidance and examples
+- richer MCP/A2A integration guidance and examples built around reusable middleware
 - browser-focused verification flows using the WASM build
 - stronger TypeScript packages for pure JSON-RPC MCP transport
 - Ethereum anchoring as explicit **Tier 5** opt-in

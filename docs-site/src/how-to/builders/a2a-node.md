@@ -34,11 +34,12 @@ inbound bundle before executing. If you've already set up the
 ## Install
 
 ```bash
-pnpm add -D @okeyamy/drs-sdk
+pnpm add @drs/mcp-server
 ```
 
-Type-only. The actual verification happens in the `drs-verify`
-container.
+The actual cryptographic verification happens in the `drs-verify` container.
+The Node package gives your receiver a secure enforcement point that rejects
+invalid chains and body-binding mismatches before task execution.
 
 ## Compose with Redis for shared replay protection
 
@@ -71,31 +72,24 @@ services:
 
 ```ts
 // a2a-middleware.ts
-import type { ChainBundle, VerificationResult } from "@okeyamy/drs-sdk";
+import { createDrsHttpMiddleware } from "@drs/mcp-server";
 
 const VERIFY_URL = process.env.DRS_VERIFY_URL ?? "http://localhost:8080";
+const drs = createDrsHttpMiddleware({ verifyUrl: VERIFY_URL });
 
 export async function drsA2A(req, res, next) {
-  const bundleHeader = req.headers["x-drs-bundle"];
-  if (!bundleHeader || typeof bundleHeader !== "string") {
-    return res.status(401).json({ error: "Missing X-DRS-Bundle" });
-  }
-
-  const bundle: ChainBundle = JSON.parse(
-    Buffer.from(bundleHeader, "base64url").toString("utf8"),
+  const result = await drs(
+    {
+      headers: req.headers,
+      body: req.body,
+    },
+    (verifiedReq) => {
+      req.drs = verifiedReq.drs;
+      next();
+    },
   );
 
-  const r = await fetch(`${VERIFY_URL}/verify`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(bundle),
-  });
-  const result = (await r.json()) as VerificationResult;
-
-  if (!result.valid) return res.status(403).json(result);
-
-  (req as any).drs = result.context;
-  next();
+  if (!result.ok) return res.status(result.status).json({ drs_error: result.error });
 }
 ```
 

@@ -3,6 +3,7 @@ import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2.js";
 import {
   buildJwt,
+  createInvocationBundle,
   computeChainHash,
   derivePublicKey,
   issueInvocation,
@@ -49,6 +50,12 @@ function base58Encode(bytes: Uint8Array): string {
   }
   for (const d of digits) result += ALPHABET[d];
   return result;
+}
+
+function decodeJwtPayload(jwt: string): Record<string, unknown> {
+  const payload = jwt.split(".")[1]!;
+  const b64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4)));
 }
 
 const now = Math.floor(Date.now() / 1000);
@@ -147,6 +154,51 @@ describe("issueRootDelegation", () => {
       },
     });
     expect(jwt).toBeTruthy();
+  });
+});
+
+describe("createInvocationBundle", () => {
+  it("builds a verifier-ready bundle for a normal tool call", async () => {
+    const operatorKey = generateKey();
+    const agentKey = generateKey();
+    const operatorDid = didFromKey(operatorKey);
+    const agentDid = didFromKey(agentKey);
+
+    const rootReceipt = await issueRootDelegation({
+      signingKey: operatorKey,
+      issuerDid: operatorDid,
+      subjectDid: operatorDid,
+      audienceDid: agentDid,
+      cmd: "/mcp/tools/call",
+      policy: { allowed_tools: ["approve_payment"] },
+      nbf: now - 60,
+      exp: now + 3600,
+    });
+
+    const bundle = await createInvocationBundle({
+      rootReceipt,
+      signingKey: agentKey,
+      issuerDid: agentDid,
+      subjectDid: operatorDid,
+      toolServer: "did:key:z6MkTool",
+      tool: "approve_payment",
+      args: { transaction_id: "T1" },
+    });
+
+    expect(bundle.bundle_version).toBe("4.0");
+    expect(bundle.receipts).toEqual([rootReceipt]);
+
+    const invocation = decodeJwtPayload(bundle.invocation);
+    expect(invocation).toMatchObject({
+      iss: agentDid,
+      sub: operatorDid,
+      drs_v: "4.0",
+      drs_type: "invocation-receipt",
+      cmd: "/mcp/tools/call",
+      tool_server: "did:key:z6MkTool",
+      dr_chain: [computeChainHash(rootReceipt)],
+      args: { tool: "approve_payment", transaction_id: "T1" },
+    });
   });
 });
 

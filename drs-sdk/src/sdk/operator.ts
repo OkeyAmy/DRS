@@ -76,7 +76,10 @@ export function validateOperatorConfig(cfg: OperatorConfig): void {
     throw new DrsError("INVALID_OPERATOR_CONFIG", "session_ttl_hours must be >= 0.");
   }
   if (![0, 1, 2, 3, 4, 5].includes(cfg.storage_tier)) {
-    throw new DrsError("INVALID_OPERATOR_CONFIG", `storage_tier must be 0–5, got ${cfg.storage_tier}.`);
+    throw new DrsError(
+      "INVALID_OPERATOR_CONFIG",
+      `storage_tier must be 0–5, got ${cfg.storage_tier}.`,
+    );
   }
 }
 

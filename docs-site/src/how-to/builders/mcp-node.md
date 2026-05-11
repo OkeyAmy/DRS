@@ -24,18 +24,17 @@ Agent (React Native, web, Node, etc.)
 └────────────────────────────┘       └───────────────────────┘
 ```
 
-## Install nothing extra on your server
+## Install the enforcement middleware
 
-DRS verification in this pattern needs only the SDK's **types** — the
-actual verification happens inside the `drs-verify` container. So:
+The secure default path is the reusable HTTP middleware from `@drs/mcp-server`.
+It extracts `X-DRS-Bundle`, sends the decoded bundle plus the actual request body
+to `drs-verify`, rejects invalid chains, rejects body-binding mismatches, and
+only then lets your handler run.
 
 ```bash
 # On your MCP server
-pnpm add -D @okeyamy/drs-sdk    # dev-only, for TypeScript types
+pnpm add @drs/mcp-server
 ```
-
-The `-D` is intentional — you import types at compile time, but you do
-not call any SDK function on the server.
 
 ## Docker Compose for local dev
 
@@ -72,42 +71,27 @@ Express / Fastify / raw `http.Server` — the pattern is the same.
 
 ```ts
 // drs-middleware.ts
-import type { ChainBundle, VerificationResult } from "@okeyamy/drs-sdk";
+import { createDrsHttpMiddleware } from "@drs/mcp-server";
 
 const VERIFY_URL = process.env.DRS_VERIFY_URL ?? "http://localhost:8080";
 
+const drs = createDrsHttpMiddleware({ verifyUrl: VERIFY_URL });
+
 export async function drsVerify(req, res, next) {
-  const bundleHeader = req.headers["x-drs-bundle"];
-  if (!bundleHeader || typeof bundleHeader !== "string") {
-    return res.status(401).json({
-      error: "Missing X-DRS-Bundle header — DRS verification is required.",
-    });
+  const result = await drs(
+    {
+      headers: req.headers,
+      body: req.body,
+    },
+    (verifiedReq) => {
+      req.drs = verifiedReq.drs;
+      next();
+    },
+  );
+
+  if (!result.ok) {
+    return res.status(result.status).json({ drs_error: result.error });
   }
-
-  let bundle: ChainBundle;
-  try {
-    const json = Buffer.from(bundleHeader, "base64url").toString("utf8");
-    bundle = JSON.parse(json);
-  } catch {
-    return res.status(400).json({
-      error: "X-DRS-Bundle is not valid base64url JSON.",
-    });
-  }
-
-  const verifyRes = await fetch(`${VERIFY_URL}/verify`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(bundle),
-  });
-  const result = (await verifyRes.json()) as VerificationResult;
-
-  if (!result.valid) {
-    return res.status(403).json(result);
-  }
-
-  // Attach the verified context for downstream handlers.
-  (req as any).drs = result.context;
-  next();
 }
 ```
 
@@ -176,25 +160,11 @@ app.listen({ port: 3000 });
   [embedded Go middleware pattern](../developers/mcp-middleware.md) —
   but that forces your tool server to be in Go.
 
-## Request-binding caveat
+## Request-binding behavior
 
-The middleware above verifies the delegation chain. It does **not**
-yet compare the signed `invocation.args` against the actual request
-body. If an attacker replaces the body while keeping the header, DRS
-will still say "valid" — because the header's invocation and the body
-are decoupled.
-
-Either:
-
-1. **Execute from the signed args** (preferred): trust
-   `req.drs.invocation.args` instead of `req.body` when invoking the
-   tool. This is the strongest guarantee.
-2. **Hash-compare**: in your handler, canonicalise the parts of
-   `req.body` that correspond to `invocation.args` and reject if they
-   differ.
-
-The first option is the DRS-native answer. The invocation receipt *is*
-the authenticated payload.
+`createDrsHttpMiddleware` passes the actual parsed request body to `/verify`.
+The verifier compares that body with the signed `invocation.args` using JCS. If
+they differ, the middleware rejects the request before your handler runs.
 
 ## Related
 

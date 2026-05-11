@@ -11,6 +11,7 @@
 import * as ed from "@noble/ed25519";
 import { sha256, sha512 } from "@noble/hashes/sha2.js";
 import { base64url, base64urlBytes } from "./base64url.js";
+import { buildBundle } from "./bundle.js";
 import { jcsSerialise } from "./jcs.js";
 import { checkPolicyAttenuation } from "./policy.js";
 import type {
@@ -91,6 +92,17 @@ export interface InvocationParams {
   toolServer: string;
 }
 
+export interface CreateInvocationBundleParams {
+  rootReceipt: string;
+  signingKey: Uint8Array;
+  issuerDid: string;
+  subjectDid: string;
+  toolServer: string;
+  tool: string;
+  args?: Record<string, unknown>;
+  cmd?: string;
+}
+
 /**
  * Issues the root delegation receipt (chain index 0).
  * If rootType is "human", consent is required.
@@ -98,10 +110,7 @@ export interface InvocationParams {
 export async function issueRootDelegation(params: RootDelegationParams): Promise<string> {
   const rootType = params.rootType ?? "automated-system";
   if (rootType === "human" && !params.consent) {
-    throw new DrsError(
-      "MISSING_CONSENT",
-      "Human-rooted delegations require a consent record.",
-    );
+    throw new DrsError("MISSING_CONSENT", "Human-rooted delegations require a consent record.");
   }
 
   const now = unixNow();
@@ -210,6 +219,23 @@ export async function issueInvocation(params: InvocationParams): Promise<string>
   };
 
   return buildJwt(payload, params.signingKey);
+}
+
+/** Creates a verifier-ready bundle for the common single-root tool-call path. */
+export async function createInvocationBundle(
+  params: CreateInvocationBundleParams,
+): Promise<ChainBundle> {
+  const invocation = await issueInvocation({
+    signingKey: params.signingKey,
+    issuerDid: params.issuerDid,
+    subjectDid: params.subjectDid,
+    cmd: params.cmd ?? "/mcp/tools/call",
+    args: { tool: params.tool, ...(params.args ?? {}) },
+    drChain: [computeChainHash(params.rootReceipt)],
+    toolServer: params.toolServer,
+  });
+
+  return buildBundle([params.rootReceipt], invocation);
 }
 
 /** Builds a signed JWT with EdDSA (Ed25519) per RFC 7515.

@@ -13,7 +13,9 @@ export async function translate(args: string[]): Promise<void> {
   try {
     json = readFileSync(policyPath, "utf8");
   } catch (error: unknown) {
-    console.error(`Cannot read ${policyPath}: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Cannot read ${policyPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     process.exit(1);
   }
 

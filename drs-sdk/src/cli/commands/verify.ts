@@ -18,7 +18,9 @@ export async function verify(args: string[]): Promise<void> {
   try {
     content = readFileSync(bundlePath, "utf8");
   } catch (error: unknown) {
-    console.error(`Cannot read ${bundlePath}: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(
+      `Cannot read ${bundlePath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
     process.exit(1);
   }
 

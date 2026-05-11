@@ -6,7 +6,7 @@
   "scripts": {
     "build": "pnpm --recursive --filter './drs-sdk' --filter './packages/*' --if-present build",
     "test": "pnpm --recursive --filter './drs-sdk' --filter './packages/*' --if-present test",
-    "test:integration": "pnpm --filter './integration-tests' test",
+    "test:integration": "pnpm build && pnpm --filter './integration-tests' test:e2e",
     "typecheck": "pnpm --recursive --filter './drs-sdk' --filter './packages/*' --if-present typecheck",
     "format": "pnpm --recursive --if-present format",
     "go:test": "cd drs-verify && go test ./...",
