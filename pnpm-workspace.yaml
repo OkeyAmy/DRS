@@ -1,0 +1,5 @@
+packages:
+  - "drs-sdk"
+  - "packages/*"
+  - "examples/*"
+  - "integration-tests"

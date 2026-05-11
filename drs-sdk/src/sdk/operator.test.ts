@@ -49,7 +49,7 @@ describe("validateOperatorConfig", () => {
   });
 
   it("rejects file key management without key path", () => {
-    const cfg = { ...validConfig(), operator_key_path: undefined };
+    const { operator_key_path: _operatorKeyPath, ...cfg } = validConfig();
     let err: DrsError | undefined;
     try {
       validateOperatorConfig(cfg);

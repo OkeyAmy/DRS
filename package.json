@@ -1,0 +1,21 @@
+{
+  "name": "drs",
+  "private": true,
+  "type": "module",
+  "description": "Delegation Receipt Standard monorepo orchestration",
+  "scripts": {
+    "build": "pnpm --recursive --filter './drs-sdk' --filter './packages/*' --if-present build",
+    "test": "pnpm --recursive --filter './drs-sdk' --filter './packages/*' --if-present test",
+    "test:integration": "pnpm --filter './integration-tests' test",
+    "typecheck": "pnpm --recursive --filter './drs-sdk' --filter './packages/*' --if-present typecheck",
+    "format": "pnpm --recursive --if-present format",
+    "go:test": "cd drs-verify && go test ./...",
+    "go:vet": "cd drs-verify && go vet ./...",
+    "rust:test": "cd drs-core && cargo test",
+    "verify": "pnpm typecheck && pnpm test && pnpm run go:vet && pnpm run go:test && pnpm run rust:test"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

@@ -12,7 +12,7 @@ work are now implemented.
 - ✓ `drs-sdk`: TypeScript issuance SDK and CLI (`verify`, `audit`, `policy`, `translate`, `keygen`)
 - ✓ Shared conformance suite across Rust, Go, and TypeScript
 - ✓ RFC 3161 timestamping support
-- ◻ `did:web` resolver production hardening
+- ✓ `did:web` resolver SSRF hardening and circuit breaker
 
 ## Phase 2 — Production hardening
 
@@ -21,6 +21,7 @@ work are now implemented.
 - stronger retention / immutability story for regulated deployments
 - external security review
 - repeatable performance benchmarks
+- workspace-level release and CI orchestration
 
 ## Phase 3 — Ecosystem integration
 

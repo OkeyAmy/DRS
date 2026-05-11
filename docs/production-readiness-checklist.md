@@ -64,9 +64,9 @@ At the time of writing, DRS should be described as:
 The main reason is not weak cryptography. The main remaining risks are systems-level:
 
 - binding signed intent to actual executed requests
-- replay protection across restarts and replicas
-- durable revocation behavior
-- operational clarity about what `drs-verify` actually is: verifier service, middleware component, or transparent proxy
+- replay protection must be configured correctly for the deployment shape
+- durable revocation behavior must be configured correctly for the threat model
+- operational clarity that `drs-verify` is a verifier service plus reusable middleware, not a transparent proxy
 
 ---
 
@@ -88,7 +88,7 @@ The following are defensible claims today:
 The following are acceptable only if your deployment is constrained and your operators understand the caveats:
 
 - single-instance deployment with in-memory emergency revocation
-- limited-scale replay protection with process-local nonce state
+- replay protection using the default process-local nonce state
 - advisory or partially manual timestamping workflows
 - custom MCP/A2A integration where your own handlers perform final request binding
 
@@ -133,7 +133,7 @@ At least one of these must be true:
 
 Without this, DRS remains a strong authorization and provenance primitive, but not a complete execution-integrity guarantee.
 
-### 6.2 Replace process-local replay protection with deployment-safe replay protection
+### 6.2 Configure deployment-safe replay protection
 
 - [ ] Replay protection must remain correct across process restart.
 - [ ] Replay protection must remain correct across multiple verifier instances.
@@ -141,16 +141,16 @@ Without this, DRS remains a strong authorization and provenance primitive, but n
 
 **Why this is blocking**
 
-`drs-verify/pkg/nonce/store.go` is a bounded, TTL-based **in-memory** nonce store. `drs-verify/pkg/middleware/decode.go` explicitly documents that the nonce is consumed **before** `verify.Chain()` runs.
+`drs-verify/pkg/nonce/store.go` is a bounded, TTL-based **in-memory** nonce store. `drs-verify/pkg/nonce/redis.go` provides a Redis-backed store for restart-safe, multi-replica deployments.
 
 That is a deliberate trade-off for CPU protection, but it also means:
 
-- a restart clears replay state
-- horizontally scaled replicas do not share replay state
-- a failed verification attempt still consumes the nonce
-- clients must regenerate invocations after a failed verification
+- the default `NONCE_STORE_BACKEND=memory` state is lost on restart
+- multiple memory-backed replicas do not share replay state
+- Redis must be configured with `NONCE_STORE_BACKEND=redis` and `REDIS_URL` for shared replay protection
+- clients must understand whether their deployment consumes nonces before or after full verification
 
-These semantics may be acceptable in a pilot, but not as a general production claim unless your deployment shape and retry model are explicitly designed around them.
+These semantics may be acceptable in a pilot, but not as a general production claim unless the deployment shape and retry model are explicitly designed around the selected backend.
 
 ### 6.3 Make revocation durable enough for your threat model
 
@@ -160,15 +160,16 @@ These semantics may be acceptable in a pilot, but not as a general production cl
 
 **Why this is blocking**
 
-`drs-verify/pkg/revocation/local.go` states clearly that the local revocation store is **in-memory only** and does not survive restart. `docs-site/src/how-to/operators/revocation.md` says the same thing.
+`drs-verify` supports in-memory local revocation by default and file-backed local revocation when `REVOCATION_STORE_PATH` is set. Remote status-list revocation remains the cross-instance durable revocation path.
 
-This gives you an immediate emergency revoke path, but it is not durable by itself. Durable revocation today depends on the remote W3C Bitstring Status List served at `STATUS_LIST_BASE_URL`.
+This gives you an immediate emergency revoke path. For restart durability, configure `REVOCATION_STORE_PATH`. For multi-replica/global propagation, use the remote W3C Bitstring Status List served at `STATUS_LIST_BASE_URL` and document the cache window.
 
-### 6.4 Decide and ship the real product boundary of `drs-verify`
+### 6.4 Keep the `drs-verify` product boundary explicit
 
 - [ ] Public docs must describe `drs-verify` exactly as it behaves.
-- [ ] If it is a verification service, say that.
-- [ ] If it is meant to be a proxy, implement full forwarding behavior before claiming it is one.
+- [ ] Describe the binary as a verification service exposing `/verify`, `/admin/revoke`, `/healthz`, and `/readyz`.
+- [ ] Describe MCP/A2A support as reusable middleware or package-level integration, not routes exposed by the verifier binary.
+- [ ] If a transparent proxy is desired later, implement full forwarding behavior before claiming it is one.
 
 **Why this is blocking**
 
@@ -178,10 +179,8 @@ This gives you an immediate emergency revoke path, but it is not durable by itse
 - `/admin/revoke`
 - `/healthz`
 - `/readyz`
-- `/mcp/*`
-- `/a2a/*`
 
-But the `/mcp/*` and `/a2a/*` handlers currently return `200` after middleware verification. They are not, by themselves, a transparent upstream proxy.
+MCP/A2A helpers live as reusable middleware, not as transparent proxy routes in the verifier binary.
 
 So the go-live question is not just technical. It is also product-definition clarity.
 
@@ -191,10 +190,11 @@ So the go-live question is not just technical. It is also product-definition cla
 
 These items are not necessarily fatal for a controlled pilot, but they should be disclosed and consciously accepted.
 
-### 7.1 Local emergency revocation is immediate but not durable
+### 7.1 Local emergency revocation durability depends on configuration
 
-- [ ] Operators understand that `POST /admin/revoke` affects only the current process.
-- [ ] Operators understand that restart clears local emergency revocations.
+- [ ] Operators understand that memory-backed `POST /admin/revoke` affects only the current process.
+- [ ] Operators set `REVOCATION_STORE_PATH` when local revocations must survive restart.
+- [ ] Operators understand that file-backed local revocation does not replace remote status-list propagation across a fleet.
 
 Use the local store for immediate response. Use the remote status list for durable propagation.
 
@@ -260,16 +260,18 @@ These are the operator checks that should be complete before launch.
 - [ ] `STATUS_LIST_BASE_URL` configured if durable revocation is required
 - [ ] `STATUS_CACHE_TTL_SECS` intentionally chosen
 - [ ] `DRS_ADMIN_TOKEN` configured if immediate local emergency revoke is required
+- [ ] `REVOCATION_STORE_PATH` configured if local emergency revocations must survive restart
 - [ ] revocation cache window documented in the incident runbook
 
 **Why it matters**
 
-Remote status-list revocation is durable but cache-window based. Local revocation is immediate but in-memory only.
+Remote status-list revocation is durable but cache-window based. Local revocation is immediate; it is restart-durable only when file-backed via `REVOCATION_STORE_PATH`.
 
 ### 8.3 Replay operations
 
 - [ ] `NONCE_STORE_MAX_ENTRIES` sized for expected concurrency and retry patterns
 - [ ] `NONCE_STORE_TTL_SECS` sized to match your expected invocation lifetime
+- [ ] `NONCE_STORE_BACKEND=redis` and `REDIS_URL` configured for multi-replica or restart-safe replay protection
 - [ ] retry behavior documented for clients
 
 **Why it matters**

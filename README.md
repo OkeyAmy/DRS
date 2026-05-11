@@ -46,8 +46,8 @@ Three-layer language stack chosen for correctness, performance, and deployabilit
 | Layer | Language | Responsibility |
 |---|---|---|
 | `drs-core` | Rust | Ed25519 crypto, SHA-256 chain computation, RFC 8785 JCS canonicalization, capability index |
-| `drs-verify` | Go | HTTP verification server, MCP/A2A middleware, LRU caches, revocation, RFC 3161 anchor |
-| `drs-sdk` | TypeScript | Developer-facing SDK, issuance path, WASM bundle |
+| `drs-verify` | Go | HTTP verification server, reusable MCP/A2A middleware, LRU caches, revocation, RFC 3161 anchor |
+| `drs-sdk` | TypeScript | Developer-facing SDK, issuance path, CLI, WASM loader |
 
 Rust compiles to native and WASM. Go compiles to a single static binary (`CGO_ENABLED=0`). TypeScript ships the WASM bundle — no native compilation step for developers.
 
@@ -72,7 +72,9 @@ docker compose up -d
 curl http://localhost:8080/healthz
 # {"status":"ok"}
 
-curl http://localhost:8080/metrics | head -5
+# Metrics are disabled by default. Set METRICS_ADDR=:9090 and expose that
+# listener separately if you want Prometheus metrics.
+curl http://localhost:9090/metrics | head -5
 # # HELP drs_verify_verifications_total Total verification attempts by outcome.
 ```
 
@@ -92,10 +94,14 @@ npx drs keygen
 import { issueRootDelegation } from '@okeyamy/drs-sdk'
 
 const dr = await issueRootDelegation({
-  issuerKey: operatorKey,
-  subject:   'did:key:z6Mk...',
-  policy:    { max_cost_usd: 1.00, allowed_tools: ['web_search'] },
-  expiresIn: 3600,
+  signingKey: operatorKey,
+  issuerDid: operatorDid,
+  subjectDid: operatorDid,
+  audienceDid: agentDid,
+  cmd: '/mcp/tools/call',
+  policy: { max_cost_usd: 1.00, allowed_tools: ['web_search'] },
+  nbf: Math.floor(Date.now() / 1000),
+  exp: Math.floor(Date.now() / 1000) + 3600,
 })
 ```
 
@@ -124,9 +130,9 @@ Accepts a `ChainBundle` JSON body. Runs all six verification blocks. Returns `Ve
 }
 ```
 
-### MCP and A2A middleware — `POST /mcp/*` and `POST /a2a/*`
+### MCP and A2A middleware
 
-Drop `drs-verify` in front of your MCP or A2A server. It extracts the `X-DRS-Bundle` header, runs the full verification chain, and forwards verified requests with the `VerificationContext` attached. Unverified requests get `401`. Invalid bundles get `403`. Replayed invocations get `409`.
+`drs-verify` exposes `POST /verify`; it is not a transparent MCP/A2A proxy. For Go tool servers, import the reusable middleware and mount it inside your own server. The middleware extracts the `X-DRS-Bundle` header, runs the full verification chain, and calls your handler with the `VerificationContext` attached. Unverified requests get `401`. Invalid bundles get `403`. Replayed invocations get `409`.
 
 ```go
 mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nonceStore, yourHandler))
@@ -164,13 +170,18 @@ All configuration is environment-variable driven. No hard-coded URLs, ports, or 
 | `DID_CACHE_TTL_SECS` | `3600` | DID cache TTL (1 hour) |
 | `STATUS_LIST_BASE_URL` | — | W3C Bitstring Status List endpoint |
 | `STATUS_CACHE_TTL_SECS` | `300` | Status list cache TTL (5 min) |
+| `NONCE_STORE_BACKEND` | `memory` | Replay backend: `memory` or `redis` |
+| `REDIS_URL` | — | Required when `NONCE_STORE_BACKEND=redis` |
 | `NONCE_STORE_MAX_ENTRIES` | `100000` | Replay protection store capacity |
 | `NONCE_STORE_TTL_SECS` | `3600` | Replay protection TTL (1 hour) |
 | `DRS_ADMIN_TOKEN` | — | Bearer token for `POST /admin/revoke` |
+| `REVOCATION_STORE_PATH` | — | Optional durable local revocation log path |
 | `STORE_DIR` | — | Filesystem store base directory (Tier 1/3) |
 | `TSA_URL` | — | RFC 3161 TSA endpoint — enables Tier 3 store |
 | `MAX_BODY_BYTES` | `1048576` | Maximum request body size (1 MiB) |
 | `LOG_LEVEL` | `info` | Log level: debug / info / warn / error |
+| `LOG_FORMAT` | `text` | Log format: `text` or `json` |
+| `METRICS_ADDR` | — | Separate Prometheus listener; empty disables metrics |
 
 ## Storage Tiers
 
@@ -221,12 +232,14 @@ examples/           DRS wired into real agentic systems (contributions welcome)
 **Fully implemented:**
 
 - Six-block chain verification (Blocks A–F)
-- Nonce replay protection for MCP and A2A middleware
+- Nonce replay protection with in-memory and Redis backends
 - `did:key` and `did:web` DID resolution with LRU cache
+- SSRF hardening and circuit breaker for `did:web` resolution
 - W3C Bitstring Status List revocation with concurrency guard
-- Local revocation store with `POST /admin/revoke`
+- Local revocation store with `POST /admin/revoke`, optionally file-backed
 - RFC 3161 trusted timestamp anchor (Tier 3 store)
 - TypeScript SDK: issuance, CLI (`drs keygen`, `drs issue`, `drs verify`, `drs audit`)
+- Structured logging via `log/slog`
 - Docker deployment (distroless image, static binary)
 - Human-rooted consent records with session ID, policy hash, and locale
 
@@ -235,8 +248,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for open work and how to get involved.
 **Roadmap:**
 
 - EU AI Act / HIPAA / SOX audit export formats
-- Structured logging (`log/slog`)
-- Circuit breaker for `did:web` resolution
+- KMS/HSM signing integration
+- Durable object-store backend (Tier 2)
 - Ethereum mainnet anchor (Tier 5 — opt-in only)
 
 ## Contributing
