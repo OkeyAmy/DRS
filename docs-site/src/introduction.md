@@ -38,16 +38,18 @@ This is the **chain splicing vulnerability** (CVE-2025-55241, demonstrated in Az
 - **[Contributors](./how-to/contributors/dev-setup.md)** — understanding
   the architecture and proposing changes.
 
-## The three layers (published separately)
+## The core layers
 
-Each layer is an independently-installable artifact. Consumers pull
-from registries — **no fork required**.
+The core implementation is split across independently consumable layers.
+Published artifacts are pulled from registries; workspace helper packages may
+still require vendoring from this repository until they are added to release
+automation.
 
 | Component | Language | Install | Role |
 |---|---|---|---|
-| `drs-core` | Rust | `cargo add drs-core` (or bundled inside `@okeyamy/drs-sdk`) | Crypto primitives, JCS canonicalisation, chain verification, WASM build |
+| `drs-core` | Rust | `cargo add drs-core` | Crypto primitives, JCS canonicalisation, chain verification, WASM build |
 | `drs-verify` | Go | `docker pull ghcr.io/okeyamy/drs-verify` | Verification HTTP server, Go middleware, DID resolver, status list cache |
-| `drs-sdk` | TypeScript | `pnpm add @okeyamy/drs-sdk` | Issuance path, CLI, React Native / Node / browser |
+| `drs-sdk` | TypeScript | `pnpm add @okeyamy/drs-sdk` | Issuance path, CLI, React Native / Node / browser, optional WASM loader |
 
 > This is a research project. The architecture, data model, and algorithms are documented throughout this site. The implementation is the reference implementation of the DRS 4.0 specification.
 >

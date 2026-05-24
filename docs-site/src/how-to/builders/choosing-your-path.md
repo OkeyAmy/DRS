@@ -1,8 +1,8 @@
 # Which part of DRS do I install?
 
-DRS has three separately-published layers. Which you install depends on
-what you are building. This page maps common roles to the artifact(s) you
-need.
+DRS has three core layers plus workspace helper packages. Which you install or
+vendor depends on what you are building. This page maps common roles to the
+artifact(s) you need.
 
 ## One-minute decision tree
 
@@ -20,8 +20,8 @@ What are you building?
 │    → Install @okeyamy/drs-sdk
 │
 ├─ An auditor / compliance replay tool (verify chains after the fact)
-│    → Install @okeyamy/drs-sdk (uses its VerifyClient)
-│    → OR point it at a running drs-verify /verify endpoint
+│    → Point @okeyamy/drs-sdk VerifyClient at a running drs-verify /verify endpoint
+│    → OR run your own drs-verify instance for replay
 │
 └─ Rust binary / WASM polyfill
      → Install drs-core from crates.io
@@ -76,7 +76,7 @@ Faster path (no extra hop), but Go-only.
 ```go
 import "github.com/drs-protocol/drs-verify/pkg/middleware"
 
-mux.Handle("/tools/call", middleware.MCPMiddleware(deps, nonceStore, yourHandler))
+mux.Handle("/tools/call", middleware.MCPMiddleware(deps, nonceStore, "enforced", yourHandler))
 ```
 
 Best for: Go MCP servers, Go A2A servers.
@@ -92,9 +92,10 @@ See [Human Consent Records](../developers/human-consent.md).
 
 ### Role: Auditor / compliance reviewer
 
-Install the SDK and use its `VerifyClient` to replay past chains. You can
-point it at a running `drs-verify` or use the SDK-only in-process
-verifier for air-gapped replay.
+Install the SDK and use its `VerifyClient` to replay past chains against a
+running `drs-verify` endpoint. For air-gapped replay, run `drs-verify` inside
+the air-gapped environment; the SDK does not currently ship a full in-process
+verifier.
 
 ```bash
 pnpm add @okeyamy/drs-sdk
@@ -109,9 +110,8 @@ const result = await client.verify(bundle);
 
 ### Role: Rust/WASM builder
 
-Most Rust callers don't interact with `drs-core` directly — it's
-embedded inside `@okeyamy/drs-sdk` via WASM. But if you're building a
-Rust binary (for example, a CLI that issues receipts), use the crate:
+Most builders do not need to call `drs-core` directly. If you're building a
+Rust binary or experimenting with the WASM target, use the crate:
 
 ```toml
 [dependencies]

@@ -7,13 +7,14 @@ DRS is a cryptographic delegation receipt protocol implemented in this repositor
 **Documentation → [okeyamy.github.io/DRS](https://okeyamy.github.io/DRS/)**
 
 **Plugging DRS into your product? You do not need to fork this repo.**
-DRS ships as three published artifacts you install like any other
-dependency:
+DRS ships as published core artifacts plus workspace helper packages you install
+or vendor according to your deployment shape:
 
 - `@okeyamy/drs-sdk` — `pnpm add @okeyamy/drs-sdk` (issue receipts and bundles)
-- `@drs/mcp-server` — `pnpm add @drs/mcp-server` (Node app enforcement middleware)
 - `ghcr.io/okeyamy/drs-verify` — `docker pull` (verifier trust engine)
 - `drs-core` — `cargo add drs-core` (Rust crypto / WASM core)
+- `@drs/mcp-server` — workspace Node app enforcement middleware; use from this
+  monorepo until it is included in the release workflow
 
 Product shape: use the SDK to issue, use middleware or a future gateway to
 enforce, and use the verifier service as the trust engine. `drs-verify` answers
@@ -53,10 +54,10 @@ Three-layer language stack chosen for correctness, performance, and deployabilit
 |---|---|---|
 | `drs-core` | Rust | Ed25519 crypto, SHA-256 chain computation, RFC 8785 JCS canonicalization, capability index |
 | `drs-verify` | Go | HTTP verification service, LRU caches, revocation, RFC 3161 anchor |
-| `drs-sdk` | TypeScript | Developer-facing SDK, issuance path, bundle helpers, CLI, WASM loader |
-| `@drs/mcp-server` | TypeScript | Node HTTP/MCP enforcement middleware that calls `drs-verify` before app handlers execute |
+| `drs-sdk` | TypeScript | Developer-facing SDK, issuance path, bundle helpers, CLI, optional WASM loader |
+| `@drs/mcp-server` | TypeScript | Workspace Node HTTP/MCP enforcement middleware that calls `drs-verify` before app handlers execute |
 
-Rust compiles to native and WASM. Go compiles to a single static binary (`CGO_ENABLED=0`). TypeScript ships the WASM bundle — no native compilation step for developers.
+Rust compiles to native and can be built to WASM. Go compiles to a single static binary (`CGO_ENABLED=0`). The TypeScript SDK currently uses its native TypeScript issuance path with `@noble/ed25519`; its WASM loader is available for explicit integrations but the npm package does not bundle a standalone `@drs/wasm` artifact today.
 
 ## Quick Start
 
@@ -126,8 +127,9 @@ const drsHeader = serialiseBundle(bundle)
 
 Protected Node apps should receive that header as `X-DRS-Bundle`, pass the
 exact parsed request body to `/verify`, and execute only when verification is
-valid and `binding === "match"`. Use `@drs/mcp-server` middleware for that
-instead of hand-writing the enforcement path.
+valid and `binding === "match"`. Use the workspace `@drs/mcp-server` HTTP
+middleware for that pattern, or copy the same fail-closed checks into your own
+framework adapter.
 
 ## HTTP API
 
@@ -150,14 +152,14 @@ Accepts a `ChainBundle` JSON body. Runs all six verification blocks. Returns `Ve
 ### MCP, A2A, and Node app middleware
 
 `drs-verify` exposes `POST /verify`; it is not a transparent MCP/A2A proxy. For
-Node tool servers, use `@drs/mcp-server` to extract the `X-DRS-Bundle` header,
+Node tool servers, use the workspace `@drs/mcp-server` HTTP middleware to extract the `X-DRS-Bundle` header,
 send the bundle plus the parsed request body to `/verify`, reject invalid chains
 or body-binding mismatches, and call your handler with `VerificationContext`
 attached. For Go tool servers, import the reusable Go middleware and mount it
 inside your own server.
 
 ```go
-mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nonceStore, yourHandler))
+mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nonceStore, "enforced", yourHandler))
 ```
 
 ### `POST /admin/revoke`
@@ -174,7 +176,7 @@ Kubernetes and Docker health probes.
 - **Nonce replay protection** — invocation JTIs checked against a bounded TTL-evicting store before chain verification; replays get `409 Conflict`
 - **Fail-closed** — any verification error denies the capability; there is no partial success
 - **Constant-time comparisons** — multicodec prefix checks and bearer token validation use `crypto/subtle`
-- **RFC 8785 JCS canonicalization** — no `JSON.stringify` key sort, no canonicalization divergence across implementations
+- **RFC 8785 JCS canonicalization** — no shallow `JSON.stringify` key sort; conformance vectors guard cross-language canonicalization behavior
 - **LRU-bounded DID resolver cache** — hard cap at 10,000 entries (~640 KB)
 - **W3C Bitstring Status List revocation** — `sync.Once` concurrency guard prevents thundering herd on cache miss
 - **Request body capped** at 1 MiB by default (`MAX_BODY_BYTES`)
@@ -243,7 +245,7 @@ drs-verify/         Go  — verification server, middleware, caches
   pkg/anchor/       RFC 3161 trusted timestamp client and verifier
   pkg/policy/       Capability policy evaluation and attenuation
   pkg/store/        Tiered receipt storage (memory, filesystem, Tier3)
-drs-sdk/            TypeScript — SDK, WASM bundle, CLI
+drs-sdk/            TypeScript — SDK, optional WASM loader, CLI
 docs/               Architecture documents and technical audit
 docs-site/          mdBook source → okeyamy.github.io/DRS
 examples/           DRS wired into real agentic systems (contributions welcome)
