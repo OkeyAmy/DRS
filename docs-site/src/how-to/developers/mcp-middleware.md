@@ -38,6 +38,7 @@ import (
     "time"
 
     "github.com/drs-protocol/drs-verify/pkg/middleware"
+    "github.com/drs-protocol/drs-verify/pkg/nonce"
     "github.com/drs-protocol/drs-verify/pkg/resolver"
     "github.com/drs-protocol/drs-verify/pkg/verify"
 )
@@ -67,8 +68,12 @@ func main() {
         w.WriteHeader(http.StatusOK)
     })
 
-    // 2) Wrap your business handler with MCP middleware.
-    mux.Handle("/mcp/", middleware.MCPMiddleware(deps,
+    // 2) Configure replay protection and wrap your business handler with MCP middleware.
+    nonceStore := nonce.NewMemoryStore(100_000)
+    mux.Handle("/mcp/", middleware.MCPMiddleware(
+        deps,
+        nonceStore,
+        "enforced",
         mcpBusinessHandler,
     ))
 
@@ -89,7 +94,10 @@ TypeScript wrapper packages in `packages/drs-mcp-client` and
 - server side: decodes the same base64url string and posts the decoded bundle to
   `/verify`
 
-This is the Shape 2 transport described in `docs/drs-source-of-truth.md`.
+This is the Shape 2 transport described in `docs/drs-source-of-truth.md`. Shape
+2 currently verifies the bundle but does not send the actual JSON-RPC params as
+the `/verify` binding body, so do not claim full execution-integrity binding for
+pure JSON-RPC until that check is implemented.
 
 ## Testing your integration
 

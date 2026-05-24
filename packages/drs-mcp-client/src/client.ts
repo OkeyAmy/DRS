@@ -3,7 +3,7 @@
  *
  * Wraps an MCP transport to inject DRS delegation bundles into outgoing
  * tool-call requests via the `_meta["X-DRS-Bundle"]` field (Shape 2
- * transport binding — see docs/drs-source-of-truth.md).
+ * JSON-RPC metadata transport — see docs/drs-source-of-truth.md).
  *
  * The bundle is encoded as base64url(JSON.stringify(bundle)), matching
  * the same encoding the Go HTTP middleware (Shape 1) expects in the

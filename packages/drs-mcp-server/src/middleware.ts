@@ -1,5 +1,5 @@
 /**
- * DRS MCP server middleware (Shape 2 transport binding).
+ * DRS MCP server middleware (Shape 2 JSON-RPC metadata transport).
  *
  * Extracts the X-DRS-Bundle from incoming MCP `_meta`, decodes from
  * base64url, validates the bundle against a drs-verify endpoint, and
@@ -8,7 +8,8 @@
  * Encoding: base64url(JSON.stringify(bundle)) — same as Go Shape 1.
  * Fail-closed: missing, malformed, or unverifiable bundles reject.
  *
- * See docs/drs-source-of-truth.md for the full transport binding spec.
+ * See docs/drs-source-of-truth.md for the transport spec and the current
+ * Shape 2 execution-binding limitation.
  */
 
 export interface VerificationError {
