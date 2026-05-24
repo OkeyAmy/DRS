@@ -184,10 +184,12 @@
 <p>This page exists to remove a common confusion.</p>
 <p><strong>Consuming DRS means pulling from package registries. It does not mean
 cloning this repository into your source tree.</strong></p>
-<p>All three layers are published. Pick the ones that match your role and
-install them the way you'd install any other dependency.</p>
+<p>The core layers are published or containerized. Pick the ones that match your
+role and install them the way you'd install any other dependency. Workspace
+helper packages such as <code>@drs/mcp-server</code> are part of this monorepo and may need
+to be vendored until release automation publishes them.</p>
 <div class="table-wrapper"><table><thead><tr><th>Layer</th><th>How builders get it</th><th>You edit this?</th></tr></thead><tbody>
-<tr><td><code>drs-core</code></td><td><code>cargo add drs-core</code> (or via WASM inside <code>@okeyamy/drs-sdk</code>)</td><td>No — unless you're contributing back</td></tr>
+<tr><td><code>drs-core</code></td><td><code>cargo add drs-core</code></td><td>No — unless you're contributing back</td></tr>
 <tr><td><code>drs-verify</code></td><td><code>docker pull ghcr.io/okeyamy/drs-verify:latest</code></td><td>No — it's a service, you run the image</td></tr>
 <tr><td><code>drs-sdk</code></td><td><code>pnpm add @okeyamy/drs-sdk</code></td><td>No — regular npm dependency</td></tr>
 </tbody></table>

@@ -212,13 +212,15 @@ delegation chains for compliance evidence.</li>
 <li><strong><a href="./how-to/contributors/dev-setup.html">Contributors</a></strong> — understanding
 the architecture and proposing changes.</li>
 </ul>
-<h2 id="the-three-layers-published-separately"><a class="header" href="#the-three-layers-published-separately">The three layers (published separately)</a></h2>
-<p>Each layer is an independently-installable artifact. Consumers pull
-from registries — <strong>no fork required</strong>.</p>
+<h2 id="the-core-layers"><a class="header" href="#the-core-layers">The core layers</a></h2>
+<p>The core implementation is split across independently consumable layers.
+Published artifacts are pulled from registries; workspace helper packages may
+still require vendoring from this repository until they are added to release
+automation.</p>
 <div class="table-wrapper"><table><thead><tr><th>Component</th><th>Language</th><th>Install</th><th>Role</th></tr></thead><tbody>
-<tr><td><code>drs-core</code></td><td>Rust</td><td><code>cargo add drs-core</code> (or bundled inside <code>@okeyamy/drs-sdk</code>)</td><td>Crypto primitives, JCS canonicalisation, chain verification, WASM build</td></tr>
+<tr><td><code>drs-core</code></td><td>Rust</td><td><code>cargo add drs-core</code></td><td>Crypto primitives, JCS canonicalisation, chain verification, WASM build</td></tr>
 <tr><td><code>drs-verify</code></td><td>Go</td><td><code>docker pull ghcr.io/okeyamy/drs-verify</code></td><td>Verification HTTP server, Go middleware, DID resolver, status list cache</td></tr>
-<tr><td><code>drs-sdk</code></td><td>TypeScript</td><td><code>pnpm add @okeyamy/drs-sdk</code></td><td>Issuance path, CLI, React Native / Node / browser</td></tr>
+<tr><td><code>drs-sdk</code></td><td>TypeScript</td><td><code>pnpm add @okeyamy/drs-sdk</code></td><td>Issuance path, CLI, React Native / Node / browser, optional WASM loader</td></tr>
 </tbody></table>
 </div>
 <blockquote>

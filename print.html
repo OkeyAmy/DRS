@@ -210,13 +210,15 @@ delegation chains for compliance evidence.</li>
 <li><strong><a href="./how-to/contributors/dev-setup.html">Contributors</a></strong> — understanding
 the architecture and proposing changes.</li>
 </ul>
-<h2 id="the-three-layers-published-separately"><a class="header" href="#the-three-layers-published-separately">The three layers (published separately)</a></h2>
-<p>Each layer is an independently-installable artifact. Consumers pull
-from registries — <strong>no fork required</strong>.</p>
+<h2 id="the-core-layers"><a class="header" href="#the-core-layers">The core layers</a></h2>
+<p>The core implementation is split across independently consumable layers.
+Published artifacts are pulled from registries; workspace helper packages may
+still require vendoring from this repository until they are added to release
+automation.</p>
 <div class="table-wrapper"><table><thead><tr><th>Component</th><th>Language</th><th>Install</th><th>Role</th></tr></thead><tbody>
-<tr><td><code>drs-core</code></td><td>Rust</td><td><code>cargo add drs-core</code> (or bundled inside <code>@okeyamy/drs-sdk</code>)</td><td>Crypto primitives, JCS canonicalisation, chain verification, WASM build</td></tr>
+<tr><td><code>drs-core</code></td><td>Rust</td><td><code>cargo add drs-core</code></td><td>Crypto primitives, JCS canonicalisation, chain verification, WASM build</td></tr>
 <tr><td><code>drs-verify</code></td><td>Go</td><td><code>docker pull ghcr.io/okeyamy/drs-verify</code></td><td>Verification HTTP server, Go middleware, DID resolver, status list cache</td></tr>
-<tr><td><code>drs-sdk</code></td><td>TypeScript</td><td><code>pnpm add @okeyamy/drs-sdk</code></td><td>Issuance path, CLI, React Native / Node / browser</td></tr>
+<tr><td><code>drs-sdk</code></td><td>TypeScript</td><td><code>pnpm add @okeyamy/drs-sdk</code></td><td>Issuance path, CLI, React Native / Node / browser, optional WASM loader</td></tr>
 </tbody></table>
 </div>
 <blockquote>
@@ -1232,10 +1234,12 @@ and invocation fields.</p>
 <p>This page exists to remove a common confusion.</p>
 <p><strong>Consuming DRS means pulling from package registries. It does not mean
 cloning this repository into your source tree.</strong></p>
-<p>All three layers are published. Pick the ones that match your role and
-install them the way you'd install any other dependency.</p>
+<p>The core layers are published or containerized. Pick the ones that match your
+role and install them the way you'd install any other dependency. Workspace
+helper packages such as <code>@drs/mcp-server</code> are part of this monorepo and may need
+to be vendored until release automation publishes them.</p>
 <div class="table-wrapper"><table><thead><tr><th>Layer</th><th>How builders get it</th><th>You edit this?</th></tr></thead><tbody>
-<tr><td><code>drs-core</code></td><td><code>cargo add drs-core</code> (or via WASM inside <code>@okeyamy/drs-sdk</code>)</td><td>No — unless you're contributing back</td></tr>
+<tr><td><code>drs-core</code></td><td><code>cargo add drs-core</code></td><td>No — unless you're contributing back</td></tr>
 <tr><td><code>drs-verify</code></td><td><code>docker pull ghcr.io/okeyamy/drs-verify:latest</code></td><td>No — it's a service, you run the image</td></tr>
 <tr><td><code>drs-sdk</code></td><td><code>pnpm add @okeyamy/drs-sdk</code></td><td>No — regular npm dependency</td></tr>
 </tbody></table>
@@ -1306,9 +1310,9 @@ your private registry.</li>
 A2A, issuing receipts from a React Native app — you install from the
 registries. No fork.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="which-part-of-drs-do-i-install"><a class="header" href="#which-part-of-drs-do-i-install">Which part of DRS do I install?</a></h1>
-<p>DRS has three separately-published layers. Which you install depends on
-what you are building. This page maps common roles to the artifact(s) you
-need.</p>
+<p>DRS has three core layers plus workspace helper packages. Which you install or
+vendor depends on what you are building. This page maps common roles to the
+artifact(s) you need.</p>
 <h2 id="one-minute-decision-tree"><a class="header" href="#one-minute-decision-tree">One-minute decision tree</a></h2>
 <pre><code>What are you building?
 │
@@ -1323,8 +1327,8 @@ need.</p>
 │    → Install @okeyamy/drs-sdk
 │
 ├─ An auditor / compliance replay tool (verify chains after the fact)
-│    → Install @okeyamy/drs-sdk (uses its VerifyClient)
-│    → OR point it at a running drs-verify /verify endpoint
+│    → Point @okeyamy/drs-sdk VerifyClient at a running drs-verify /verify endpoint
+│    → OR run your own drs-verify instance for replay
 │
 └─ Rust binary / WASM polyfill
      → Install drs-core from crates.io
@@ -1362,7 +1366,7 @@ server's request handler, before doing real work, call
 Faster path (no extra hop), but Go-only.</p>
 <pre><code class="language-go">import "github.com/drs-protocol/drs-verify/pkg/middleware"
 
-mux.Handle("/tools/call", middleware.MCPMiddleware(deps, nonceStore, yourHandler))
+mux.Handle("/tools/call", middleware.MCPMiddleware(deps, nonceStore, "enforced", yourHandler))
 </code></pre>
 <p>Best for: Go MCP servers, Go A2A servers.</p>
 <h3 id="role-human-consent-ui"><a class="header" href="#role-human-consent-ui">Role: Human-consent UI</a></h3>
@@ -1372,9 +1376,10 @@ clicked "Approve". Capture consent metadata (session ID, policy hash,
 timestamp) in the <code>consent</code> field.</p>
 <p>See <a href="how-to/builders/../developers/human-consent.html">Human Consent Records</a>.</p>
 <h3 id="role-auditor--compliance-reviewer"><a class="header" href="#role-auditor--compliance-reviewer">Role: Auditor / compliance reviewer</a></h3>
-<p>Install the SDK and use its <code>VerifyClient</code> to replay past chains. You can
-point it at a running <code>drs-verify</code> or use the SDK-only in-process
-verifier for air-gapped replay.</p>
+<p>Install the SDK and use its <code>VerifyClient</code> to replay past chains against a
+running <code>drs-verify</code> endpoint. For air-gapped replay, run <code>drs-verify</code> inside
+the air-gapped environment; the SDK does not currently ship a full in-process
+verifier.</p>
 <pre><code class="language-bash">pnpm add @okeyamy/drs-sdk
 </code></pre>
 <pre><code class="language-ts">import { VerifyClient } from "@okeyamy/drs-sdk";
@@ -1383,9 +1388,8 @@ const client = new VerifyClient({ baseUrl: "https://drs-verify.internal" });
 const result = await client.verify(bundle);
 </code></pre>
 <h3 id="role-rustwasm-builder"><a class="header" href="#role-rustwasm-builder">Role: Rust/WASM builder</a></h3>
-<p>Most Rust callers don't interact with <code>drs-core</code> directly — it's
-embedded inside <code>@okeyamy/drs-sdk</code> via WASM. But if you're building a
-Rust binary (for example, a CLI that issues receipts), use the crate:</p>
+<p>Most builders do not need to call <code>drs-core</code> directly. If you're building a
+Rust binary or experimenting with the WASM target, use the crate:</p>
 <pre><code class="language-toml">[dependencies]
 drs-core = "0.1"
 </code></pre>
@@ -1603,12 +1607,13 @@ logic runs. This is the sidecar pattern.</p>
 └────────────────────────────┘       └───────────────────────┘
 </code></pre>
 <h2 id="install-the-enforcement-middleware"><a class="header" href="#install-the-enforcement-middleware">Install the enforcement middleware</a></h2>
-<p>The secure default path is the reusable HTTP middleware from <code>@drs/mcp-server</code>.
-It extracts <code>X-DRS-Bundle</code>, sends the decoded bundle plus the actual request body
-to <code>drs-verify</code>, rejects invalid chains, rejects body-binding mismatches, and
-only then lets your handler run.</p>
+<p>The secure default path is the reusable HTTP middleware in the workspace
+<code>@drs/mcp-server</code> package. It extracts <code>X-DRS-Bundle</code>, sends the decoded bundle
+plus the actual request body to <code>drs-verify</code>, rejects invalid chains, rejects
+body-binding mismatches, and only then lets your handler run.</p>
 <pre><code class="language-bash"># On your MCP server
-pnpm add @drs/mcp-server
+# Once published: pnpm add @drs/mcp-server
+# Today: vendor packages/drs-mcp-server from this repository or use a workspace dependency.
 </code></pre>
 <h2 id="docker-compose-for-local-dev"><a class="header" href="#docker-compose-for-local-dev">Docker Compose for local dev</a></h2>
 <pre><code class="language-yaml"># docker-compose.yml at the root of YOUR project
@@ -1759,11 +1764,12 @@ same as <a href="how-to/builders/./react-native.html">React Native issuance</a> 
 inbound bundle before executing. If you've already set up the
 <a href="how-to/builders/./mcp-node.html">MCP integration</a> the code here is almost identical.</p>
 <h2 id="install-1"><a class="header" href="#install-1">Install</a></h2>
-<pre><code class="language-bash">pnpm add @drs/mcp-server
+<pre><code class="language-bash"># Once published: pnpm add @drs/mcp-server
+# Today: vendor packages/drs-mcp-server from this repository or use a workspace dependency.
 </code></pre>
 <p>The actual cryptographic verification happens in the <code>drs-verify</code> container.
-The Node package gives your receiver a secure enforcement point that rejects
-invalid chains and body-binding mismatches before task execution.</p>
+The workspace Node package gives your receiver a secure enforcement point that
+rejects invalid chains and body-binding mismatches before task execution.</p>
 <h2 id="compose-with-redis-for-shared-replay-protection"><a class="header" href="#compose-with-redis-for-shared-replay-protection">Compose with Redis for shared replay protection</a></h2>
 <p>If Agent B is horizontally scaled across multiple instances, you need
 shared replay protection or an attacker can submit the same bundle to
@@ -2096,6 +2102,7 @@ import (
     "time"
 
     "github.com/drs-protocol/drs-verify/pkg/middleware"
+    "github.com/drs-protocol/drs-verify/pkg/nonce"
     "github.com/drs-protocol/drs-verify/pkg/resolver"
     "github.com/drs-protocol/drs-verify/pkg/verify"
 )
@@ -2125,8 +2132,12 @@ func main() {
         w.WriteHeader(http.StatusOK)
     })
 
-    // 2) Wrap your business handler with MCP middleware.
-    mux.Handle("/mcp/", middleware.MCPMiddleware(deps,
+    // 2) Configure replay protection and wrap your business handler with MCP middleware.
+    nonceStore := nonce.NewMemoryStore(100_000)
+    mux.Handle("/mcp/", middleware.MCPMiddleware(
+        deps,
+        nonceStore,
+        "enforced",
         mcpBusinessHandler,
     ))
 
@@ -2144,7 +2155,10 @@ TypeScript wrapper packages in <code>packages/drs-mcp-client</code> and
 <li>server side: decodes the same base64url string and posts the decoded bundle to
 <code>/verify</code></li>
 </ul>
-<p>This is the Shape 2 transport described in <code>docs/drs-source-of-truth.md</code>.</p>
+<p>This is the Shape 2 transport described in <code>docs/drs-source-of-truth.md</code>. Shape
+2 currently verifies the bundle but does not send the actual JSON-RPC params as
+the <code>/verify</code> binding body, so do not claim full execution-integrity binding for
+pure JSON-RPC until that check is implemented.</p>
 <h2 id="testing-your-integration"><a class="header" href="#testing-your-integration">Testing your integration</a></h2>
 <pre><code class="language-bash"># Valid bundle — expect exit code 0
 DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json

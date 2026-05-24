@@ -201,12 +201,13 @@ logic runs. This is the sidecar pattern.</p>
 └────────────────────────────┘       └───────────────────────┘
 </code></pre>
 <h2 id="install-the-enforcement-middleware"><a class="header" href="#install-the-enforcement-middleware">Install the enforcement middleware</a></h2>
-<p>The secure default path is the reusable HTTP middleware from <code>@drs/mcp-server</code>.
-It extracts <code>X-DRS-Bundle</code>, sends the decoded bundle plus the actual request body
-to <code>drs-verify</code>, rejects invalid chains, rejects body-binding mismatches, and
-only then lets your handler run.</p>
+<p>The secure default path is the reusable HTTP middleware in the workspace
+<code>@drs/mcp-server</code> package. It extracts <code>X-DRS-Bundle</code>, sends the decoded bundle
+plus the actual request body to <code>drs-verify</code>, rejects invalid chains, rejects
+body-binding mismatches, and only then lets your handler run.</p>
 <pre><code class="language-bash"># On your MCP server
-pnpm add @drs/mcp-server
+# Once published: pnpm add @drs/mcp-server
+# Today: vendor packages/drs-mcp-server from this repository or use a workspace dependency.
 </code></pre>
 <h2 id="docker-compose-for-local-dev"><a class="header" href="#docker-compose-for-local-dev">Docker Compose for local dev</a></h2>
 <pre><code class="language-yaml"># docker-compose.yml at the root of YOUR project

@@ -181,9 +181,9 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="which-part-of-drs-do-i-install"><a class="header" href="#which-part-of-drs-do-i-install">Which part of DRS do I install?</a></h1>
-<p>DRS has three separately-published layers. Which you install depends on
-what you are building. This page maps common roles to the artifact(s) you
-need.</p>
+<p>DRS has three core layers plus workspace helper packages. Which you install or
+vendor depends on what you are building. This page maps common roles to the
+artifact(s) you need.</p>
 <h2 id="one-minute-decision-tree"><a class="header" href="#one-minute-decision-tree">One-minute decision tree</a></h2>
 <pre><code>What are you building?
 │
@@ -198,8 +198,8 @@ need.</p>
 │    → Install @okeyamy/drs-sdk
 │
 ├─ An auditor / compliance replay tool (verify chains after the fact)
-│    → Install @okeyamy/drs-sdk (uses its VerifyClient)
-│    → OR point it at a running drs-verify /verify endpoint
+│    → Point @okeyamy/drs-sdk VerifyClient at a running drs-verify /verify endpoint
+│    → OR run your own drs-verify instance for replay
 │
 └─ Rust binary / WASM polyfill
      → Install drs-core from crates.io
@@ -237,7 +237,7 @@ server's request handler, before doing real work, call
 Faster path (no extra hop), but Go-only.</p>
 <pre><code class="language-go">import "github.com/drs-protocol/drs-verify/pkg/middleware"
 
-mux.Handle("/tools/call", middleware.MCPMiddleware(deps, nonceStore, yourHandler))
+mux.Handle("/tools/call", middleware.MCPMiddleware(deps, nonceStore, "enforced", yourHandler))
 </code></pre>
 <p>Best for: Go MCP servers, Go A2A servers.</p>
 <h3 id="role-human-consent-ui"><a class="header" href="#role-human-consent-ui">Role: Human-consent UI</a></h3>
@@ -247,9 +247,10 @@ clicked "Approve". Capture consent metadata (session ID, policy hash,
 timestamp) in the <code>consent</code> field.</p>
 <p>See <a href="../developers/human-consent.html">Human Consent Records</a>.</p>
 <h3 id="role-auditor--compliance-reviewer"><a class="header" href="#role-auditor--compliance-reviewer">Role: Auditor / compliance reviewer</a></h3>
-<p>Install the SDK and use its <code>VerifyClient</code> to replay past chains. You can
-point it at a running <code>drs-verify</code> or use the SDK-only in-process
-verifier for air-gapped replay.</p>
+<p>Install the SDK and use its <code>VerifyClient</code> to replay past chains against a
+running <code>drs-verify</code> endpoint. For air-gapped replay, run <code>drs-verify</code> inside
+the air-gapped environment; the SDK does not currently ship a full in-process
+verifier.</p>
 <pre><code class="language-bash">pnpm add @okeyamy/drs-sdk
 </code></pre>
 <pre><code class="language-ts">import { VerifyClient } from "@okeyamy/drs-sdk";
@@ -258,9 +259,8 @@ const client = new VerifyClient({ baseUrl: "https://drs-verify.internal" });
 const result = await client.verify(bundle);
 </code></pre>
 <h3 id="role-rustwasm-builder"><a class="header" href="#role-rustwasm-builder">Role: Rust/WASM builder</a></h3>
-<p>Most Rust callers don't interact with <code>drs-core</code> directly — it's
-embedded inside <code>@okeyamy/drs-sdk</code> via WASM. But if you're building a
-Rust binary (for example, a CLI that issues receipts), use the crate:</p>
+<p>Most builders do not need to call <code>drs-core</code> directly. If you're building a
+Rust binary or experimenting with the WASM target, use the crate:</p>
 <pre><code class="language-toml">[dependencies]
 drs-core = "0.1"
 </code></pre>
