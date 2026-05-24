@@ -1,7 +1,7 @@
 /**
- * @drs/sdk — Delegation Receipt Standard SDK, issuance path.
+ * @okeyamy/drs-sdk — Delegation Receipt Standard SDK, issuance path.
  *
- * Public API surface. Import from "@drs/sdk".
+ * Public API surface. Import from "@okeyamy/drs-sdk".
  */
 
 // Types

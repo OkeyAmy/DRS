@@ -213,7 +213,7 @@ to assign each layer to the language that is correct for that layer's job.
 │    TypeScript is appropriate here because the bottleneck is NOT     │
 │    in this layer.                                                   │
 │                                                                     │
-│  Output: @drs/sdk (npm package)                                     │
+│  Output: @okeyamy/drs-sdk (npm package)                             │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -780,13 +780,16 @@ Young Generation simultaneously and trigger Scavenge every 2-4ms.
 
 ---
 
-## Migration Path From TypeScript SDK to This Architecture
+## Optional WASM Integration Path for the TypeScript SDK
 
-The external API surface does not change. The npm package `@drs/sdk` still exists and
-still looks the same to developers. Internally:
+The external API surface should not change if the SDK later moves more hot-path
+operations behind Rust WASM. The current npm package is `@okeyamy/drs-sdk` and the
+current issuance path uses TypeScript with `@noble/ed25519`; the WASM loader is an
+explicit integration hook, not a bundled artifact today. A future WASM-backed path
+would look like this internally:
 
 ```typescript
-// @drs/sdk wraps the Rust WASM module for the hot-path operations
+// @okeyamy/drs-sdk could wrap the Rust WASM module for hot-path operations
 
 import { init, computeCid, verifyChainWasm } from '@drs/wasm'
 // @drs/wasm is the Rust core compiled to WebAssembly via wasm-pack
@@ -794,7 +797,7 @@ import { init, computeCid, verifyChainWasm } from '@drs/wasm'
 
 await init()  // load and compile the WASM module (once on startup)
 
-// All crypto operations delegate to WASM — no V8 heap allocations for crypto
+// Hot-path verification can delegate to WASM — no V8 heap allocations for that path
 export const DRS = {
   computeCid: (delegation: object) => computeCid(JSON.stringify(delegation)),
   verifyChain: (bundle: ChainBundle) => verifyChainWasm(JSON.stringify(bundle)),
@@ -806,13 +809,12 @@ export const DRS = {
 }
 ```
 
-This means:
-- Developers install one npm package. No change.
-- The hot path runs in WASM. No V8 GC pressure on crypto.
-- The signing key stays in JS context. No WASM FFI for secrets.
-- The Go middleware runs as a sidecar for server deployments.
-  For embedded use (edge functions, Cloudflare Workers), the WASM module handles
-  everything including verification.
+Target properties for that future path:
+- Developers install one npm package plus any published WASM artifact required by
+  the release plan.
+- Hot-path verification can run in WASM. No V8 GC pressure on verification crypto.
+- Issuance can stay in JS if signing keys should not cross a WASM FFI boundary.
+- The Go middleware remains the primary sidecar for server deployments.
 
 ---
 
@@ -829,9 +831,9 @@ This means:
 | WASM build | `wasm-pack` | 0.13.x | Build tool (not a crate dep): Rust → WASM |
 | LRU cache (Go) | `golang-lru/v2` | 2.0.x | Hashicorp, production-proven, hard-bounded |
 | Ed25519 (Go) | `crypto/ed25519` | stdlib | No external dep: Go stdlib is RFC 8032 compliant |
-| Ed25519 (TS) | `@noble/ed25519` | 2.x | Audited, no WebCrypto dep, SUF-CMA compliant |
-| Hashing (TS) | `@noble/hashes` | 1.x | SHA-256 + SHA-512 (required by @noble/ed25519 v2) |
-| WASM output | `@drs/wasm` | artifact | `wasm-pack build` output from drs-core — not a separately published package; bundled into `@drs/sdk` |
+| Ed25519 (TS) | `@noble/ed25519` | 3.x | Audited, no WebCrypto dep, SUF-CMA compliant |
+| Hashing (TS) | `@noble/hashes` | 2.x | SHA-256 + SHA-512 (required by @noble/ed25519 v3) |
+| WASM output | `@drs/wasm` | artifact | `wasm-pack build` output from drs-core — not a separately published package and not bundled into `@okeyamy/drs-sdk` today |
 
 > **Note on `cid` crate:** An earlier architecture described CIDv1 content addressing
 > (`bafyabc...` format). The implementation uses `sha256:{hex}` via `compute_chain_hash`
