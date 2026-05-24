@@ -34,12 +34,13 @@ inbound bundle before executing. If you've already set up the
 ## Install
 
 ```bash
-pnpm add @drs/mcp-server
+# Once published: pnpm add @drs/mcp-server
+# Today: vendor packages/drs-mcp-server from this repository or use a workspace dependency.
 ```
 
 The actual cryptographic verification happens in the `drs-verify` container.
-The Node package gives your receiver a secure enforcement point that rejects
-invalid chains and body-binding mismatches before task execution.
+The workspace Node package gives your receiver a secure enforcement point that
+rejects invalid chains and body-binding mismatches before task execution.
 
 ## Compose with Redis for shared replay protection
 

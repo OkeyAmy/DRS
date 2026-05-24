@@ -1082,10 +1082,10 @@ system that receives requests from agents.
 
 **Integration — Day 1, Hour 1:**
 ```typescript
-npm install @drs/sdk
+npm install @okeyamy/drs-sdk
 
-import { DRS } from '@drs/sdk';
-const drs = new DRS();
+import { VerifyClient } from '@okeyamy/drs-sdk';
+const drs = new VerifyClient({ baseUrl: 'http://localhost:8080' });
 
 // In your MCP tool handler:
 async function handleToolCall(req: MCPRequest) {

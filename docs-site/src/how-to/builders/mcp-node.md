@@ -26,14 +26,15 @@ Agent (React Native, web, Node, etc.)
 
 ## Install the enforcement middleware
 
-The secure default path is the reusable HTTP middleware from `@drs/mcp-server`.
-It extracts `X-DRS-Bundle`, sends the decoded bundle plus the actual request body
-to `drs-verify`, rejects invalid chains, rejects body-binding mismatches, and
-only then lets your handler run.
+The secure default path is the reusable HTTP middleware in the workspace
+`@drs/mcp-server` package. It extracts `X-DRS-Bundle`, sends the decoded bundle
+plus the actual request body to `drs-verify`, rejects invalid chains, rejects
+body-binding mismatches, and only then lets your handler run.
 
 ```bash
 # On your MCP server
-pnpm add @drs/mcp-server
+# Once published: pnpm add @drs/mcp-server
+# Today: vendor packages/drs-mcp-server from this repository or use a workspace dependency.
 ```
 
 ## Docker Compose for local dev
