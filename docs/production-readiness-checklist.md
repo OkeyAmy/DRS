@@ -110,19 +110,21 @@ These are the blockers that should be treated as **go/no-go** for general produc
 
 ### 6.1 Bind the signed invocation to the actual executed request
 
-- [ ] The server must reject any request whose actual MCP/A2A payload does not match the signed invocation arguments.
-- [ ] Or the server must execute directly from the verified signed arguments rather than from an unbound downstream body.
+- [x] The HTTP middleware and `/verify` HTTP path can reject requests whose actual MCP/A2A payload does not match the signed invocation arguments.
+- [ ] Pure JSON-RPC Shape 2 helpers must either send JSON-RPC params as the binding body or execute directly from verified signed arguments.
 
 **Why this is blocking**
 
-Current middleware verifies the bundle and attaches `VerificationContext` to the request context, but it does not itself compare the signed invocation arguments with the actual application request body.
+The HTTP paths now include body↔invocation argument binding checks. The remaining gap is the pure JSON-RPC Shape 2 helper path, which currently forwards only the decoded bundle to `/verify`.
 
 Current behavior to note:
 
-- `drs-verify/pkg/middleware/mcp.go` verifies `X-DRS-Bundle` and attaches context.
+- `drs-verify/pkg/middleware/mcp.go` verifies `X-DRS-Bundle`, checks request binding according to `bindingMode`, and attaches context.
 - `drs-verify/pkg/middleware/a2a.go` does the same for A2A routes.
+- `packages/drs-mcp-server/src/http.ts` sends `{ ...bundle, body: request.body }` to `/verify` and requires `binding === "match"`.
+- `packages/drs-mcp-server/src/middleware.ts` is Shape 2 JSON-RPC middleware and currently sends only the decoded bundle.
 
-That means DRS can currently prove that a signed invocation was valid, but your final application integration still decides whether the verified intent and the executed request are actually the same thing.
+That means the HTTP golden path can prove that the signed invocation and executed request body match. Pure JSON-RPC integrations must not make the same execution-integrity claim until they add equivalent binding.
 
 **Production requirement**
 
@@ -131,7 +133,7 @@ At least one of these must be true:
 1. the downstream handler reconstructs execution exclusively from verified signed arguments, or
 2. the downstream handler rejects any mismatch between the signed arguments and the received request body.
 
-Without this, DRS remains a strong authorization and provenance primitive, but not a complete execution-integrity guarantee.
+Without Shape 2 binding, DRS remains a strong authorization and provenance primitive for JSON-RPC metadata transport, but not a complete execution-integrity guarantee for that transport.
 
 ### 6.2 Configure deployment-safe replay protection
 
@@ -233,7 +235,7 @@ Today users can start without cloning because the repo exposes:
 
 - `@okeyamy/drs-sdk`
 - `ghcr.io/okeyamy/drs-verify:latest`
-- published MCP helper packages
+- workspace MCP helper packages (`packages/drs-mcp-*`), which should be published only after release automation includes them
 
 But advanced integration still requires glue code, deployment decisions, and in many cases application-specific request binding.
 

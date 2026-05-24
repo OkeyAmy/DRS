@@ -57,7 +57,7 @@ DRS adopts **Option B**: the conformance suite is the protocol contract.
 | Layer | Language | Primary role | Protocol authority |
 |---|---|---|---|
 | `drs-core` | Rust | Cryptographic primitives, JCS canonicalization, capability index, reference verification | Internal reference. When a new vector is ambiguous, Rust output decides. |
-| `drs-sdk` | TypeScript | Developer-facing SDK, issuance path, CLI, bundle composition | Peer implementation. Must pass all conformance vectors. |
+| `drs-sdk` | TypeScript | Developer-facing SDK, issuance path, CLI, bundle composition | Issuance implementation. Must pass the TypeScript conformance vectors that apply to SDK-local behavior; it is not currently a full in-process verifier. |
 | `drs-verify` | Go | Verification server, MCP/A2A middleware, revocation, storage, timestamping | Peer implementation. Must pass all conformance vectors. |
 
 ---
@@ -122,13 +122,16 @@ drs-verify itself is never in the traffic path.
 ### Shape 2: JSON-RPC metadata (TypeScript SDK)
 
 Used when MCP traffic is pure JSON-RPC over stdio or WebSocket, and there is no
-HTTP header layer available.
+HTTP header layer available. Current TypeScript helpers verify the decoded
+bundle with `/verify`, but they do not yet send the actual JSON-RPC request
+params/body as a binding body. Treat Shape 2 as experimental for
+execution-integrity claims until that binding check is implemented.
 
 | Aspect | Value |
 |--------|-------|
 | **Placement** | `message.params._meta["X-DRS-Bundle"]` |
 | **Encoding** | `base64url(JSON.stringify(bundle))` — same encoding as Shape 1 |
-| **Verification** | Remote `POST` to a `/verify` endpoint with the decoded JSON bundle body |
+| **Verification** | Remote `POST` to a `/verify` endpoint with the decoded JSON bundle body; no request-body binding is performed by the current Shape 2 helper |
 | **Missing bundle** | Structured `MISSING_BUNDLE` error in return value |
 | **Invalid bundle** | Structured `MALFORMED_BUNDLE` or `VERIFICATION_FAILED` error |
 | **Client** | `packages/drs-mcp-client/src/client.ts` |
@@ -167,7 +170,7 @@ The conformance suite in `fixtures/conformance/` covers:
 - Policy attenuation (pass and fail)
 - Temporal validity
 - Revocation status lookup
-- Receipt signatures and full chain bundle verification
+- Receipt signatures and full chain bundle verification in Rust and Go; TypeScript covers SDK-local vector behavior and does not currently provide a full in-process verifier
 
 The conformance suite does **not** cover:
 

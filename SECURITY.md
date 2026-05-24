@@ -86,20 +86,21 @@ Treat these as confirmed gaps, not findings:
 - **Process-local nonce store**: `drs-verify` keeps replay state in memory.
   A restart loses it, and multiple replicas do not share it. Single-
   instance deployments only until [#40 in the tracker](./docs/production-readiness-checklist.md) lands.
-- **Process-local emergency revocation**: `POST /admin/revoke` does not
-  survive restart. Durable revocation is via the remote W3C Bitstring
-  Status List. Track [#39](./docs/production-readiness-checklist.md) for a
-  disk-backed store.
-- **Request-binding gap**: HTTP middleware verifies the bundle but does
-  not by itself compare signed invocation arguments with the executed
-  request body. Applications must add their own comparison today. Track
-  [#42](./docs/production-readiness-checklist.md).
+- **Local emergency revocation durability depends on configuration**:
+  `POST /admin/revoke` is process-local by default. Set
+  `REVOCATION_STORE_PATH` for restart durability, and use the remote W3C
+  Bitstring Status List for cross-replica propagation.
+- **Shape 2 request-binding gap**: HTTP middleware and the Node HTTP helper
+  compare signed invocation arguments with the executed request body, but the
+  pure JSON-RPC `_meta["X-DRS-Bundle"]` helper currently forwards only the
+  decoded bundle to `/verify`. Treat Shape 2 as provenance verification, not a
+  complete execution-integrity guarantee, until JSON-RPC params are bound.
 
 These are called out here so embedders can size their threat model
 accurately while the fixes are in flight.
 
 ## GPG / signing
 
-Releases are tagged by the maintainer. Image signing via `cosign` is in
-the release-hardening plan; until that lands, verify release artifacts by
-checking the commit hash against the tag on GitHub.
+Releases are tagged by the maintainer. The publish workflow signs the verifier
+image with keyless `cosign`; downstream users should verify the image signature
+and match release artifacts to the GitHub tag.
