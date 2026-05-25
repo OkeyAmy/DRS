@@ -300,7 +300,7 @@ revocation check errors.</p>
 <tr><td>Policy check per level</td><td>O(1) avg</td><td>Hash-set intersection in capability index</td></tr>
 <tr><td>DID resolution</td><td>O(1) amortised</td><td>LRU cache, 10,000 entry cap, 1-hour TTL</td></tr>
 <tr><td>Status list check</td><td>O(1) amortised</td><td>5-min TTL, <code>sync.Once</code> guard</td></tr>
-<tr><td>Ed25519 verify</td><td>implementation-dependent</td><td>Go uses <code>crypto/ed25519</code></td></tr>
+<tr><td>Ed25519 verify</td><td>implementation-dependent</td><td>Rust uses <code>ed25519-dalek</code> <code>verify_strict</code>; Go checks canonical <code>S &lt; L</code> before <code>crypto/ed25519.Verify</code></td></tr>
 <tr><td>Total per request (2-hop chain)</td><td>~0.8ms p99</td><td></td></tr>
 </tbody></table>
 </div>
