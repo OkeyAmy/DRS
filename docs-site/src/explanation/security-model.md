@@ -12,7 +12,7 @@
 | **Chain injection** | Insert a fake intermediate DR | `prev_dr_hash` changes break subsequent links — fails Block B | None — structural |
 | **Replay after revocation** | Agent replays a revoked DR | Block F: Bitstring Status List (5-min cache TTL) | Up to 5-minute stale cache window |
 | **JSON malleability** | Different canonical bytes for same logical JSON | RFC 8785 JCS enforced at both issuance and verification ends | Non-conforming JCS at one end |
-| **Signature malleability** | `(R, S)` and `(R, S+L)` both verify under naive check | `ed25519-dalek 2.x` enforces `S < L` via `verify_strict()` | None — library enforces |
+| **Signature malleability** | `(R, S)` and `(R, S+L)` both verify under naive check | Rust uses `ed25519-dalek` `verify_strict()`; Go rejects `S >= L` before stdlib verification and reports `SIGNATURE_MALLEABILITY` | Residual point-malleability differences must stay covered by strictness vectors |
 | **DID spoofing** | Attacker impersonates a legitimate issuer | `did:key` DIDs are derived from the public key — impossible without the private key | `did:web` requires DNS/TLS security |
 | **Prompt injection** | Attacker embeds instructions in tool content | DRS records every invocation chain | Out of scope — model/runtime responsibility |
 | **Model-level bypass** | Adversarial prompts bypass safety constraints | Model safety ≠ execution safety | Entirely outside DRS scope |

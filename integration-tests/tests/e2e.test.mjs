@@ -303,9 +303,19 @@ describe("Node middleware golden path", () => {
     assert.equal(valid.ok, true, JSON.stringify(valid));
     assert.equal(executed, 1, "handler should run after verified request");
 
+    const tamperedBundle = await createInvocationBundle({
+      rootReceipt,
+      signingKey: agentKey,
+      issuerDid: agentDid,
+      subjectDid: operatorDid,
+      toolServer: "did:key:z6MkTool",
+      tool: "approve_payment",
+      args: { transaction_id: "T1" },
+    });
+
     const tampered = await middleware(
       {
-        headers: { "x-drs-bundle": serialiseBundle(bundle) },
+        headers: { "x-drs-bundle": serialiseBundle(tamperedBundle) },
         body: { tool: "approve_payment", transaction_id: "T2" },
       },
       () => {

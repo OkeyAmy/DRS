@@ -1,0 +1,22 @@
+{
+  "vectors": [
+    {
+      "id": "ed25519-strict-valid-canonical",
+      "description": "Canonical Ed25519 signature generated from a deterministic seed must verify.",
+      "seed_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "message": "DRS Ed25519 strictness parity vector",
+      "mutation": "none",
+      "valid": true,
+      "error_code": null
+    },
+    {
+      "id": "ed25519-strict-reject-s-equals-l",
+      "description": "Signature with scalar S set to the Ed25519 group order L must be rejected as signature malleability.",
+      "seed_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "message": "DRS Ed25519 strictness parity vector",
+      "mutation": "s_equals_l",
+      "valid": false,
+      "error_code": "SIGNATURE_MALLEABILITY"
+    }
+  ]
+}

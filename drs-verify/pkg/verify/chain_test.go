@@ -9,9 +9,12 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -32,6 +35,48 @@ func testDeps(t *testing.T) Deps {
 		t.Fatalf("resolver.New: %v", err)
 	}
 	return Deps{Resolver: res}
+}
+
+type ed25519StrictFixture struct {
+	Vectors []ed25519StrictVector `json:"vectors"`
+}
+
+type ed25519StrictVector struct {
+	ID        string  `json:"id"`
+	SeedHex   string  `json:"seed_hex"`
+	Message   string  `json:"message"`
+	Mutation  string  `json:"mutation"`
+	Valid     bool    `json:"valid"`
+	ErrorCode *string `json:"error_code"`
+}
+
+func loadEd25519StrictFixture(t *testing.T) ed25519StrictFixture {
+	t.Helper()
+	path := filepath.Join("..", "..", "..", "fixtures", "conformance", "ed25519-strict", "vectors.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read Ed25519 strict fixture: %v", err)
+	}
+	var fixture ed25519StrictFixture
+	if err := json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatalf("parse Ed25519 strict fixture: %v", err)
+	}
+	return fixture
+}
+
+func applyEd25519StrictMutation(t *testing.T, sig []byte, mutation string) []byte {
+	t.Helper()
+	mutated := append([]byte(nil), sig...)
+	switch mutation {
+	case "none":
+		return mutated
+	case "s_equals_l":
+		copy(mutated[32:], edGroupOrder[:])
+		return mutated
+	default:
+		t.Fatalf("unsupported Ed25519 strict mutation %q", mutation)
+		return nil
+	}
 }
 
 type testKey struct {
@@ -747,4 +792,93 @@ func TestStrictEd25519AcceptsValidSignatures(t *testing.T) {
 	if err := verifyJWTSignature(context.Background(), jwt, k.did, res); err != nil {
 		t.Errorf("strict verifier rejected a valid canonical signature: %v", err)
 	}
+}
+
+func TestEd25519StrictFixtureVectors(t *testing.T) {
+	fixture := loadEd25519StrictFixture(t)
+	for _, vector := range fixture.Vectors {
+		t.Run(vector.ID, func(t *testing.T) {
+			seed, err := hex.DecodeString(vector.SeedHex)
+			if err != nil {
+				t.Fatalf("decode seed: %v", err)
+			}
+			if len(seed) != ed25519.SeedSize {
+				t.Fatalf("seed length = %d, want %d", len(seed), ed25519.SeedSize)
+			}
+			privateKey := ed25519.NewKeyFromSeed(seed)
+			sig := ed25519.Sign(privateKey, []byte(vector.Message))
+			sig = applyEd25519StrictMutation(t, sig, vector.Mutation)
+
+			err = strictVerifyEd25519(sig)
+			if vector.Valid && err != nil {
+				t.Fatalf("strictVerifyEd25519 rejected valid vector: %v", err)
+			}
+			if !vector.Valid && err == nil {
+				t.Fatal("strictVerifyEd25519 accepted invalid vector")
+			}
+		})
+	}
+}
+
+func TestChainClassifiesNonCanonicalReceiptSignatureAsMalleability(t *testing.T) {
+	fixture := loadEd25519StrictFixture(t)
+	var vector ed25519StrictVector
+	for _, candidate := range fixture.Vectors {
+		if candidate.Mutation == "s_equals_l" {
+			vector = candidate
+			break
+		}
+	}
+	if vector.ID == "" {
+		t.Fatal("fixture missing s_equals_l vector")
+	}
+
+	seed, err := hex.DecodeString(vector.SeedHex)
+	if err != nil {
+		t.Fatalf("decode seed: %v", err)
+	}
+	privateKey := ed25519.NewKeyFromSeed(seed)
+	publicKey := privateKey.Public().(ed25519.PublicKey)
+	issuer := testKey{
+		pub: publicKey,
+		prv: privateKey,
+		did: "did:key:z" + base58Encode(append([]byte{0xed, 0x01}, publicKey...)),
+	}
+	leaf := newTestKey(t)
+	now := time.Now().Unix()
+
+	receipt, receiptJWT := makeReceipt(issuer.did, issuer.did, leaf.did, now, nil, issuer)
+	malformedReceiptJWT := replaceJWTSignature(t, receiptJWT, func(sig []byte) []byte {
+		return applyEd25519StrictMutation(t, sig, vector.Mutation)
+	})
+	hash := computeChainHash(malformedReceiptJWT)
+	invocationJWT := makeInvocation(leaf.did, issuer.did, []string{hash}, now, leaf)
+
+	result := Chain(context.Background(), types.ChainBundle{
+		BundleVersion: "4.0",
+		Receipts:      []string{malformedReceiptJWT},
+		Invocation:    invocationJWT,
+	}, testDeps(t))
+	if result.Valid {
+		t.Fatal("expected non-canonical receipt signature to be rejected")
+	}
+	if result.Error == nil {
+		t.Fatal("expected structured error")
+	}
+	if result.Error.Code != *vector.ErrorCode {
+		t.Fatalf("error code = %q, want %q (receipt=%s)", result.Error.Code, *vector.ErrorCode, receipt.Jti)
+	}
+}
+
+func replaceJWTSignature(t *testing.T, jwt string, mutate func([]byte) []byte) string {
+	t.Helper()
+	parts := strings.Split(jwt, ".")
+	if len(parts) != 3 {
+		t.Fatalf("JWT has %d parts, want 3", len(parts))
+	}
+	sig, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		t.Fatalf("decode signature: %v", err)
+	}
+	return parts[0] + "." + parts[1] + "." + base64.RawURLEncoding.EncodeToString(mutate(sig))
 }

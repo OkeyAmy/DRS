@@ -1,6 +1,6 @@
 module github.com/drs-protocol/drs-verify
 
-go 1.25.9
+go 1.25.10
 
 require (
 	github.com/gowebpki/jcs v1.0.1

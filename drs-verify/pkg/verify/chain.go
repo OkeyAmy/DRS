@@ -17,6 +17,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -29,6 +30,8 @@ import (
 	"github.com/drs-protocol/drs-verify/pkg/store"
 	"github.com/drs-protocol/drs-verify/pkg/types"
 )
+
+var errSignatureMalleability = errors.New("signature malleability")
 
 const (
 	expectedDRSVersion = "4.0"
@@ -504,14 +507,18 @@ func verifyJWTSignature(ctx context.Context, jwt string, issuerDID string, res *
 		return fmt.Errorf("signature base64 decode: %w", err)
 	}
 
+	// Strict S-range check: reject non-canonical signatures that Go's stdlib
+	// either rejects generically or accepted in older/alternate implementations.
+	// Running this before ed25519.Verify lets DRS surface the documented
+	// SIGNATURE_MALLEABILITY code instead of collapsing the failure into a
+	// generic INVALID_SIGNATURE.
+	if err := strictVerifyEd25519(sigBytes); err != nil {
+		return fmt.Errorf("Ed25519 strict check failed: %w", err)
+	}
+
 	pubKey := ed25519.PublicKey(pubKeyBytes[:])
 	if !ed25519.Verify(pubKey, []byte(signingInput), sigBytes) {
 		return fmt.Errorf("Ed25519 signature verification failed")
-	}
-	// Strict S-range check: reject non-canonical signatures that Go's stdlib
-	// accepts but ed25519-dalek verify_strict rejects. Ensures cross-layer parity.
-	if err := strictVerifyEd25519(sigBytes); err != nil {
-		return fmt.Errorf("Ed25519 strict check failed: %w", err)
 	}
 	return nil
 }
@@ -526,11 +533,11 @@ var edGroupOrder = [32]byte{
 }
 
 // strictVerifyEd25519 checks that the scalar S in an Ed25519 signature is
-// canonical (S < L, the group order). Go's stdlib ed25519.Verify accepts
-// non-canonical S values; ed25519-dalek verify_strict does not. This check
-// closes the cross-implementation gap without external dependencies.
-//
-// Must be called only after ed25519.Verify returns true.
+// canonical (S < L, the group order). Go's stdlib ed25519.Verify has not
+// always surfaced this distinction as DRS's documented SIGNATURE_MALLEABILITY
+// result. This check closes the cross-implementation gap without external
+// dependencies and runs before ed25519.Verify so non-canonical signatures are
+// classified precisely.
 func strictVerifyEd25519(sig []byte) error {
 	if len(sig) != ed25519.SignatureSize {
 		return fmt.Errorf("invalid signature length: %d", len(sig))
@@ -539,7 +546,7 @@ func strictVerifyEd25519(sig []byte) error {
 	// byte (index 31) downward to determine whether S < L.
 	for i := 31; i >= 0; i-- {
 		if sig[32+i] > edGroupOrder[i] {
-			return fmt.Errorf("non-canonical Ed25519 signature scalar: S >= group order L")
+			return fmt.Errorf("non-canonical Ed25519 signature scalar: S >= group order L: %w", errSignatureMalleability)
 		}
 		if sig[32+i] < edGroupOrder[i] {
 			return nil // S < L — canonical
@@ -547,13 +554,17 @@ func strictVerifyEd25519(sig []byte) error {
 		// bytes equal at this position; continue to less-significant byte
 	}
 	// S == L exactly — also non-canonical (must be strictly less than L)
-	return fmt.Errorf("non-canonical Ed25519 signature scalar: S == group order L")
+	return fmt.Errorf("non-canonical Ed25519 signature scalar: S == group order L: %w", errSignatureMalleability)
 }
 
 // classifySignatureError maps a verifyJWTSignature error to a VerificationResult error code.
 // DID resolution failures get UNRESOLVABLE_DID; all others get INVALID_SIGNATURE.
 func classifySignatureError(err error) (code, suggestion string) {
 	msg := err.Error()
+	if errors.Is(err, errSignatureMalleability) {
+		return "SIGNATURE_MALLEABILITY",
+			"The receipt signature is non-canonical. Re-issue the receipt with a canonical Ed25519 signature."
+	}
 	if strings.Contains(msg, "DID resolution failed") ||
 		strings.Contains(msg, "unsupported DID method") ||
 		strings.Contains(msg, "base58 decoding failed") ||
