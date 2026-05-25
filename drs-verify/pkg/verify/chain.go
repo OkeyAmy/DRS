@@ -533,11 +533,11 @@ var edGroupOrder = [32]byte{
 }
 
 // strictVerifyEd25519 checks that the scalar S in an Ed25519 signature is
-// canonical (S < L, the group order). Go's stdlib ed25519.Verify accepts
-// non-canonical S values; ed25519-dalek verify_strict does not. This check
-// closes the cross-implementation gap without external dependencies.
-//
-// Must be called only after ed25519.Verify returns true.
+// canonical (S < L, the group order). Go's stdlib ed25519.Verify has not
+// always surfaced this distinction as DRS's documented SIGNATURE_MALLEABILITY
+// result. This check closes the cross-implementation gap without external
+// dependencies and runs before ed25519.Verify so non-canonical signatures are
+// classified precisely.
 func strictVerifyEd25519(sig []byte) error {
 	if len(sig) != ed25519.SignatureSize {
 		return fmt.Errorf("invalid signature length: %d", len(sig))

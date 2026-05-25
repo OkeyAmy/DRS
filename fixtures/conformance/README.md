@@ -14,6 +14,7 @@ conformance/
   policy/fail.json              Policy attenuation — invalid pairs
   temporal/vectors.json         Temporal validity checks
   revocation/vectors.json       Revocation status lookup
+  ed25519-strict/vectors.json   Ed25519 canonical-signature strictness
   receipts/
     root-delegation.json        Signed root DR with known test keys
     sub-delegation.json         Signed sub-delegation with chain linkage
@@ -37,9 +38,14 @@ The generator uses `@noble/ed25519` from `drs-sdk/node_modules`.
 Ed25519 signing is deterministic — the same seed always produces the
 same signature for the same message, so regeneration produces identical output.
 
+`ed25519-strict/vectors.json` is intentionally maintained by hand because the
+tests derive real signatures from deterministic seeds and then mutate the
+signature scalar `S` to exercise verifier strictness boundaries.
+
 ## Adding New Vectors
 
-1. Add the vector definition to `generate.mjs`.
+1. Add the vector definition to `generate.mjs`, unless the suite documents a
+   manual exception such as `ed25519-strict`.
 2. Run the generator to update the JSON files.
 3. Run the conformance test suite across all three languages.
 4. When there is ambiguity about expected output, the Rust implementation decides.
