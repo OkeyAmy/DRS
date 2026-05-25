@@ -50,9 +50,11 @@ jobs:
         with:
           version: 9
 
-      - name: Install integration test deps
-        working-directory: integration-tests
-        run: pnpm install
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages used by E2E
+        run: pnpm --filter @okeyamy/drs-sdk --filter @drs/mcp-server build
 
       - name: Run E2E
         working-directory: integration-tests
@@ -77,9 +79,11 @@ jobs:
         with:
           version: 9
 
-      - name: Install integration test deps
-        working-directory: integration-tests
-        run: pnpm install
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages used by E2E
+        run: pnpm --filter @okeyamy/drs-sdk --filter @drs/mcp-server build
 
       - name: Wait for image to propagate
         # Publish workflow pushes the image earlier in the run; this job
