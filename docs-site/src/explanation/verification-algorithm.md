@@ -146,5 +146,5 @@ At 10,000 requests/second on the Go verification server:
 | Policy check per level | O(1) avg | Hash-set intersection in capability index |
 | DID resolution | O(1) amortised | LRU cache, 10,000 entry cap, 1-hour TTL |
 | Status list check | O(1) amortised | 5-min TTL, `sync.Once` guard |
-| Ed25519 verify | implementation-dependent | Go uses `crypto/ed25519` |
+| Ed25519 verify | implementation-dependent | Rust uses `ed25519-dalek` `verify_strict`; Go checks canonical `S < L` before `crypto/ed25519.Verify` |
 | Total per request (2-hop chain) | ~0.8ms p99 | |

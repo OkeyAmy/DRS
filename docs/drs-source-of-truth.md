@@ -185,6 +185,21 @@ not by cross-language conformance vectors.
 
 ---
 
+## Ed25519 Strictness Policy
+
+DRS requires canonical Ed25519 signatures. A signature whose scalar `S` is not in
+the canonical range `0 <= S < L` is rejected as `SIGNATURE_MALLEABILITY`, not as a
+generic signature failure.
+
+- Rust enforces this through `ed25519-dalek` `VerifyingKey::verify_strict`.
+- Go enforces the same public contract by checking `S < L` before calling
+  `crypto/ed25519.Verify`, then maps that strictness failure to
+  `SIGNATURE_MALLEABILITY`.
+- Shared vectors live in `fixtures/conformance/ed25519-strict/vectors.json` and
+  are consumed by both Rust and Go tests.
+
+---
+
 ## CI Enforcement
 
 The conformance workflow (`.github/workflows/conformance.yml`) runs on:
