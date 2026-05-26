@@ -67,6 +67,31 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
+  examples/drs-persona-walkthrough:
+    dependencies:
+      '@drs/mcp-server':
+        specifier: file:../../packages/drs-mcp-server
+        version: link:../../packages/drs-mcp-server
+      '@noble/hashes':
+        specifier: ^2.2.0
+        version: 2.2.0
+      '@okeyamy/drs-sdk':
+        specifier: file:../../drs-sdk
+        version: link:../../drs-sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^1.4.0
+        version: 1.6.1(@types/node@25.6.0)
+
   integration-tests:
     dependencies:
       '@drs/mcp-server':

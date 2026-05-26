@@ -110,3 +110,25 @@ v1/
 docs/plans/
 docs/specs/
 docs/superpowers
+
+# ── Local DRS audit / runtime verification artifacts (never commit) ──────────
+.local/
+.local/drs-assessment/
+.local/drs-audit/
+
+# Generated audit evidence: raw logs, captures, keys, local databases, reports
+**/generated-keys/
+**/raw-logs/
+**/http-captures/
+**/benchmark-raw/
+**/scanner-output/
+**/local-db/
+**/secrets/
+**/live-*/
+**/live-scenarios-*/
+
+# Runtime verification outputs from local verifier and examples
+**/responses/S-*.json
+**/logs/*.log
+*.prof
+*.pprof

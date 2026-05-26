@@ -1,0 +1,27 @@
+{
+  "name": "drs-persona-walkthrough",
+  "version": "1.0.0",
+  "description": "DRS example — practical persona walkthroughs with real verification",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "capture": "tsx src/capture-evidence.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@drs/mcp-server": "file:../../packages/drs-mcp-server",
+    "@noble/hashes": "^2.2.0",
+    "@okeyamy/drs-sdk": "file:../../drs-sdk"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.19.0",
+    "typescript": "^6.0.3",
+    "vitest": "^1.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
