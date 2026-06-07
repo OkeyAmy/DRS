@@ -15,7 +15,7 @@ export const formatter = {
       "  policy   <receipt.json>   Display the policy from a delegation receipt",
       "  translate <policy.json>   Translate a policy to plain English",
       "  audit    <bundle.json>    Print a full audit trail for a bundle",
-      "  keygen                    Generate a new Ed25519 keypair",
+      "  keygen [--out <path>]     Generate a new Ed25519 keypair",
     ].join("\n");
   },
 
