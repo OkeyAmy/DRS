@@ -90,11 +90,10 @@ Treat these as confirmed gaps, not findings:
   `POST /admin/revoke` is process-local by default. Set
   `REVOCATION_STORE_PATH` for restart durability, and use the remote W3C
   Bitstring Status List for cross-replica propagation.
-- **Shape 2 request-binding gap**: HTTP middleware and the Node HTTP helper
-  compare signed invocation arguments with the executed request body, but the
-  pure JSON-RPC `_meta["X-DRS-Bundle"]` helper currently forwards only the
-  decoded bundle to `/verify`. Treat Shape 2 as provenance verification, not a
-  complete execution-integrity guarantee, until JSON-RPC params are bound.
+- **Invocation freshness policy is design-gated**: verifier code checks receipt
+  temporal validity and nonce replay, but maximum invocation age and clock-skew
+  policy are still being specified. Do not claim stale-invocation rejection
+  beyond nonce TTL/replay behavior until that policy lands.
 
 These are called out here so embedders can size their threat model
 accurately while the fixes are in flight.

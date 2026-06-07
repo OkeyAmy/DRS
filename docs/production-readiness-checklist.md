@@ -111,20 +111,20 @@ These are the blockers that should be treated as **go/no-go** for general produc
 ### 6.1 Bind the signed invocation to the actual executed request
 
 - [x] The HTTP middleware and `/verify` HTTP path can reject requests whose actual MCP/A2A payload does not match the signed invocation arguments.
-- [ ] Pure JSON-RPC Shape 2 helpers must either send JSON-RPC params as the binding body or execute directly from verified signed arguments.
+- [x] Pure JSON-RPC Shape 2 server middleware sends MCP tool-call params as the binding body and requires verifier `binding === "match"`.
 
 **Why this is blocking**
 
-The HTTP paths now include body↔invocation argument binding checks. The remaining gap is the pure JSON-RPC Shape 2 helper path, which currently forwards only the decoded bundle to `/verify`.
+The HTTP paths include body↔invocation argument binding checks. The pure JSON-RPC Shape 2 server helper now constructs a verifier binding body from `tools/call.params.name` and `tools/call.params.arguments`.
 
 Current behavior to note:
 
 - `drs-verify/pkg/middleware/mcp.go` verifies `X-DRS-Bundle`, checks request binding according to `bindingMode`, and attaches context.
 - `drs-verify/pkg/middleware/a2a.go` does the same for A2A routes.
 - `packages/drs-mcp-server/src/http.ts` sends `{ ...bundle, body: request.body }` to `/verify` and requires `binding === "match"`.
-- `packages/drs-mcp-server/src/middleware.ts` is Shape 2 JSON-RPC middleware and currently sends only the decoded bundle.
+- `packages/drs-mcp-server/src/middleware.ts` is Shape 2 JSON-RPC middleware and sends `{ ...bundle, body: { ...params.arguments, tool: params.name } }` to `/verify`, then requires `binding === "match"`.
 
-That means the HTTP golden path can prove that the signed invocation and executed request body match. Pure JSON-RPC integrations must not make the same execution-integrity claim until they add equivalent binding.
+That means both HTTP and Shape 2 server middleware can prove that the signed invocation and executed tool-call arguments match when binding enforcement is active and the verifier returns `binding: "match"`.
 
 **Production requirement**
 
@@ -133,7 +133,7 @@ At least one of these must be true:
 1. the downstream handler reconstructs execution exclusively from verified signed arguments, or
 2. the downstream handler rejects any mismatch between the signed arguments and the received request body.
 
-Without Shape 2 binding, DRS remains a strong authorization and provenance primitive for JSON-RPC metadata transport, but not a complete execution-integrity guarantee for that transport.
+Custom pure JSON-RPC integrations that do not use this middleware must implement equivalent binding or execute exclusively from verified signed arguments before making execution-integrity claims.
 
 ### 6.2 Configure deployment-safe replay protection
 
@@ -361,12 +361,12 @@ This section exists to stop policy claims from drifting beyond what the verifier
 
 ### 11.1 Enforced today
 
-- [ ] `max_cost_usd` checked against `args["estimated_cost_usd"]`
-- [ ] `pii_access` checked when the invocation includes `pii_access`
-- [ ] `write_access` checked when the invocation includes `write_access`
-- [ ] `allowed_tools` checked against `args["tool"]`
-- [ ] `allowed_resources` checked against `args["resource_uri"]`
-- [ ] `allowed_data_classes` checked against `args["data_class"]`
+- [ ] `max_cost_usd` requires and checks `args["estimated_cost_usd"]`
+- [ ] `pii_access: false` requires `args["pii_access"]` and rejects `true`
+- [ ] `write_access: false` requires `args["write_access"]` and rejects `true`
+- [ ] restricted `allowed_tools` requires and checks `args["tool"]`
+- [ ] restricted `allowed_resources` requires and checks `args["resource_uri"]`
+- [ ] restricted `allowed_data_classes` requires and checks `args["data_class"]`
 - [ ] child policy attenuation enforced against parent policy
 
 These semantics are implemented in `drs-verify/pkg/policy/evaluate.go`.
