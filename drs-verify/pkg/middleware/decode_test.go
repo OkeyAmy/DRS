@@ -79,6 +79,24 @@ func TestCheckNonceReplayExported(t *testing.T) {
 	}
 }
 
+func TestCheckNonceReplayNilStoreFailsClosed(t *testing.T) {
+	jwt := fakeJWT(t, map[string]interface{}{
+		"jti":      "inv:nil-store",
+		"drs_type": "invocation-receipt",
+	})
+	w := httptest.NewRecorder()
+
+	if blocked := CheckNonceReplay(w, jwt, nil); !blocked {
+		t.Fatal("nil nonce checker must fail closed")
+	}
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want 503", w.Code)
+	}
+	if w.Header().Get("Content-Type") != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", w.Header().Get("Content-Type"))
+	}
+}
+
 func TestDecodeInvocationArgs(t *testing.T) {
 	payload := map[string]interface{}{
 		"jti":  "inv:1",
