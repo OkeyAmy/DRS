@@ -16,8 +16,8 @@ Long-lived agent private keys are a liability: if the agent is compromised, all 
 
 **Development only (never in production):**
 ```bash
-pnpm exec drs keygen
-# Private key: <base64url 32 bytes>
+pnpm exec drs keygen --out ./operator-dev.signing.key
+# Private key file: ./operator-dev.signing.key
 # DID:         did:key:z6Mk...
 ```
 

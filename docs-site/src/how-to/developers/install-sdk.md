@@ -38,7 +38,7 @@ Ed25519 keypair generated.
 
 DID          : did:key:z6Mk...
 Public key   : <hex>
-Private key  : <hex>
+Private key  : written to /home/you/.drs/signing.key
 ```
 
 ## What's in the package
