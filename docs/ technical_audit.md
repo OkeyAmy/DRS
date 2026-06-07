@@ -958,15 +958,15 @@ ALGORITHM: evaluate_policy(policy, args) → PolicyResult
 For each field in policy:
 
   "max_cost_usd": N
-    CHECK: args.estimated_cost_usd <= N
+    CHECK: args.estimated_cost_usd is present AND <= N
     FAIL: "Cost limit exceeded. Max: $N. Provided: $X."
 
   "pii_access": false
-    CHECK: args.pii_access == false  (or field absent from args)
+    CHECK: args.pii_access is present AND == false
     FAIL: "PII access not permitted by this delegation."
 
   "allowed_tools": [list]
-    CHECK: args.tool ∈ list  (if args.tool present)
+    CHECK: args.tool is present AND ∈ list
     FAIL: "Tool not permitted. Allowed: [list]. Requested: X."
 
   "max_calls": N
@@ -974,11 +974,11 @@ For each field in policy:
     FAIL: "Call limit reached. Max: N. Current: C."
 
   "write_access": false
-    CHECK: args.write_access == false  (or absent)
+    CHECK: args.write_access is present AND == false
     FAIL: "Write access not permitted."
 
   "allowed_resources": [glob_patterns]
-    CHECK: args.resource_uri matches at least one pattern
+    CHECK: args.resource_uri is present AND matches at least one pattern
     FAIL: "Resource not permitted."
 
   "allowed_data_classes": [list]

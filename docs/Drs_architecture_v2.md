@@ -599,6 +599,11 @@ DRS policy is a JSON object with typed constraint fields. Evaluation is straight
 ```
 ALGORITHM: evaluate_policy(policy, args)
 
+Historical note: this v2 policy sketch allowed some missing invocation fields
+to pass. Current v3 verifier behavior is stricter and fail-closed: when a
+policy constrains a dimension, the corresponding invocation arg must be present
+and satisfy that constraint.
+
 INPUT:
   policy    JSON object from a Delegation Receipt
   args      JSON object from the Invocation Receipt
@@ -615,7 +620,7 @@ For each constraint in policy:
     Fail: "Cost constraint violated. Max allowed: $N. Provided: $[args.estimated_cost_usd]."
 
   "pii_access": false
-    Check: args.pii_access == false (or field absent)
+    Historical v2 check: args.pii_access == false, with missing args accepted by that obsolete design
     Fail: "PII access constraint violated. This delegation does not permit PII access."
 
   "allowed_tools": [list]
@@ -631,7 +636,7 @@ For each constraint in policy:
     Fail: "Resource not permitted."
 
   "write_access": false
-    Check: args.write_access == false (or field absent)
+    Historical v2 check: args.write_access == false, with missing args accepted by that obsolete design
     Fail: "Write access constraint violated."
 
   "allowed_data_classes": [list]
