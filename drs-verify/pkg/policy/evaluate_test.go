@@ -7,7 +7,7 @@ import (
 	"github.com/drs-protocol/drs-verify/pkg/types"
 )
 
-func boolPtr(b bool) *bool    { return &b }
+func boolPtr(b bool) *bool      { return &b }
 func f64Ptr(f float64) *float64 { return &f }
 func u64Ptr(n uint64) *uint64   { return &n }
 
@@ -36,11 +36,11 @@ func TestCostOverLimitFails(t *testing.T) {
 	}
 }
 
-func TestWrongCostFieldNameIsIgnored(t *testing.T) {
-	// "cost" is not the spec field — check must not fire
+func TestWrongCostFieldNameFailsClosed(t *testing.T) {
+	// "cost" is not the spec field, so it must not satisfy a max_cost_usd policy.
 	p := pol(f64Ptr(1.0), nil, nil, nil)
-	if err := Evaluate(p, map[string]interface{}{"cost": 9999.0}); err != nil {
-		t.Errorf("unexpected error: %v", err)
+	if err := Evaluate(p, map[string]interface{}{"cost": 9999.0}); err == nil {
+		t.Error("expected missing estimated_cost_usd error, got nil")
 	}
 }
 
@@ -119,10 +119,45 @@ func TestWildcardToolAllowsAny(t *testing.T) {
 	}
 }
 
-func TestNoToolArgSkipsCheck(t *testing.T) {
+func TestMissingToolArgFailsClosed(t *testing.T) {
 	p := pol(nil, nil, nil, []string{"web_search"})
-	if err := Evaluate(p, map[string]interface{}{"query": "hello"}); err != nil {
-		t.Errorf("unexpected error: %v", err)
+	if err := Evaluate(p, map[string]interface{}{"query": "hello"}); err == nil {
+		t.Error("expected missing tool error, got nil")
+	}
+}
+
+func TestMissingCostArgFailsClosed(t *testing.T) {
+	p := pol(f64Ptr(1.0), nil, nil, nil)
+	if err := Evaluate(p, map[string]interface{}{"tool": "web_search"}); err == nil {
+		t.Error("expected missing estimated_cost_usd error, got nil")
+	}
+}
+
+func TestMissingPIIArgFailsClosedWhenDenied(t *testing.T) {
+	p := pol(nil, boolPtr(false), nil, nil)
+	if err := Evaluate(p, map[string]interface{}{"tool": "web_search"}); err == nil {
+		t.Error("expected missing pii_access error, got nil")
+	}
+}
+
+func TestMissingWriteArgFailsClosedWhenDenied(t *testing.T) {
+	p := pol(nil, nil, boolPtr(false), nil)
+	if err := Evaluate(p, map[string]interface{}{"tool": "web_search"}); err == nil {
+		t.Error("expected missing write_access error, got nil")
+	}
+}
+
+func TestMissingResourceArgFailsClosed(t *testing.T) {
+	p := types.Policy{AllowedResources: []string{"mcp://tools/web_search"}}
+	if err := Evaluate(p, map[string]interface{}{"tool": "web_search"}); err == nil {
+		t.Error("expected missing resource_uri error, got nil")
+	}
+}
+
+func TestMissingDataClassArgFailsClosed(t *testing.T) {
+	p := types.Policy{AllowedDataClasses: []string{"public"}}
+	if err := Evaluate(p, map[string]interface{}{"tool": "web_search"}); err == nil {
+		t.Error("expected missing data_class error, got nil")
 	}
 }
 
