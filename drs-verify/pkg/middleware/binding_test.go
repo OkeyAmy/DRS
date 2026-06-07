@@ -3,12 +3,23 @@ package middleware
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+type failingReader struct{}
+
+func (failingReader) Read(_ []byte) (int, error) {
+	return 0, errors.New("body read failed")
+}
+
+func (failingReader) Close() error {
+	return nil
+}
 
 // bindingJWT builds an invocation-like JWT where the payload's args field is
 // set to argsJSON verbatim (a raw JSON fragment). Controlling the raw bytes lets
@@ -111,5 +122,39 @@ func TestCheckRequestBindingBodyRestoredAfterMismatch(t *testing.T) {
 	}
 	if !bytes.Equal(got, body) {
 		t.Errorf("body not restored: got %q, want %q", got, body)
+	}
+}
+
+func TestCheckRequestBindingEnforcedOversizedBodyReturns413(t *testing.T) {
+	jwt := bindingJWT(`{"to":"amara"}`)
+	body := bytes.Repeat([]byte("a"), maxBindingBodyBytes+1)
+	r := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	if abort := checkRequestBinding(w, r, jwt, BindingModeEnforced); !abort {
+		t.Fatal("enforced mode must abort when request body exceeds binding limit")
+	}
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("status = %d, want 413", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "BINDING_BODY_TOO_LARGE") {
+		t.Errorf("response body must include BINDING_BODY_TOO_LARGE: %s", w.Body.String())
+	}
+}
+
+func TestCheckRequestBindingReadErrorFailsClosed(t *testing.T) {
+	jwt := bindingJWT(`{"to":"amara"}`)
+	r := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	r.Body = failingReader{}
+	w := httptest.NewRecorder()
+
+	if abort := checkRequestBinding(w, r, jwt, BindingModeEnforced); !abort {
+		t.Fatal("binding body read errors must abort")
+	}
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "BINDING_BODY_READ_ERROR") {
+		t.Errorf("response body must include BINDING_BODY_READ_ERROR: %s", w.Body.String())
 	}
 }
