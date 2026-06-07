@@ -76,7 +76,7 @@ describe("happy path — fresh chain verifies", () => {
       issuerDid: agentDid,
       subjectDid: operatorDid,
       cmd: "/mcp/tools/call",
-      args: { tool: "echo", message: "hello" },
+      args: { tool: "echo", message: "hello", estimated_cost_usd: 0.01 },
       drChain: [computeChainHash(rootDR)],
       toolServer: "did:key:z6MkExampleToolServer",
     });
@@ -118,7 +118,11 @@ describe("/verify body binding — JCS equality against invocation.args", () => 
       exp: iat + 3600,
     });
 
-    const args = { tool: "approve_payment", transaction_id: "T1" };
+    const args = {
+      tool: "approve_payment",
+      transaction_id: "T1",
+      estimated_cost_usd: 0.01,
+    };
     const invocation = await issueInvocation({
       signingKey: agentKey,
       issuerDid: agentDid,
@@ -160,7 +164,11 @@ describe("/verify body binding — JCS equality against invocation.args", () => 
       exp: iat + 3600,
     });
 
-    const signedArgs = { tool: "approve_payment", transaction_id: "T1" };
+    const signedArgs = {
+      tool: "approve_payment",
+      transaction_id: "T1",
+      estimated_cost_usd: 0.01,
+    };
     const invocation = await issueInvocation({
       signingKey: agentKey,
       issuerDid: agentDid,
@@ -173,7 +181,11 @@ describe("/verify body binding — JCS equality against invocation.args", () => 
     const bundle = buildBundle([rootDR], invocation);
 
     // Tampered body: T2 instead of T1. Bundle bytes untouched.
-    const tamperedBody = { tool: "approve_payment", transaction_id: "T2" };
+    const tamperedBody = {
+      tool: "approve_payment",
+      transaction_id: "T2",
+      estimated_cost_usd: 0.01,
+    };
     const { body } = await postVerifyWithBody(VERIFY_URL, bundle, tamperedBody);
 
     assert.equal(body.valid, true, "bundle bytes were not touched; chain must verify");
@@ -200,7 +212,7 @@ describe("/verify body binding — JCS equality against invocation.args", () => 
 
     // Signer emitted args with a specific key order; body will arrive with a
     // different order. JCS canonicalisation must normalise both.
-    const args = { b: 2, a: 1, c: "value" };
+    const args = { b: 2, a: 1, c: "value", estimated_cost_usd: 0.01 };
     const invocation = await issueInvocation({
       signingKey: agentKey,
       issuerDid: agentDid,
@@ -212,7 +224,7 @@ describe("/verify body binding — JCS equality against invocation.args", () => 
     });
     const bundle = buildBundle([rootDR], invocation);
 
-    const reorderedBody = { a: 1, b: 2, c: "value" };
+    const reorderedBody = { a: 1, b: 2, c: "value", estimated_cost_usd: 0.01 };
     const { body } = await postVerifyWithBody(VERIFY_URL, bundle, reorderedBody);
 
     assert.equal(body.valid, true);
@@ -241,7 +253,7 @@ describe("/verify body binding — JCS equality against invocation.args", () => 
       issuerDid: agentDid,
       subjectDid: operatorDid,
       cmd: "/mcp/tools/call",
-      args: { tool: "echo" },
+      args: { tool: "echo", estimated_cost_usd: 0.01 },
       drChain: [computeChainHash(rootDR)],
       toolServer: "did:key:z6MkTool",
     });
@@ -277,7 +289,11 @@ describe("Node middleware golden path", () => {
       exp: iat + 3600,
     });
 
-    const signedBody = { tool: "approve_payment", transaction_id: "T1" };
+    const signedBody = {
+      tool: "approve_payment",
+      transaction_id: "T1",
+      estimated_cost_usd: 0.01,
+    };
     const bundle = await createInvocationBundle({
       rootReceipt,
       signingKey: agentKey,
@@ -285,7 +301,7 @@ describe("Node middleware golden path", () => {
       subjectDid: operatorDid,
       toolServer: "did:key:z6MkTool",
       tool: "approve_payment",
-      args: { transaction_id: "T1" },
+      args: { transaction_id: "T1", estimated_cost_usd: 0.01 },
     });
     const middleware = createDrsHttpMiddleware({ verifyUrl: `${VERIFY_URL}/verify` });
 
@@ -310,13 +326,17 @@ describe("Node middleware golden path", () => {
       subjectDid: operatorDid,
       toolServer: "did:key:z6MkTool",
       tool: "approve_payment",
-      args: { transaction_id: "T1" },
+      args: { transaction_id: "T1", estimated_cost_usd: 0.01 },
     });
 
     const tampered = await middleware(
       {
         headers: { "x-drs-bundle": serialiseBundle(tamperedBundle) },
-        body: { tool: "approve_payment", transaction_id: "T2" },
+        body: {
+          tool: "approve_payment",
+          transaction_id: "T2",
+          estimated_cost_usd: 0.01,
+        },
       },
       () => {
         executed += 1;
@@ -353,7 +373,7 @@ describe("failure paths", () => {
       issuerDid: agentDid,
       subjectDid: operatorDid,
       cmd: "/mcp/tools/call",
-      args: {},
+      args: { estimated_cost_usd: 0.01 },
       drChain: [computeChainHash(rootDR)],
       toolServer: "did:key:z6MkTool",
     });
@@ -394,7 +414,7 @@ describe("failure paths", () => {
       issuerDid: agentDid,
       subjectDid: operatorDid,
       cmd: "/mcp/tools/call",
-      args: {},
+      args: { estimated_cost_usd: 0.01 },
       drChain: [computeChainHash(rootDR)],
       toolServer: "did:key:z6MkTool",
     });
@@ -425,7 +445,7 @@ describe("failure paths", () => {
       issuerDid: agentDid,
       subjectDid: operatorDid,
       cmd: "/mcp/tools/call",
-      args: { n: 1 },
+      args: { n: 1, estimated_cost_usd: 0.01 },
       drChain: [computeChainHash(rootDR)],
       toolServer: "did:key:z6MkTool",
     });
