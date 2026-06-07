@@ -155,6 +155,15 @@ func newTestVerifyHandler(t *testing.T) http.Handler {
 	return verifyHandler(deps, ns, 1<<20)
 }
 
+func TestWarnIfServerIdentityUnset(t *testing.T) {
+	if !warnIfServerIdentityUnset("") {
+		t.Error("expected warning when server identity is empty")
+	}
+	if warnIfServerIdentityUnset("mcp://tools/server") {
+		t.Error("did not expect warning when server identity is configured")
+	}
+}
+
 // postVerify issues a POST /verify with the given JSON body and decodes the
 // response. Exercises real JSON decode → verifyHandler → JSON encode.
 func postVerify(t *testing.T, handler http.Handler, body []byte) (int, types.VerificationResult) {
@@ -357,4 +366,3 @@ func TestVerifyBindingSkippedOnInvalidChain(t *testing.T) {
 		t.Errorf("binding should be empty on invalid chain, got %q", result.Binding)
 	}
 }
-

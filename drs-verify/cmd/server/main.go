@@ -162,6 +162,7 @@ func main() {
 		ServerIdentity:  cfg.ServerIdentity,
 		TSARootPool:     tsaRootPool,
 	}
+	warnIfServerIdentityUnset(cfg.ServerIdentity)
 
 	// Nonce store: in-memory by default. When NONCE_STORE_BACKEND=redis,
 	// Check uses Redis SETNX for atomic claim-if-new across replicas and
@@ -297,6 +298,14 @@ func main() {
 //     the outcome in result.binding. Tool servers should forward the request
 //     body they received from their own client so drs-verify can confirm
 //     it was not tampered with between signing and execution.
+func warnIfServerIdentityUnset(serverIdentity string) bool {
+	if serverIdentity != "" {
+		return false
+	}
+	slog.Warn("SERVER_IDENTITY is not set; invocation.tool_server binding is disabled and bundles may verify across tool servers. Set SERVER_IDENTITY for multi-server deployments.")
+	return true
+}
+
 func verifyHandler(deps verify.Deps, nonceStore nonce.Checker, maxBodyBytes int64) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
