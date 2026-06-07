@@ -122,18 +122,19 @@ drs-verify itself is never in the traffic path.
 ### Shape 2: JSON-RPC metadata (TypeScript SDK)
 
 Used when MCP traffic is pure JSON-RPC over stdio or WebSocket, and there is no
-HTTP header layer available. Current TypeScript helpers verify the decoded
-bundle with `/verify`, but they do not yet send the actual JSON-RPC request
-params/body as a binding body. Treat Shape 2 as experimental for
-execution-integrity claims until that binding check is implemented.
+HTTP header layer available. The TypeScript server middleware decodes the
+bundle, constructs the verifier binding body from the official MCP tool-call
+shape, and requires `/verify` to report `binding: "match"` before returning a
+verified result.
 
 | Aspect | Value |
 |--------|-------|
 | **Placement** | `message.params._meta["X-DRS-Bundle"]` |
 | **Encoding** | `base64url(JSON.stringify(bundle))` — same encoding as Shape 1 |
-| **Verification** | Remote `POST` to a `/verify` endpoint with the decoded JSON bundle body; no request-body binding is performed by the current Shape 2 helper |
+| **Verification** | Remote `POST` to a `/verify` endpoint with `{ ...bundle, body }`, where `body` is `{ ...message.params.arguments, tool: message.params.name }`; `binding` must be `"match"` |
 | **Missing bundle** | Structured `MISSING_BUNDLE` error in return value |
 | **Invalid bundle** | Structured `MALFORMED_BUNDLE` or `VERIFICATION_FAILED` error |
+| **Invalid binding** | Structured `MISSING_TOOL_NAME`, `MISSING_ARGUMENTS`, or `BINDING_MISMATCH` error |
 | **Client** | `packages/drs-mcp-client/src/client.ts` |
 | **Server** | `packages/drs-mcp-server/src/middleware.ts` |
 
