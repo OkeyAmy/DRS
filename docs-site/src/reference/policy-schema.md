@@ -21,14 +21,16 @@ For each DR's policy:
 
 ```
 PASS if:
-  (policy.allowed_tools is absent) OR (args.tool ∈ policy.allowed_tools)
+  (policy.allowed_tools is absent or ["*"]) OR (args.tool exists AND args.tool ∈ policy.allowed_tools)
   AND
-  (policy.max_cost_usd is absent) OR (args.estimated_cost_usd ≤ policy.max_cost_usd)
+  (policy.max_cost_usd is absent) OR (args.estimated_cost_usd exists AND args.estimated_cost_usd ≤ policy.max_cost_usd)
   AND
-  (policy.pii_access is true) OR (args.pii_access is false or absent)
+  (policy does not constrain pii_access or permits it) OR (args.pii_access exists AND args.pii_access is false)
   AND
-  (policy.write_access is true) OR (args.write_access is false or absent)
+  (policy does not constrain write_access or permits it) OR (args.write_access exists AND args.write_access is false)
 ```
+
+Missing invocation fields fail closed when a policy constrains that dimension.
 
 ## Attenuation rules
 

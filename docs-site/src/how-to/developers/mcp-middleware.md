@@ -91,13 +91,13 @@ TypeScript wrapper packages in `packages/drs-mcp-client` and
 `packages/drs-mcp-server`.
 
 - client side: injects the bundle into `params._meta["X-DRS-Bundle"]`
-- server side: decodes the same base64url string and posts the decoded bundle to
-  `/verify`
+- server side: decodes the same base64url string, posts `{ ...bundle, body }` to
+  `/verify`, and requires `binding === "match"`
 
-This is the Shape 2 transport described in `docs/drs-source-of-truth.md`. Shape
-2 currently verifies the bundle but does not send the actual JSON-RPC params as
-the `/verify` binding body, so do not claim full execution-integrity binding for
-pure JSON-RPC until that check is implemented.
+This is the Shape 2 transport described in `docs/drs-source-of-truth.md`. For
+`tools/call`, the server middleware builds the binding body from
+`params.name` and `params.arguments`, matching signed invocation args such as
+`{ "tool": "web_search", "query": "..." }`.
 
 ## Testing your integration
 
