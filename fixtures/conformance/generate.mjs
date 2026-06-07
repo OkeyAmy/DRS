@@ -541,6 +541,8 @@ const invPayload = {
     tool: "web_search",
     query: "DRS specification",
     estimated_cost_usd: 0.5,
+    pii_access: false,
+    write_access: false,
   },
   dr_chain: [rootHash, subHash],
   tool_server: "mcp://tools.example.com",
