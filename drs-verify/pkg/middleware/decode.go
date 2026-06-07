@@ -75,7 +75,16 @@ func DecodeInvocationArgs(jwt string) (interface{}, error) {
 // nonce store, is the layer that defends against CPU exhaustion.
 func CheckNonceReplay(w http.ResponseWriter, invocationJWT string, ns nonce.Checker) bool {
 	if ns == nil {
-		return false
+		metrics.NonceChecks.WithLabelValues("disabled").Inc()
+		slog.Warn("nonce replay protection unavailable: nonce checker is nil")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error":      "NONCE_REPLAY_PROTECTION_UNAVAILABLE",
+			"detail":     "nonce checker is not configured",
+			"suggestion": "Configure a memory or Redis nonce store before mounting DRS middleware.",
+		})
+		return true
 	}
 
 	jti, err := decodeInvocationJTI(invocationJWT)
