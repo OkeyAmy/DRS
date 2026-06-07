@@ -76,7 +76,6 @@ Thumbs.db
 # ── Project-local scratch/history files excluded from the public repo ─────────
 reddit_post.md
 CLAUDE.md
-docs/plans/*
 docs/plans/2026-04-19-group2-security-fixes.md
 docs/plans/2026-04-21-metrics-auth-impl.md
 docs/plans/2026-04-21-request-binding-impl.md
@@ -88,8 +87,3 @@ docs/v1-vs-drs-architecture-review.md
 docs/superpowers/
 v1/
 docs/assessments/
-docs/technical_audit.md
-docs/drs-source-of-truth.md 
-docs/production-readiness-checklist.md
-
-.*/
