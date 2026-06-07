@@ -8,8 +8,8 @@
  * Encoding: base64url(JSON.stringify(bundle)) — same as Go Shape 1.
  * Fail-closed: missing, malformed, or unverifiable bundles reject.
  *
- * See docs/drs-source-of-truth.md for the transport spec and the current
- * Shape 2 execution-binding limitation.
+ * See docs/drs-source-of-truth.md for the transport spec. Shape 2 binds the
+ * verified bundle to `tools/call.params.arguments` plus `params.name`.
  */
 
 export interface VerificationError {
@@ -90,6 +90,10 @@ function isVerificationResult(v: unknown): v is VerificationResult {
   return typeof (v as Record<string, unknown>).valid === "boolean";
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
 /**
  * Creates a middleware function that verifies DRS bundles on incoming
  * MCP tool-call messages.
@@ -142,6 +146,40 @@ export function drsMcpMiddleware(config: DrsServerConfig) {
       );
     }
 
+    if (!isRecord(bundle)) {
+      return failClosed(
+        "MALFORMED_BUNDLE",
+        `${headerName} decoded JSON must be an object.`,
+        "Ensure the bundle is base64url(JSON.stringify(chainBundle)).",
+      );
+    }
+
+    const toolNameRaw = message.params?.name;
+    if (typeof toolNameRaw !== "string" || toolNameRaw.length === 0) {
+      return failClosed(
+        "MISSING_TOOL_NAME",
+        "MCP tools/call params.name must be a non-empty string.",
+        "Pass the called tool name under params.name so DRS can bind it to invocation.args.tool.",
+      );
+    }
+
+    const argumentsRaw = message.params?.arguments;
+    if (!isRecord(argumentsRaw)) {
+      return failClosed(
+        "MISSING_ARGUMENTS",
+        "MCP tools/call params.arguments must be an object.",
+        "Pass the exact tool-call arguments under params.arguments so DRS can bind the invocation to execution.",
+      );
+    }
+
+    const verifyRequest = {
+      ...bundle,
+      body: {
+        ...argumentsRaw,
+        tool: toolNameRaw,
+      },
+    };
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -149,7 +187,7 @@ export function drsMcpMiddleware(config: DrsServerConfig) {
       const response = await fetchImpl(config.verifyUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bundle),
+        body: JSON.stringify(verifyRequest),
         signal: controller.signal,
       });
 
@@ -177,6 +215,14 @@ export function drsMcpMiddleware(config: DrsServerConfig) {
           "VERIFICATION_FAILED",
           "Verifier response does not contain a 'valid' boolean field.",
           "The DRS verification endpoint must return {valid: boolean, ...}.",
+        );
+      }
+
+      if (body.valid && body.binding !== "match") {
+        return failClosed(
+          "BINDING_MISMATCH",
+          `Verifier returned binding=${body.binding ?? "missing"}.`,
+          "Ensure the MCP params.arguments exactly match the signed invocation args.",
         );
       }
 
