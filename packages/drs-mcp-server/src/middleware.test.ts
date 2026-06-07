@@ -47,7 +47,11 @@ function mockFetchBadShape(status = 200): typeof fetch {
 function makeConfig(overrides?: Partial<DrsServerConfig>): DrsServerConfig {
   return {
     verifyUrl: "http://localhost:8080/verify",
-    fetchFn: mockFetch({ valid: true, context: validContext() }),
+    fetchFn: mockFetch({
+      valid: true,
+      binding: "match",
+      context: validContext(),
+    }),
     ...overrides,
   };
 }
@@ -84,6 +88,7 @@ describe("drsMcpMiddleware", () => {
       id: 1,
       params: {
         name: "web_search",
+        arguments: { query: "delegation receipts" },
         _meta: { "X-DRS-Bundle": validBundleEncoded() },
       },
     });
@@ -189,7 +194,11 @@ describe("drsMcpMiddleware", () => {
       jsonrpc: "2.0",
       method: "tools/call",
       id: 8,
-      params: { _meta: { "X-DRS-Bundle": validBundleEncoded() } },
+      params: {
+        name: "web_search",
+        arguments: { query: "delegation receipts" },
+        _meta: { "X-DRS-Bundle": validBundleEncoded() },
+      },
     });
 
     expect(fetchFn).toHaveBeenCalledOnce();
@@ -199,7 +208,124 @@ describe("drsMcpMiddleware", () => {
     expect(opts.headers["Content-Type"]).toBe("application/json");
 
     const postedBody = JSON.parse(opts.body as string);
-    expect(postedBody).toEqual(validBundleObject());
+    expect(postedBody).toEqual({
+      ...validBundleObject(),
+      body: { query: "delegation receipts", tool: "web_search" },
+    });
+  });
+
+  it("forwards MCP tools/call params.arguments as verifier body", async () => {
+    const fetchFn = mockFetch({
+      valid: true,
+      binding: "match",
+      context: validContext(),
+    });
+    const config = makeConfig({ fetchFn });
+    const verify = drsMcpMiddleware(config);
+
+    await verify({
+      jsonrpc: "2.0",
+      method: "tools/call",
+      id: 81,
+      params: {
+        name: "web_search",
+        arguments: { query: "delegation receipts" },
+        _meta: { "X-DRS-Bundle": validBundleEncoded() },
+      },
+    });
+
+    const [, opts] = (fetchFn as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    const postedBody = JSON.parse(opts.body as string);
+    expect(postedBody).toEqual({
+      ...validBundleObject(),
+      body: { query: "delegation receipts", tool: "web_search" },
+    });
+  });
+
+  it("uses params.name as the canonical tool binding", async () => {
+    const fetchFn = mockFetch({
+      valid: true,
+      binding: "match",
+      context: validContext(),
+    });
+    const config = makeConfig({ fetchFn });
+    const verify = drsMcpMiddleware(config);
+
+    await verify({
+      jsonrpc: "2.0",
+      method: "tools/call",
+      id: 84,
+      params: {
+        name: "web_search",
+        arguments: { query: "delegation receipts", tool: "tampered" },
+        _meta: { "X-DRS-Bundle": validBundleEncoded() },
+      },
+    });
+
+    const [, opts] = (fetchFn as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    const postedBody = JSON.parse(opts.body as string);
+    expect(postedBody.body).toEqual({
+      query: "delegation receipts",
+      tool: "web_search",
+    });
+  });
+
+  it("fails closed when tools/call name is missing", async () => {
+    const config = makeConfig();
+    const verify = drsMcpMiddleware(config);
+
+    const result = await verify({
+      jsonrpc: "2.0",
+      method: "tools/call",
+      id: 85,
+      params: {
+        arguments: { query: "delegation receipts" },
+        _meta: { "X-DRS-Bundle": validBundleEncoded() },
+      },
+    });
+
+    expect(result.verified).toBe(false);
+    expect(result.result.error?.code).toBe("MISSING_TOOL_NAME");
+    expect(config.fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when tools/call arguments are missing", async () => {
+    const config = makeConfig();
+    const verify = drsMcpMiddleware(config);
+
+    const result = await verify({
+      jsonrpc: "2.0",
+      method: "tools/call",
+      id: 82,
+      params: {
+        name: "web_search",
+        _meta: { "X-DRS-Bundle": validBundleEncoded() },
+      },
+    });
+
+    expect(result.verified).toBe(false);
+    expect(result.result.error?.code).toBe("MISSING_ARGUMENTS");
+    expect(config.fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when verifier reports a binding mismatch", async () => {
+    const fetchFn = mockFetch({ valid: true, binding: "mismatch" });
+    const config = makeConfig({ fetchFn });
+    const verify = drsMcpMiddleware(config);
+
+    const result = await verify({
+      jsonrpc: "2.0",
+      method: "tools/call",
+      id: 83,
+      params: {
+        name: "web_search",
+        arguments: { query: "tampered" },
+        _meta: { "X-DRS-Bundle": validBundleEncoded() },
+      },
+    });
+
+    expect(result.verified).toBe(false);
+    expect(result.result.error?.code).toBe("BINDING_MISMATCH");
   });
 
   it("returns verified=false when verifier says invalid", async () => {
@@ -218,7 +344,11 @@ describe("drsMcpMiddleware", () => {
       jsonrpc: "2.0",
       method: "tools/call",
       id: 9,
-      params: { _meta: { "X-DRS-Bundle": validBundleEncoded() } },
+      params: {
+        name: "web_search",
+        arguments: { query: "delegation receipts" },
+        _meta: { "X-DRS-Bundle": validBundleEncoded() },
+      },
     });
 
     expect(result.verified).toBe(false);
@@ -235,7 +365,11 @@ describe("drsMcpMiddleware", () => {
       jsonrpc: "2.0",
       method: "tools/call",
       id: 10,
-      params: { _meta: { "X-DRS-Bundle": validBundleEncoded() } },
+      params: {
+        name: "web_search",
+        arguments: { query: "delegation receipts" },
+        _meta: { "X-DRS-Bundle": validBundleEncoded() },
+      },
     });
 
     expect(result.verified).toBe(false);
@@ -251,7 +385,11 @@ describe("drsMcpMiddleware", () => {
       jsonrpc: "2.0",
       method: "tools/call",
       id: 11,
-      params: { _meta: { "X-DRS-Bundle": validBundleEncoded() } },
+      params: {
+        name: "web_search",
+        arguments: { query: "delegation receipts" },
+        _meta: { "X-DRS-Bundle": validBundleEncoded() },
+      },
     });
 
     expect(result.verified).toBe(false);
@@ -267,7 +405,11 @@ describe("drsMcpMiddleware", () => {
       jsonrpc: "2.0",
       method: "tools/call",
       id: 12,
-      params: { _meta: { "X-DRS-Bundle": validBundleEncoded() } },
+      params: {
+        name: "web_search",
+        arguments: { query: "delegation receipts" },
+        _meta: { "X-DRS-Bundle": validBundleEncoded() },
+      },
     });
 
     expect(result.verified).toBe(false);
@@ -284,7 +426,11 @@ describe("drsMcpMiddleware", () => {
       jsonrpc: "2.0",
       method: "tools/call",
       id: 13,
-      params: { _meta: { "X-DRS-Bundle": validBundleEncoded() } },
+      params: {
+        name: "web_search",
+        arguments: { query: "delegation receipts" },
+        _meta: { "X-DRS-Bundle": validBundleEncoded() },
+      },
     });
 
     expect(result.verified).toBe(false);
@@ -300,7 +446,11 @@ describe("drsMcpMiddleware", () => {
       jsonrpc: "2.0",
       method: "tools/call",
       id: 14,
-      params: { _meta: { "X-Custom-Header": validBundleEncoded() } },
+      params: {
+        name: "web_search",
+        arguments: { query: "delegation receipts" },
+        _meta: { "X-Custom-Header": validBundleEncoded() },
+      },
     });
 
     expect(result.verified).toBe(true);
