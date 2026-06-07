@@ -11,13 +11,13 @@ This tutorial walks through issuing a root delegation receipt and a sub-delegati
 
 ```bash
 # Human keypair
-pnpm exec drs keygen
-# Private key: <HUMAN_PRIVATE_KEY>
+pnpm exec drs keygen --out ./human.signing.key
+# Private key file: ./human.signing.key
 # DID:         did:key:z6MkHUMAN...
 
 # Agent keypair
-pnpm exec drs keygen
-# Private key: <AGENT_PRIVATE_KEY>
+pnpm exec drs keygen --out ./agent.signing.key
+# Private key file: ./agent.signing.key
 # DID:         did:key:z6MkAGENT...
 ```
 
