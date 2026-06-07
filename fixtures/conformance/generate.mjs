@@ -541,6 +541,8 @@ const invPayload = {
     tool: "web_search",
     query: "DRS specification",
     estimated_cost_usd: 0.5,
+    pii_access: false,
+    write_access: false,
   },
   dr_chain: [rootHash, subHash],
   tool_server: "mcp://tools.example.com",
@@ -549,6 +551,7 @@ const invPayload = {
 };
 
 const invJwt = await buildJwt(invPayload, KEYS.charlie.seed);
+const invJwtParts = invJwt.split(".");
 
 const receiptKeys = {};
 for (const [name, k] of Object.entries(KEYS)) {
@@ -589,7 +592,7 @@ writeJson("receipts/invocation.json", {
   chain_receipts: [rootJwt, subJwt],
   chain_hashes: [rootHash, subHash],
   payload: invPayload,
-  jwt: invJwt,
+  jwt_parts: invJwtParts,
 });
 
 writeJson("receipts/full-chain-bundle.json", {
@@ -601,7 +604,7 @@ writeJson("receipts/full-chain-bundle.json", {
   keys: receiptKeys,
   bundle: {
     bundle_version: "4.0",
-    invocation: invJwt,
+    invocation_parts: invJwtParts,
     receipts: [rootJwt, subJwt],
   },
   expected_result: {
