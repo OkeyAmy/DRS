@@ -200,14 +200,15 @@ to map your role to the right artifact.</p>
 <h2 id="2-generate-a-keypair"><a class="header" href="#2-generate-a-keypair">2. Generate a keypair</a></h2>
 <pre><code class="language-bash">pnpm exec drs keygen
 </code></pre>
-<p>Current output is plaintext hex:</p>
+<p>Current output keeps private key material out of stdout:</p>
 <pre><code class="language-text">Ed25519 keypair generated.
 
 DID          : did:key:z6Mk...
 Public key   : &lt;hex&gt;
-Private key  : &lt;hex&gt;
+Private key  : written to /home/you/.drs/signing.key
 </code></pre>
-<p>Save the DID and private key securely.</p>
+<p>Save the DID and protect the private key file. Use <code>drs keygen --out &lt;path&gt;</code>
+when you need a different development key location.</p>
 <h2 id="3-issue-a-root-delegation"><a class="header" href="#3-issue-a-root-delegation">3. Issue a root delegation</a></h2>
 <pre><code class="language-typescript">import { issueRootDelegation } from "@okeyamy/drs-sdk";
 

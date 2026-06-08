@@ -245,14 +245,15 @@ to map your role to the right artifact.</p>
 <h2 id="2-generate-a-keypair"><a class="header" href="#2-generate-a-keypair">2. Generate a keypair</a></h2>
 <pre><code class="language-bash">pnpm exec drs keygen
 </code></pre>
-<p>Current output is plaintext hex:</p>
+<p>Current output keeps private key material out of stdout:</p>
 <pre><code class="language-text">Ed25519 keypair generated.
 
 DID          : did:key:z6Mk...
 Public key   : &lt;hex&gt;
-Private key  : &lt;hex&gt;
+Private key  : written to /home/you/.drs/signing.key
 </code></pre>
-<p>Save the DID and private key securely.</p>
+<p>Save the DID and protect the private key file. Use <code>drs keygen --out &lt;path&gt;</code>
+when you need a different development key location.</p>
 <h2 id="3-issue-a-root-delegation"><a class="header" href="#3-issue-a-root-delegation">3. Issue a root delegation</a></h2>
 <pre><code class="language-typescript">import { issueRootDelegation } from "@okeyamy/drs-sdk";
 
@@ -898,13 +899,13 @@ yet. Today, evidence is assembled from <code>bundle.json</code>, <code>drs verif
 </ul>
 <h2 id="step-1-generate-two-keypairs"><a class="header" href="#step-1-generate-two-keypairs">Step 1: Generate two keypairs</a></h2>
 <pre><code class="language-bash"># Human keypair
-pnpm exec drs keygen
-# Private key: &lt;HUMAN_PRIVATE_KEY&gt;
+pnpm exec drs keygen --out ./human.signing.key
+# Private key file: ./human.signing.key
 # DID:         did:key:z6MkHUMAN...
 
 # Agent keypair
-pnpm exec drs keygen
-# Private key: &lt;AGENT_PRIVATE_KEY&gt;
+pnpm exec drs keygen --out ./agent.signing.key
+# Private key file: ./agent.signing.key
 # DID:         did:key:z6MkAGENT...
 </code></pre>
 <h2 id="step-2-issue-the-root-delegation"><a class="header" href="#step-2-issue-the-root-delegation">Step 2: Issue the root delegation</a></h2>
@@ -2032,7 +2033,7 @@ does not enforce runtime cost or per-call counting. Do that in your app:</p>
 
 DID          : did:key:z6Mk...
 Public key   : &lt;hex&gt;
-Private key  : &lt;hex&gt;
+Private key  : written to /home/you/.drs/signing.key
 </code></pre>
 <h2 id="whats-in-the-package"><a class="header" href="#whats-in-the-package">What's in the package</a></h2>
 <p>The published package exports from the root entry only. Import from
@@ -2152,13 +2153,13 @@ TypeScript wrapper packages in <code>packages/drs-mcp-client</code> and
 <code>packages/drs-mcp-server</code>.</p>
 <ul>
 <li>client side: injects the bundle into <code>params._meta["X-DRS-Bundle"]</code></li>
-<li>server side: decodes the same base64url string and posts the decoded bundle to
-<code>/verify</code></li>
+<li>server side: decodes the same base64url string, posts <code>{ ...bundle, body }</code> to
+<code>/verify</code>, and requires <code>binding === "match"</code></li>
 </ul>
-<p>This is the Shape 2 transport described in <code>docs/drs-source-of-truth.md</code>. Shape
-2 currently verifies the bundle but does not send the actual JSON-RPC params as
-the <code>/verify</code> binding body, so do not claim full execution-integrity binding for
-pure JSON-RPC until that check is implemented.</p>
+<p>This is the Shape 2 transport described in <code>docs/drs-source-of-truth.md</code>. For
+<code>tools/call</code>, the server middleware builds the binding body from
+<code>params.name</code> and <code>params.arguments</code>, matching signed invocation args such as
+<code>{ "tool": "web_search", "query": "..." }</code>.</p>
 <h2 id="testing-your-integration"><a class="header" href="#testing-your-integration">Testing your integration</a></h2>
 <pre><code class="language-bash"># Valid bundle — expect exit code 0
 DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
@@ -2659,8 +2660,8 @@ LISTEN_ADDR=:8080 \
 <p>Long-lived agent private keys are a liability: if the agent is compromised, all delegations signed by that key are at risk. Ephemeral keys limit the blast radius: a compromised key can only affect delegations from the current session, which expire when the session ends.</p>
 <h2 id="generating-keys"><a class="header" href="#generating-keys">Generating keys</a></h2>
 <p><strong>Development only (never in production):</strong></p>
-<pre><code class="language-bash">pnpm exec drs keygen
-# Private key: &lt;base64url 32 bytes&gt;
+<pre><code class="language-bash">pnpm exec drs keygen --out ./operator-dev.signing.key
+# Private key file: ./operator-dev.signing.key
 # DID:         did:key:z6Mk...
 </code></pre>
 <p><strong>Production operator keys:</strong></p>
@@ -3254,14 +3255,15 @@ govulncheck ./...
 <p>Policies are evaluated <strong>conjunctively</strong>: every policy in the chain must pass. The invocation <code>args</code> are checked against every DR's policy from root to the immediate sub-DR.</p>
 <p>For each DR's policy:</p>
 <pre><code>PASS if:
-  (policy.allowed_tools is absent) OR (args.tool ∈ policy.allowed_tools)
+  (policy.allowed_tools is absent or ["*"]) OR (args.tool exists AND args.tool ∈ policy.allowed_tools)
   AND
-  (policy.max_cost_usd is absent) OR (args.estimated_cost_usd ≤ policy.max_cost_usd)
+  (policy.max_cost_usd is absent) OR (args.estimated_cost_usd exists AND args.estimated_cost_usd ≤ policy.max_cost_usd)
   AND
-  (policy.pii_access is true) OR (args.pii_access is false or absent)
+  (policy does not constrain pii_access or permits it) OR (args.pii_access exists AND args.pii_access is false)
   AND
-  (policy.write_access is true) OR (args.write_access is false or absent)
+  (policy does not constrain write_access or permits it) OR (args.write_access exists AND args.write_access is false)
 </code></pre>
+<p>Missing invocation fields fail closed when a policy constrains that dimension.</p>
 <h2 id="attenuation-rules-1"><a class="header" href="#attenuation-rules-1">Attenuation rules</a></h2>
 <p>Sub-delegation policies must be strict subsets (attenuation) of the parent:</p>
 <div class="table-wrapper"><table><thead><tr><th>Parent field</th><th>Child constraint</th></tr></thead><tbody>
@@ -3396,11 +3398,14 @@ extract one receipt payload first or save the policy to its own JSON file.</p>
 
 DID          : did:key:z6Mk...
 Public key   : &lt;hex&gt;
-Private key  : &lt;hex&gt;
+Private key  : written to /home/you/.drs/signing.key
 </code></pre>
+<p>Use <code>drs keygen --out &lt;path&gt;</code> to choose a different development key file.
+The CLI creates the file with <code>0600</code> permissions and refuses to overwrite an
+existing key.</p>
 <blockquote>
-<p><strong>Security:</strong> the private key is printed in plaintext hex. Do not commit it.
-Use a proper KMS or HSM for production keys.</p>
+<p><strong>Security:</strong> never commit the private key file. Use a proper KMS or HSM for
+production keys.</p>
 </blockquote>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="api-endpoints"><a class="header" href="#api-endpoints">API Endpoints</a></h1>
 <p>The drs-verify HTTP server exposes these endpoints.</p>

@@ -196,14 +196,15 @@
 <p>Policies are evaluated <strong>conjunctively</strong>: every policy in the chain must pass. The invocation <code>args</code> are checked against every DR's policy from root to the immediate sub-DR.</p>
 <p>For each DR's policy:</p>
 <pre><code>PASS if:
-  (policy.allowed_tools is absent) OR (args.tool ∈ policy.allowed_tools)
+  (policy.allowed_tools is absent or ["*"]) OR (args.tool exists AND args.tool ∈ policy.allowed_tools)
   AND
-  (policy.max_cost_usd is absent) OR (args.estimated_cost_usd ≤ policy.max_cost_usd)
+  (policy.max_cost_usd is absent) OR (args.estimated_cost_usd exists AND args.estimated_cost_usd ≤ policy.max_cost_usd)
   AND
-  (policy.pii_access is true) OR (args.pii_access is false or absent)
+  (policy does not constrain pii_access or permits it) OR (args.pii_access exists AND args.pii_access is false)
   AND
-  (policy.write_access is true) OR (args.write_access is false or absent)
+  (policy does not constrain write_access or permits it) OR (args.write_access exists AND args.write_access is false)
 </code></pre>
+<p>Missing invocation fields fail closed when a policy constrains that dimension.</p>
 <h2 id="attenuation-rules"><a class="header" href="#attenuation-rules">Attenuation rules</a></h2>
 <p>Sub-delegation policies must be strict subsets (attenuation) of the parent:</p>
 <div class="table-wrapper"><table><thead><tr><th>Parent field</th><th>Child constraint</th></tr></thead><tbody>

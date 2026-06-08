@@ -262,13 +262,13 @@ TypeScript wrapper packages in <code>packages/drs-mcp-client</code> and
 <code>packages/drs-mcp-server</code>.</p>
 <ul>
 <li>client side: injects the bundle into <code>params._meta["X-DRS-Bundle"]</code></li>
-<li>server side: decodes the same base64url string and posts the decoded bundle to
-<code>/verify</code></li>
+<li>server side: decodes the same base64url string, posts <code>{ ...bundle, body }</code> to
+<code>/verify</code>, and requires <code>binding === "match"</code></li>
 </ul>
-<p>This is the Shape 2 transport described in <code>docs/drs-source-of-truth.md</code>. Shape
-2 currently verifies the bundle but does not send the actual JSON-RPC params as
-the <code>/verify</code> binding body, so do not claim full execution-integrity binding for
-pure JSON-RPC until that check is implemented.</p>
+<p>This is the Shape 2 transport described in <code>docs/drs-source-of-truth.md</code>. For
+<code>tools/call</code>, the server middleware builds the binding body from
+<code>params.name</code> and <code>params.arguments</code>, matching signed invocation args such as
+<code>{ "tool": "web_search", "query": "..." }</code>.</p>
 <h2 id="testing-your-integration"><a class="header" href="#testing-your-integration">Testing your integration</a></h2>
 <pre><code class="language-bash"># Valid bundle — expect exit code 0
 DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json

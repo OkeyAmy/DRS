@@ -192,8 +192,8 @@
 <p>Long-lived agent private keys are a liability: if the agent is compromised, all delegations signed by that key are at risk. Ephemeral keys limit the blast radius: a compromised key can only affect delegations from the current session, which expire when the session ends.</p>
 <h2 id="generating-keys"><a class="header" href="#generating-keys">Generating keys</a></h2>
 <p><strong>Development only (never in production):</strong></p>
-<pre><code class="language-bash">pnpm exec drs keygen
-# Private key: &lt;base64url 32 bytes&gt;
+<pre><code class="language-bash">pnpm exec drs keygen --out ./operator-dev.signing.key
+# Private key file: ./operator-dev.signing.key
 # DID:         did:key:z6Mk...
 </code></pre>
 <p><strong>Production operator keys:</strong></p>

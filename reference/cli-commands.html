@@ -239,11 +239,14 @@ extract one receipt payload first or save the policy to its own JSON file.</p>
 
 DID          : did:key:z6Mk...
 Public key   : &lt;hex&gt;
-Private key  : &lt;hex&gt;
+Private key  : written to /home/you/.drs/signing.key
 </code></pre>
+<p>Use <code>drs keygen --out &lt;path&gt;</code> to choose a different development key file.
+The CLI creates the file with <code>0600</code> permissions and refuses to overwrite an
+existing key.</p>
 <blockquote>
-<p><strong>Security:</strong> the private key is printed in plaintext hex. Do not commit it.
-Use a proper KMS or HSM for production keys.</p>
+<p><strong>Security:</strong> never commit the private key file. Use a proper KMS or HSM for
+production keys.</p>
 </blockquote>
 
                     </main>

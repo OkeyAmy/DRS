@@ -189,13 +189,13 @@
 </ul>
 <h2 id="step-1-generate-two-keypairs"><a class="header" href="#step-1-generate-two-keypairs">Step 1: Generate two keypairs</a></h2>
 <pre><code class="language-bash"># Human keypair
-pnpm exec drs keygen
-# Private key: &lt;HUMAN_PRIVATE_KEY&gt;
+pnpm exec drs keygen --out ./human.signing.key
+# Private key file: ./human.signing.key
 # DID:         did:key:z6MkHUMAN...
 
 # Agent keypair
-pnpm exec drs keygen
-# Private key: &lt;AGENT_PRIVATE_KEY&gt;
+pnpm exec drs keygen --out ./agent.signing.key
+# Private key file: ./agent.signing.key
 # DID:         did:key:z6MkAGENT...
 </code></pre>
 <h2 id="step-2-issue-the-root-delegation"><a class="header" href="#step-2-issue-the-root-delegation">Step 2: Issue the root delegation</a></h2>
