@@ -98,8 +98,12 @@ Ed25519 keypair generated.
 
 DID          : did:key:z6Mk...
 Public key   : <hex>
-Private key  : <hex>
+Private key  : written to /home/you/.drs/signing.key
 ```
 
-> **Security:** the private key is printed in plaintext hex. Do not commit it.
-> Use a proper KMS or HSM for production keys.
+Use `drs keygen --out <path>` to choose a different development key file.
+The CLI creates the file with `0600` permissions and refuses to overwrite an
+existing key.
+
+> **Security:** never commit the private key file. Use a proper KMS or HSM for
+> production keys.

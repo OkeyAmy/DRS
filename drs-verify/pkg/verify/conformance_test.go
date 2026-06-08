@@ -120,10 +120,10 @@ func TestConformancePolicyAttenuationFail(t *testing.T) {
 // ── Full chain bundle conformance ────────────────────────────────────────
 
 type fullChainFixture struct {
-	Keys   map[string]struct {
+	Keys map[string]struct {
 		Did string `json:"did"`
 	} `json:"keys"`
-	Bundle         types.ChainBundle `json:"bundle"`
+	Bundle         conformanceChainBundle `json:"bundle"`
 	ExpectedResult struct {
 		Valid   bool `json:"valid"`
 		Context struct {
@@ -134,6 +134,26 @@ type fullChainFixture struct {
 	} `json:"expected_result"`
 }
 
+type conformanceChainBundle struct {
+	BundleVersion   string   `json:"bundle_version"`
+	Invocation      string   `json:"invocation"`
+	InvocationParts []string `json:"invocation_parts"`
+	Receipts        []string `json:"receipts"`
+}
+
+func (b conformanceChainBundle) chainBundle() types.ChainBundle {
+	invocation := b.Invocation
+	if invocation == "" && len(b.InvocationParts) > 0 {
+		invocation = strings.Join(b.InvocationParts, ".")
+	}
+
+	return types.ChainBundle{
+		BundleVersion: b.BundleVersion,
+		Invocation:    invocation,
+		Receipts:      b.Receipts,
+	}
+}
+
 func TestConformanceFullChainBundle(t *testing.T) {
 	raw := loadFixture(t, "receipts/full-chain-bundle.json")
 	var fixture fullChainFixture
@@ -142,7 +162,7 @@ func TestConformanceFullChainBundle(t *testing.T) {
 	}
 
 	deps := testDeps(t)
-	result := Chain(context.Background(), fixture.Bundle, deps)
+	result := Chain(context.Background(), fixture.Bundle.chainBundle(), deps)
 
 	if result.Valid != fixture.ExpectedResult.Valid {
 		var errMsg string
@@ -178,8 +198,16 @@ func TestConformanceFullChainBundle(t *testing.T) {
 // ── Receipt chain hash cross-check ───────────────────────────────────────
 
 type receiptFixture struct {
-	Jwt       string `json:"jwt"`
-	ChainHash string `json:"chain_hash"`
+	Jwt       string   `json:"jwt"`
+	JwtParts  []string `json:"jwt_parts"`
+	ChainHash string   `json:"chain_hash"`
+}
+
+func (f receiptFixture) compactJWT() string {
+	if f.Jwt != "" {
+		return f.Jwt
+	}
+	return strings.Join(f.JwtParts, ".")
 }
 
 func TestConformanceReceiptChainHash(t *testing.T) {
@@ -196,7 +224,7 @@ func TestConformanceReceiptChainHash(t *testing.T) {
 				t.Fatalf("parse fixture: %v", err)
 			}
 
-			got := computeChainHash(fixture.Jwt)
+			got := computeChainHash(fixture.compactJWT())
 			if got != fixture.ChainHash {
 				t.Errorf("chain hash mismatch: got %q, expected %q", got, fixture.ChainHash)
 			}
@@ -208,13 +236,20 @@ func TestConformanceReceiptChainHash(t *testing.T) {
 
 func TestConformanceReceiptSignatures(t *testing.T) {
 	type sigFixture struct {
-		Jwt  string `json:"jwt"`
-		Keys map[string]struct {
+		Jwt      string   `json:"jwt"`
+		JwtParts []string `json:"jwt_parts"`
+		Keys     map[string]struct {
 			Did string `json:"did"`
 		} `json:"keys"`
 		Payload struct {
 			Iss string `json:"iss"`
 		} `json:"payload"`
+	}
+	compactJWT := func(f sigFixture) string {
+		if f.Jwt != "" {
+			return f.Jwt
+		}
+		return strings.Join(f.JwtParts, ".")
 	}
 
 	files := []struct {
@@ -235,7 +270,7 @@ func TestConformanceReceiptSignatures(t *testing.T) {
 				t.Fatalf("parse fixture: %v", err)
 			}
 
-			err := verifyJWTSignature(context.Background(), fix.Jwt, fix.Payload.Iss, deps.Resolver)
+			err := verifyJWTSignature(context.Background(), compactJWT(fix), fix.Payload.Iss, deps.Resolver)
 			if err != nil {
 				t.Errorf("signature verification failed: %v", err)
 			}

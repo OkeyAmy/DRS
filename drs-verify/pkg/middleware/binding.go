@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -17,6 +18,7 @@ const (
 	BindingModeOff      = "off"
 	BindingModeLenient  = "lenient"
 	BindingModeEnforced = "enforced"
+	maxBindingBodyBytes = 1_048_576
 )
 
 // checkRequestBinding reads r.Body, compares it with the invocation's args via
@@ -31,11 +33,22 @@ func checkRequestBinding(w http.ResponseWriter, r *http.Request, invocationJWT, 
 		return false
 	}
 
-	bodyBytes, err := io.ReadAll(r.Body)
+	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, maxBindingBodyBytes+1))
 	if err != nil {
-		// Body-read failure is not binding-specific; let the downstream handler
-		// decide how to respond. Do not increment binding metrics for this case.
-		return false
+		metrics.BindingChecks.WithLabelValues("read_error").Inc()
+		slog.Warn("binding: cannot read request body", "error", err)
+		writeBindingError(w, http.StatusBadRequest, "BINDING_BODY_READ_ERROR",
+			err.Error(),
+			"Ensure the request body can be read before DRS binding verification.")
+		return true
+	}
+	if len(bodyBytes) > maxBindingBodyBytes {
+		metrics.BindingChecks.WithLabelValues("body_too_large").Inc()
+		slog.Warn("binding: request body exceeds maximum", "max_bytes", maxBindingBodyBytes)
+		writeBindingError(w, http.StatusRequestEntityTooLarge, "BINDING_BODY_TOO_LARGE",
+			fmt.Sprintf("request body exceeds %d bytes", maxBindingBodyBytes),
+			"Reduce the request body size or raise MAX_BODY_BYTES for the verifier entrypoint.")
+		return true
 	}
 	// Always restore the body so the next handler can read it, regardless of outcome.
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))

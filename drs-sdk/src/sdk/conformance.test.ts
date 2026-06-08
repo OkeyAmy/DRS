@@ -27,6 +27,16 @@ function loadFixture<T>(relPath: string): T {
   return JSON.parse(raw) as T;
 }
 
+function compactJwt(jwt: string | undefined, jwtParts: string[] | undefined): string {
+  if (jwt) {
+    return jwt;
+  }
+  if (!jwtParts || jwtParts.length !== 3) {
+    throw new Error("fixture must provide jwt or three jwt_parts");
+  }
+  return jwtParts.join(".");
+}
+
 // ── JCS canonicalization ─────────────────────────────────────────────────
 
 interface JcsVector {
@@ -176,7 +186,8 @@ describe("conformance: full chain bundle structure", () => {
   interface FullChainFixture {
     bundle: {
       bundle_version: string;
-      invocation: string;
+      invocation?: string;
+      invocation_parts?: string[];
       receipts: string[];
     };
     expected_result: {
@@ -203,6 +214,6 @@ describe("conformance: full chain bundle structure", () => {
     const fixture = loadFixture<FullChainFixture>("receipts/full-chain-bundle.json");
     expect(fixture.bundle.bundle_version).toBe("4.0");
     expect(fixture.bundle.receipts.length).toBe(fixture.expected_result.context.chain_depth);
-    expect(fixture.bundle.invocation).toBeTruthy();
+    expect(compactJwt(fixture.bundle.invocation, fixture.bundle.invocation_parts)).toBeTruthy();
   });
 });

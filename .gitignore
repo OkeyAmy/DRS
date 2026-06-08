@@ -3,17 +3,66 @@ target/
 **/*.rs.bk
 *.pdb
 **/mutants.out*/
+drs-core/pkg/
 
 # ── Go (drs-verify) ───────────────────────────────────────────────────────────
-# Compiled binaries
 drs-verify/bin/
 drs-verify/drs-verify
+drs-verify/drs-verify-bin
+drs-verify/coverage.out
 
-# ── TypeScript (drs-sdk) ──────────────────────────────────────────────────────
-drs-sdk/node_modules/
-drs-sdk/dist/
-drs-sdk/.tsbuildinfo
-drs-sdk/coverage/
+# ── Node / TypeScript workspaces ──────────────────────────────────────────────
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+out/
+**/out/
+**/*.tsbuildinfo
+package-lock.json
+
+# ── Test / coverage output ────────────────────────────────────────────────────
+coverage/
+**/coverage/
+.nyc_output/
+coverage/lcov.info
+
+# ── Documentation build output ────────────────────────────────────────────────
+docs-site/book/
+
+# ── Runtime stores and generated local state ──────────────────────────────────
+dr-store/
+.threat-model-state/
+.triage-state/
+
+# ── Local agent/tool state ────────────────────────────────────────────────────
+.claude/
+.codex/sessions/
+.local/
+.omx/
+.remember/
+.cache/
+.parcel-cache/
+.turbo/
+.next/
+.vercel/
+
+# ── Secrets / credentials (never commit these) ────────────────────────────────
+*.key
+*.pem
+*.env
+.env.*
+!.env.example
+!**/.env.example
+
+# ── Logs and debug output ─────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # ── Editor / OS ───────────────────────────────────────────────────────────────
 .idea/
@@ -22,91 +71,19 @@ drs-sdk/coverage/
 *.swo
 .DS_Store
 Thumbs.db
+.eslintcache
 
-# ── Secrets / credentials (never commit these) ────────────────────────────────
-*.key
-*.pem
-*.env
-.env.*
-!.env.example
-
-# ── DR Store runtime data (Tier 1 filesystem store) ──────────────────────────
-dr-store/
-
-# ── Project files excluded from repo ─────────────────────────────────────────
+# ── Project-local scratch/history files excluded from the public repo ─────────
 reddit_post.md
 CLAUDE.md
-docs-site/book/
-
-drs-verify/coverage.out
-drs-core/pkg/
-.claude
-docs/superpowers/
-docs/technical_v2.md
-
-
-drs-verify/drs-verify-bin
-
-# ── Additional TypeScript / Node / tooling ignores ────────────────────────────
-# Node modules (root and any workspace packages)
-node_modules/
-**/node_modules/
-
-# Build / output folders
-dist/
-build/
-out/
-lib/
-
-# TypeScript buildinfo
-**/*.tsbuildinfo
-
-# Common caches
-.cache/
-.parcel-cache/
-.turbo/
-.next/
-.vercel/
-
-# Coverage and test output
-coverage/
-.nyc_output/
-coverage/lcov.info
-
-# Logs
-npm-debug.log*
-pnpm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Debug and lock files (ignore package-lock if using pnpm, keep pnpm-lock.yaml if you commit it)
-package-lock.json
-
-# Editor and tooling caches
-.eslintcache
-.idea/
-.vscode/
-
-# Environment locals (next.js and other frameworks)
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Misc
-.serverless/
-*.log
-
-
-.remember/
+docs/plans/2026-04-19-group2-security-fixes.md
+docs/plans/2026-04-21-metrics-auth-impl.md
+docs/plans/2026-04-21-request-binding-impl.md
+docs/plans/2026-04-22-item3-verify-binding-cleanup.md
 docs/security_audit_report_2026-04-08.md
-docs/v1-vs-drs-architecture-review.md
+docs/technical_v2.md
 docs/v1-drs.md
+docs/v1-vs-drs-architecture-review.md
+docs/superpowers/
 v1/
-.omx/
-.claude/
-.
-
-docs/plans/
-docs/specs/
-docs/superpowers
+docs/assessments/

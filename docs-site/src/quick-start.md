@@ -25,17 +25,18 @@ pnpm add @okeyamy/drs-sdk
 pnpm exec drs keygen
 ```
 
-Current output is plaintext hex:
+Current output keeps private key material out of stdout:
 
 ```text
 Ed25519 keypair generated.
 
 DID          : did:key:z6Mk...
 Public key   : <hex>
-Private key  : <hex>
+Private key  : written to /home/you/.drs/signing.key
 ```
 
-Save the DID and private key securely.
+Save the DID and protect the private key file. Use `drs keygen --out <path>`
+when you need a different development key location.
 
 ## 3. Issue a root delegation
 

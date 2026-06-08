@@ -26,12 +26,18 @@
     "url": "https://github.com/OkeyAmy/DRS",
     "directory": "packages/drs-mcp-server"
   },
-  "keywords": ["drs", "mcp", "server", "middleware", "verification"],
-  "dependencies": {},
+  "keywords": [
+    "drs",
+    "mcp",
+    "server",
+    "middleware",
+    "verification"
+  ],
   "devDependencies": {
+    "prettier": "^3.8.3",
     "typescript": "^6.0.3",
-    "vitest": "^1.4.0",
-    "prettier": "^3.8.3"
+    "vite": "^6.4.3",
+    "vitest": "^1.4.0"
   },
   "engines": {
     "node": ">=20.0.0"

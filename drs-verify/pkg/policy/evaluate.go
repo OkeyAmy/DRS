@@ -22,77 +22,97 @@ import (
 func Evaluate(pol types.Policy, args map[string]interface{}) error {
 	// max_cost_usd: args["estimated_cost_usd"] must not exceed the limit
 	if pol.MaxCostUSD != nil {
-		if costRaw, ok := args["estimated_cost_usd"]; ok {
-			cost, ok := toFloat64(costRaw)
-			if !ok {
-				return fmt.Errorf("estimated_cost_usd must be a finite non-negative number")
-			}
-			if cost < 0 {
-				return fmt.Errorf("estimated_cost_usd must be non-negative, got %v", cost)
-			}
-			if cost > *pol.MaxCostUSD {
-				return fmt.Errorf("cost limit exceeded: max $%.2f, provided $%.2f", *pol.MaxCostUSD, cost)
-			}
+		costRaw, ok := args["estimated_cost_usd"]
+		if !ok {
+			return fmt.Errorf("estimated_cost_usd is required by this delegation policy")
+		}
+		cost, ok := toFloat64(costRaw)
+		if !ok {
+			return fmt.Errorf("estimated_cost_usd must be a finite non-negative number")
+		}
+		if cost < 0 {
+			return fmt.Errorf("estimated_cost_usd must be non-negative, got %v", cost)
+		}
+		if cost > *pol.MaxCostUSD {
+			return fmt.Errorf("cost limit exceeded: max $%.2f, provided $%.2f", *pol.MaxCostUSD, cost)
 		}
 	}
 
 	// pii_access: false means pii must not be requested
 	if pol.PIIAccess != nil && !*pol.PIIAccess {
-		if piiRaw, ok := args["pii_access"]; ok {
-			if pii, ok := piiRaw.(bool); ok && pii {
-				return fmt.Errorf("PII access not permitted by this delegation")
-			}
+		piiRaw, ok := args["pii_access"]
+		if !ok {
+			return fmt.Errorf("pii_access is required by this delegation policy")
+		}
+		pii, ok := piiRaw.(bool)
+		if !ok {
+			return fmt.Errorf("pii_access must be a boolean")
+		}
+		if pii {
+			return fmt.Errorf("PII access not permitted by this delegation")
 		}
 	}
 
 	// write_access: false means write operations are not permitted
 	if pol.WriteAccess != nil && !*pol.WriteAccess {
-		if writeRaw, ok := args["write_access"]; ok {
-			if write, ok := writeRaw.(bool); ok && write {
-				return fmt.Errorf("write access not permitted")
-			}
+		writeRaw, ok := args["write_access"]
+		if !ok {
+			return fmt.Errorf("write_access is required by this delegation policy")
+		}
+		write, ok := writeRaw.(bool)
+		if !ok {
+			return fmt.Errorf("write_access must be a boolean")
+		}
+		if write {
+			return fmt.Errorf("write access not permitted")
 		}
 	}
 
 	// allowed_tools: args["tool"] must be in the permitted list
-	if len(pol.AllowedTools) > 0 {
-		if toolRaw, ok := args["tool"]; ok {
-			tool, ok := toolRaw.(string)
-			if !ok {
-				return fmt.Errorf("tool must be a string")
-			}
-			if !toolCovered(tool, pol.AllowedTools) {
-				return fmt.Errorf("tool not permitted: allowed [%v], requested %q",
-					pol.AllowedTools, tool)
-			}
+	if len(pol.AllowedTools) > 0 && !hasWildcard(pol.AllowedTools) {
+		toolRaw, ok := args["tool"]
+		if !ok {
+			return fmt.Errorf("tool is required by this delegation policy")
+		}
+		tool, ok := toolRaw.(string)
+		if !ok {
+			return fmt.Errorf("tool must be a string")
+		}
+		if !toolCovered(tool, pol.AllowedTools) {
+			return fmt.Errorf("tool not permitted: allowed [%v], requested %q",
+				pol.AllowedTools, tool)
 		}
 	}
 
 	// allowed_resources: args["resource_uri"] must match at least one pattern
-	if len(pol.AllowedResources) > 0 {
-		if uriRaw, ok := args["resource_uri"]; ok {
-			uri, ok := uriRaw.(string)
-			if !ok {
-				return fmt.Errorf("resource_uri must be a string")
-			}
-			if !resourceCovered(uri, pol.AllowedResources) {
-				return fmt.Errorf("resource not permitted: allowed [%v], requested %q",
-					pol.AllowedResources, uri)
-			}
+	if len(pol.AllowedResources) > 0 && !hasWildcard(pol.AllowedResources) {
+		uriRaw, ok := args["resource_uri"]
+		if !ok {
+			return fmt.Errorf("resource_uri is required by this delegation policy")
+		}
+		uri, ok := uriRaw.(string)
+		if !ok {
+			return fmt.Errorf("resource_uri must be a string")
+		}
+		if !resourceCovered(uri, pol.AllowedResources) {
+			return fmt.Errorf("resource not permitted: allowed [%v], requested %q",
+				pol.AllowedResources, uri)
 		}
 	}
 
 	// allowed_data_classes: args["data_class"] must be in the permitted list
-	if len(pol.AllowedDataClasses) > 0 {
-		if classRaw, ok := args["data_class"]; ok {
-			class, ok := classRaw.(string)
-			if !ok {
-				return fmt.Errorf("data_class must be a string")
-			}
-			if !classCovered(class, pol.AllowedDataClasses) {
-				return fmt.Errorf("data class not permitted: allowed [%v], requested %q",
-					pol.AllowedDataClasses, class)
-			}
+	if len(pol.AllowedDataClasses) > 0 && !hasWildcard(pol.AllowedDataClasses) {
+		classRaw, ok := args["data_class"]
+		if !ok {
+			return fmt.Errorf("data_class is required by this delegation policy")
+		}
+		class, ok := classRaw.(string)
+		if !ok {
+			return fmt.Errorf("data_class must be a string")
+		}
+		if !classCovered(class, pol.AllowedDataClasses) {
+			return fmt.Errorf("data class not permitted: allowed [%v], requested %q",
+				pol.AllowedDataClasses, class)
 		}
 	}
 
