@@ -37,6 +37,11 @@ dr-store/
 .threat-model-state/
 .triage-state/
 
+# ── Local security docs (generated/kept local) ─────────────────────────────────
+THREAT_MODEL.md
+TRIAGE.md
+TRIAGE.json
+
 # ── Local agent/tool state ────────────────────────────────────────────────────
 .claude/
 .codex/sessions/
