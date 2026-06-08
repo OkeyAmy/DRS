@@ -378,11 +378,16 @@ describe("failure paths", () => {
       toolServer: "did:key:z6MkTool",
     });
 
-    // Flip the last character of the signature segment.
+    // Flip the first character of the signature segment.
+    // Note: flipping the LAST base64url character of an Ed25519 signature
+    // (which has padding bits below position 4) would not always change the
+    // decoded bytes — the last character only carries 2 real data bits, and
+    // flipping between A↔B when the original is 'A' only flips padding bits.
+    // Flipping sig[0] guarantees 6 real data bits are changed.
     const parts = invocation.split(".");
     const sig = parts[2];
     const tampered =
-      parts[0] + "." + parts[1] + "." + sig.slice(0, -1) + (sig.slice(-1) === "A" ? "B" : "A");
+      parts[0] + "." + parts[1] + "." + (sig[0] === "A" ? "B" : "A") + sig.slice(1);
 
     const bundle = buildBundle([rootDR], tampered);
     const { body } = await postVerify(VERIFY_URL, bundle);
