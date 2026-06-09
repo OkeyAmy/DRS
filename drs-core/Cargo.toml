@@ -24,7 +24,7 @@ bs58             = "0.5"
 subtle           = "2"
 thiserror        = "1"
 rand             = "0.8"
-rand_core        = "0.6"
+rand_core        = "0.9"
 wasm-bindgen             = { version = "0.2", optional = true }
 js-sys                   = { version = "0.3", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
