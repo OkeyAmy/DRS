@@ -1,5 +1,5 @@
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
-use rand_core::OsRng;
+use ed25519_dalek::rand_core::OsRng;
 
 use crate::error::DrsError;
 

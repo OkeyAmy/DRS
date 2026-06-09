@@ -85,10 +85,26 @@ jobs:
       - name: Build workspace packages used by E2E
         run: pnpm --filter @okeyamy/drs-sdk --filter @drs/mcp-server build
 
-      - name: Wait for image to propagate
-        # Publish workflow pushes the image earlier in the run; this job
-        # blocks until `latest` reflects this tag to avoid a race.
-        run: sleep 30
+      - name: Wait for published image to be available
+        # publish.yml runs concurrently: it must complete test + multi-arch
+        # build + Trivy before pushing. That takes 5-15 min. Poll until the
+        # tagged image is pullable rather than sleeping a fixed interval.
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          IMAGE="ghcr.io/${REPO_OWNER}/drs-verify:${TAG}"
+          echo "Waiting for $IMAGE ..."
+          for i in $(seq 1 30); do
+            if docker pull "$IMAGE" > /dev/null 2>&1; then
+              echo "Image available after attempt $i"
+              exit 0
+            fi
+            echo "Attempt $i/30: not yet available, retrying in 30 s"
+            sleep 30
+          done
+          echo "Image not available after 15 minutes — aborting"
+          exit 1
 
       - name: Run E2E against the published image
         working-directory: integration-tests
