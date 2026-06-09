@@ -63,11 +63,29 @@ jobs:
         run: ./run.sh
 
   e2e-published-image:
-    name: E2E against published image (post-tag smoke test)
+    name: E2E against published image (smoke test)
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Runs on every trigger — no gate.
+    # PRs and main branch pushes test against 'latest' (image already exists).
+    # Tag pushes test against the new version tag and poll until it is available.
     steps:
       - uses: actions/checkout@v6
+
+      - name: Resolve image tag
+        id: image
+        env:
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          REPO_OWNER: ${{ github.repository_owner }}
+        run: |
+          if echo "$REF" | grep -q '^refs/tags/v'; then
+            echo "tag=${REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "wait=true"      >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest"     >> "$GITHUB_OUTPUT"
+            echo "wait=false"     >> "$GITHUB_OUTPUT"
+          fi
+          echo "image=ghcr.io/${REPO_OWNER}/drs-verify" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -85,18 +103,19 @@ jobs:
       - name: Build workspace packages used by E2E
         run: pnpm --filter @okeyamy/drs-sdk --filter @drs/mcp-server build
 
-      - name: Wait for published image to be available
-        # publish.yml runs concurrently: it must complete test + multi-arch
-        # build + Trivy before pushing. That takes 5-15 min. Poll until the
-        # tagged image is pullable rather than sleeping a fixed interval.
+      - name: Wait for new image (tag pushes only)
+        # publish.yml runs concurrently: test + multi-arch build + Trivy
+        # takes 5-15 min. Poll until the tagged image is pullable.
+        # On PRs and main pushes this step is skipped — 'latest' is already there.
+        if: steps.image.outputs.wait == 'true'
         env:
-          TAG: ${{ github.ref_name }}
-          REPO_OWNER: ${{ github.repository_owner }}
+          IMAGE: ${{ steps.image.outputs.image }}
+          TAG: ${{ steps.image.outputs.tag }}
         run: |
-          IMAGE="ghcr.io/${REPO_OWNER}/drs-verify:${TAG}"
-          echo "Waiting for $IMAGE ..."
+          FULL="${IMAGE}:${TAG}"
+          echo "Polling for $FULL ..."
           for i in $(seq 1 30); do
-            if docker pull "$IMAGE" > /dev/null 2>&1; then
+            if docker pull "$FULL" > /dev/null 2>&1; then
               echo "Image available after attempt $i"
               exit 0
             fi
@@ -106,10 +125,17 @@ jobs:
           echo "Image not available after 15 minutes — aborting"
           exit 1
 
+      - name: Pull published image (PRs and main)
+        # For non-tag runs 'latest' is stable; pull once so the run step
+        # uses a definite image ID rather than whatever is cached on the runner.
+        if: steps.image.outputs.wait == 'false'
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          TAG: ${{ steps.image.outputs.tag }}
+        run: docker pull "${IMAGE}:${TAG}"
+
       - name: Run E2E against the published image
         working-directory: integration-tests
         env:
-          # Bound via env: (not inlined in run:) to follow the safe pattern
-          # for any ${{ }} expression — even ones that look innocuous today.
-          TAG: ${{ github.ref_name }}
-        run: DRS_VERIFY_TAG="$TAG" ./run.sh
+          DRS_VERIFY_TAG: ${{ steps.image.outputs.tag }}
+        run: ./run.sh
