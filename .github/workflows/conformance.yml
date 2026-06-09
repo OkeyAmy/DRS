@@ -25,7 +25,7 @@ jobs:
     name: Rust (drs-core) — full test suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -47,7 +47,7 @@ jobs:
     name: Go (drs-verify) — full test suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -63,7 +63,7 @@ jobs:
     name: TypeScript (drs-sdk) — full test suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -87,7 +87,7 @@ jobs:
     name: TypeScript (drs-mcp-client)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -111,7 +111,7 @@ jobs:
     name: TypeScript (drs-mcp-server)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -135,7 +135,7 @@ jobs:
     name: Fixture integrity check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Compute fixture checksum
         run: |
