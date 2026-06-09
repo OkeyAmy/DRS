@@ -85,7 +85,7 @@ jobs:
             echo "tag=latest"     >> "$GITHUB_OUTPUT"
             echo "wait=false"     >> "$GITHUB_OUTPUT"
           fi
-          echo "image=ghcr.io/${REPO_OWNER}/drs-verify" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${REPO_OWNER,,}/drs-verify" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
         uses: actions/setup-node@v6
