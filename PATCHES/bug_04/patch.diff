@@ -1,0 +1,83 @@
+--- a/drs-core/src/chain/verify.rs
++++ b/drs-core/src/chain/verify.rs
+@@ -12,6 +12,9 @@ use crate::types::{
+     ChainBundle, DelegationReceipt, InvocationReceipt, VerificationContext, VerificationResult,
+ };
+
++/// Maximum number of delegation receipts permitted in a single chain bundle.
++/// Mirrors the Go layer's `maxChainDepth` constant in `drs-verify/pkg/verify/chain.go`.
++const MAX_CHAIN_DEPTH: usize = 16;
++
+ const EXPECTED_DRS_VERSION: &str = "4.0";
+ const EXPECTED_DR_TYPE: &str = "delegation-receipt";
+ const EXPECTED_INV_TYPE: &str = "invocation-receipt";
+@@ -29,6 +33,17 @@ pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
+     // ── Block A: Completeness ──────────────────────────────────────────────────
+     // A1: bundle.receipts.length > 0
+     if bundle.receipts.is_empty() {
+         return VerificationResult::invalid(
+             "EMPTY_CHAIN",
+             "bundle.receipts is empty — at least one delegation receipt is required.",
+             "Ensure the chain bundle includes all delegation receipts from root to leaf.",
+         );
+     }
++    // A1b: depth cap — reject before any crypto work to prevent CPU exhaustion
++    // and WASM stack pressure on deep chains submitted via the WASM surface.
++    if bundle.receipts.len() > MAX_CHAIN_DEPTH {
++        return VerificationResult::invalid(
++            "CHAIN_TOO_DEEP",
++            format!(
++                "bundle has {} receipts; maximum allowed chain depth is {MAX_CHAIN_DEPTH}.",
++                bundle.receipts.len()
++            ),
++            "Reduce the delegation chain depth. Legitimate chains rarely exceed 4 hops.",
++        );
++    }
+     // A2: bundle.invocation exists
+     if bundle.invocation.is_empty() {
+--- a/drs-core/tests/test_verify_chain.rs
++++ b/drs-core/tests/test_verify_chain.rs
+@@ -493,3 +493,37 @@ fn sub_path_cmd_is_accepted() {
+     let result = verify_chain(&bundle);
+     assert!(result.valid, "sub-path cmd should be valid, got: {:?}", result.error);
+ }
++
++/// A bundle with 17 receipts must be rejected with CHAIN_TOO_DEEP before any
++/// cryptographic work is attempted.  The receipt strings are intentionally
++/// invalid JWTs — the depth check must fire first.
++#[test]
++fn chain_depth_over_limit_is_rejected() {
++    let receipts: Vec<String> = (0..17).map(|i| format!("stub.stub.stub{i}")).collect();
++    let bundle = ChainBundle {
++        bundle_version: "4.0".into(),
++        receipts,
++        invocation: "stub.stub.stubinv".into(),
++    };
++    let result = verify_chain(&bundle);
++    assert!(!result.valid);
++    let err = result.error.expect("expected an error");
++    assert_eq!(
++        err.code, "CHAIN_TOO_DEEP",
++        "expected CHAIN_TOO_DEEP, got '{}'", err.code
++    );
++}
++
++/// A bundle with exactly 16 receipts must NOT trigger CHAIN_TOO_DEEP.
++/// It will fail for another reason (MALFORMED_RECEIPT) — that is expected.
++#[test]
++fn chain_depth_at_limit_is_not_depth_rejected() {
++    let receipts: Vec<String> = (0..16).map(|i| format!("stub.stub.stub{i}")).collect();
++    let bundle = ChainBundle {
++        bundle_version: "4.0".into(),
++        receipts,
++        invocation: "stub.stub.stubinv".into(),
++    };
++    let result = verify_chain(&bundle);
++    // Must not be CHAIN_TOO_DEEP — it may fail for other reasons (MALFORMED_RECEIPT etc.)
++    if let Some(err) = result.error {
++        assert_ne!(
++            err.code, "CHAIN_TOO_DEEP",
++            "16-receipt bundle must not trigger CHAIN_TOO_DEEP"
++        );
++    }
++}

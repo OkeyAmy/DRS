@@ -8,7 +8,7 @@
 
 **What:** Bundle has at least one delegation receipt and exactly one invocation receipt.
 
-**Fail condition:** `receipts` array is empty, or `invocation` field is missing or null.
+**Fail condition:** `receipts` array is empty, `invocation` field is missing or null, or `len(receipts) > MAX_CHAIN_DEPTH` (16). The depth check fires before any cryptographic work so a malicious deep chain cannot exhaust CPU.
 
 ---
 
@@ -99,6 +99,7 @@ verify_chain(bundle) → Result<VerifiedChain, VerifyError>:
   # Block A
   if bundle.receipts is empty: return Err(BUNDLE_INCOMPLETE)
   if bundle.invocation is null: return Err(BUNDLE_INCOMPLETE)
+  if len(bundle.receipts) > MAX_CHAIN_DEPTH: return Err(CHAIN_TOO_DEEP)  # MAX_CHAIN_DEPTH = 16
 
   drs = [decode_jwt(r) for r in bundle.receipts]
   inv = decode_jwt(bundle.invocation)
@@ -129,8 +130,10 @@ verify_chain(bundle) → Result<VerifiedChain, VerifyError>:
   # Block F
   for dr in drs:
     if dr.drs_status_list_index != null:
-      if remote_status_list_configured and remote_status_list.is_revoked(dr.drs_status_list_index):
-        return Err(RECEIPT_REVOKED)
+      if remote_status_list_configured:
+        result = remote_status_list.is_revoked(dr.drs_status_list_index)
+        if result is Err: return Err(result)  # OOB index is an error, not "not revoked"
+        if result is Ok(true): return Err(RECEIPT_REVOKED)
       if local_revocation_store.is_revoked(dr.drs_status_list_index):
         return Err(RECEIPT_REVOKED)
 

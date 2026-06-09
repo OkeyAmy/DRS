@@ -1,53 +1,215 @@
 {
-  "findings": [
-    {
-      "id": "F-001",
-      "verdict": "true_positive",
-      "action": "patched",
-      "file": "drs-sdk/src/cli/commands/keygen.ts",
-      "rationale": "drs keygen previously printed the raw private key to stdout; it now writes the key to a 0600 file, refuses overwrite, and prints only public metadata plus the file path."
-    },
-    {
-      "id": "F-005",
-      "verdict": "true_positive",
-      "action": "go_patched_rust_counterpart_open",
-      "file": "drs-verify/pkg/policy/evaluate.go",
-      "rationale": "Policy-restricted invocation fields were optional during Go evaluation, allowing omitted args to skip fail-closed checks. VULN-FINDINGS.json also records a Rust counterpart that needs separate treatment."
-    },
-    {
-      "id": "F-006",
-      "verdict": "true_positive",
-      "action": "patched",
-      "file": "packages/drs-mcp-server/src/middleware.ts",
-      "rationale": "MCP Shape 2 verification posted only the bundle and did not bind official tools/call params.arguments to the signed invocation args."
-    },
-    {
-      "id": "F-007",
-      "verdict": "true_positive",
-      "action": "patched",
-      "file": "drs-verify/pkg/middleware/binding.go",
-      "rationale": "In-process MCP/A2A binding read request bodies without a cap before JCS comparison."
-    },
-    {
-      "id": "F-008",
-      "verdict": "true_positive",
-      "action": "patched",
-      "file": "drs-verify/cmd/server/main.go",
-      "rationale": "SERVER_IDENTITY default-off remains a supported single-server mode, but startup now emits an explicit warning when tool-server binding is disabled."
-    },
-    {
-      "id": "F-009",
-      "verdict": "true_positive",
-      "action": "patched",
-      "file": "drs-verify/pkg/middleware/decode.go",
-      "rationale": "A nil nonce checker no longer silently disables replay protection; middleware fails closed with NONCE_REPLAY_PROTECTION_UNAVAILABLE."
-    },
-    {
-      "id": "F-013",
-      "verdict": "needs_design",
-      "action": "not_patched",
-      "file": "drs-verify/pkg/verify/chain.go",
-      "rationale": "Invocation freshness and clock-skew semantics must be configurable and aligned with nonce TTL before enforcement. Go and Rust verifier scope remains open pending that design."
+  "triage_context": {
+    "environment": "Library/SDK — integrating developer is trusted caller; bundle contents (JWTs, DIDs, policy fields, invocation args from external agents) are fully attacker-controlled; transport security is integrator's responsibility",
+    "threat_model": [
+      "Forge/bypass delegation chain",
+      "Replay captured invocation receipt",
+      "DoS verification path",
+      "Ed25519 key compromise/CLI key exposure"
+    ],
+    "scoring": "Derived HIGH/MEDIUM/LOW from preconditions",
+    "noise_tolerance": "recall",
+    "votes_per_finding": 3,
+    "repo": "/home/okey/Desktop/Projects/DRS",
+    "findings_path": "VULN-FINDINGS.json",
+    "org_rules": {
+      "A": "HTTP between internal services is NOT a finding",
+      "B": "drs-verify is never internet-facing; HTTP callers are trusted peers",
+      "C": "Cross-layer duplicates (same bug in Go and Rust) = one finding"
     }
-  ]
+  },
+  "summary": {
+    "total_input": 55,
+    "duplicates_removed": 7,
+    "unlocatable_removed": 0,
+    "candidates_verified": 48,
+    "true_positive": 9,
+    "needs_manual_test": 4,
+    "false_positive": 35
+  },
+  "true_positives": [
+    {
+      "id": "f001",
+      "rank": 1,
+      "severity": "HIGH",
+      "threat_class": "Ed25519 key compromise / CLI key exposure",
+      "confidence": 0.87,
+      "file": "drs-sdk/src/cli/commands/keygen.ts",
+      "line": 23,
+      "category": "sensitive-key-disclosure",
+      "title": "keygen prints Ed25519 private key hex to stdout",
+      "description": "The keygen command writes the raw private key bytes as a hex string to process stdout at line 23. Any shell log, command history (.bash_history), terminal scroll buffer, pipe recipient, CI log capture, or process-listing observer receives the private key in plaintext.",
+      "exploit_scenario": "Developer runs `drs keygen`; CI pipeline captures stdout to a log artifact; log is accessible to any CI viewer or stored in plaintext. Attacker reads log and has the private key needed to forge any delegation chain signed under that key.",
+      "recommendation": "Write the private key to a file with mode 0600 (never to stdout). If stdout is the intended transport, emit only after confirming a TTY is attached and the user is warned. Log to stderr only. Add a `--out` flag pointing to a file path.",
+      "component": "drs-sdk"
+    },
+    {
+      "id": "f007",
+      "rank": 2,
+      "severity": "HIGH",
+      "threat_class": "DoS verification path",
+      "confidence": 0.80,
+      "file": "drs-verify/pkg/middleware/binding.go",
+      "line": 34,
+      "category": "unbounded-read",
+      "title": "io.ReadAll on request body in binding middleware — no MaxBytesReader",
+      "description": "binding.go:34 calls io.ReadAll(r.Body) with no http.MaxBytesReader wrapper. An attacker sends a multi-gigabyte body to any MCP or A2A route that passes through the binding middleware; the goroutine allocates memory until OOM or WriteTimeout fires (~30s). Under concurrent load this exhausts the process heap.",
+      "exploit_scenario": "Attacker sends POST to /mcp/tool with a 512 MB body. The binding goroutine blocks on io.ReadAll; GC pressure spikes; verification latency for legitimate requests increases from <5ms to >1s or crashes the process.",
+      "recommendation": "Wrap with http.MaxBytesReader(w, r.Body, maxBodyBytes) before the ReadAll call. Set maxBodyBytes to match the largest legitimate bundle (recommended: 64 KB).",
+      "component": "drs-verify"
+    },
+    {
+      "id": "f015",
+      "rank": 3,
+      "severity": "MEDIUM",
+      "threat_class": "DoS verification path",
+      "confidence": 0.90,
+      "file": "drs-verify/pkg/middleware/mcp.go",
+      "line": 55,
+      "category": "unbounded-read",
+      "title": "X-DRS-Bundle header decoded before size check — no header size cap",
+      "description": "mcp.go:55 calls base64.DecodeString(bundleHeader) where bundleHeader is the raw X-DRS-Bundle header value. base64.DecodeString eagerly allocates its full output buffer before any size check is applied. There is no http.MaxHeaderBytes on the server. An attacker sends a megabyte-scale header value; the middleware allocates proportional memory per request.",
+      "exploit_scenario": "Attacker sends a request with X-DRS-Bundle set to a 1 MB base64 string. Each such request causes a ~750 KB allocation before rejection. At 1000 req/s this is 750 MB/s allocation rate, exhausting the heap regardless of the global rate limiter (which is checked after header decode).",
+      "recommendation": "Check len(bundleHeader) against a maximum (e.g. 87381 bytes for 65280 raw bytes after base64 overhead) before calling DecodeString. Alternatively use base64.NewDecoder with an io.LimitReader to avoid the upfront allocation.",
+      "component": "drs-verify"
+    },
+    {
+      "id": "f011",
+      "rank": 4,
+      "severity": "MEDIUM",
+      "threat_class": "DoS verification path (algorithmic complexity)",
+      "confidence": 0.90,
+      "file": "drs-core/src/capability/policy.rs",
+      "line": 167,
+      "category": "algorithmic-complexity",
+      "title": "O(n*m) Vec::contains in capability attenuation check",
+      "description": "policy.rs:167-179 iterates every child capability and for each one calls Vec::contains over the parent list, producing O(n*m) comparisons. At moderate load with a 16-receipt chain each carrying 100 capabilities this is 160,000 comparisons per verification; an attacker who controls capability lists in sub-delegations can push this to millions of comparisons per request.",
+      "exploit_scenario": "Attacker crafts a chain where each of 16 receipts declares 500 capabilities (each one character different to defeat early-exit). Verification hits 8 million comparisons per chain; the Rust WASM sandbox still executes them; CPU is saturated before the rate limiter fires.",
+      "recommendation": "Replace the inner Vec::contains with a HashSet lookup. Build a HashSet<&str> from the parent capabilities once per receipt; child lookups are O(1). Total complexity drops to O(n + m).",
+      "component": "drs-core"
+    },
+    {
+      "id": "f018",
+      "rank": 5,
+      "severity": "MEDIUM",
+      "threat_class": "DoS verification path (stack overflow in WASM)",
+      "confidence": 0.80,
+      "file": "drs-core/src/chain/verify.rs",
+      "line": 26,
+      "category": "unbounded-recursion",
+      "title": "Rust verify_chain has no depth cap — WASM stack overflow on deep chains",
+      "description": "verify.rs:26 recurses through the chain with no maxChainDepth guard equivalent to the Go layer's maxChainDepth = 16. The Go layer's cap is applied before invoking Rust. When verify_chain is called directly from the WASM bindings (bypassing Go), an attacker submitting a 1000-receipt chain causes a stack overflow inside the WASM sandbox. Go-gated paths are protected; the WASM surface is not.",
+      "exploit_scenario": "WASM-consuming SDK integration calls verify_chain directly with a 10,000-link receipt array. The recursive traversal blows the WASM stack; the WASM runtime panics or returns an error that the caller treats as a pass (fail-open).",
+      "recommendation": "Add an explicit depth counter parameter to the recursive verify function and return Err(VerifyError::ChainTooDeep) when depth exceeds 16. This mirrors the Go layer's existing guard.",
+      "component": "drs-core"
+    },
+    {
+      "id": "f023",
+      "rank": 6,
+      "severity": "MEDIUM",
+      "threat_class": "DoS verification path (serial egress)",
+      "confidence": 0.77,
+      "file": "drs-verify/pkg/verify/chain.go",
+      "line": 236,
+      "category": "serial-blocking-io",
+      "title": "Block C DID resolution is fully serial — 16 distinct issuers force 16 sequential HTTPS round trips",
+      "description": "chain.go:236 resolves each receipt's issuer DID in a sequential loop. With 16 distinct did:web issuers, this is 16 serial HTTPS round trips before verification can complete. The circuit breaker fires only after repeated failures; a slow-but-responding server holds the goroutine for up to the full HTTP timeout per hop. WriteTimeout eventually recovers but ties up connection slots and goroutines during the wait.",
+      "exploit_scenario": "Attacker constructs a chain with 16 distinct did:web issuers each pointing at a server that responds in 9s (just under the 10s HTTP timeout). Total Block C time: 144s — well beyond WriteTimeout, which recycles the connection but has already allocated the goroutine stack and resolver resources for the duration.",
+      "recommendation": "Collect all unique issuer DIDs first, resolve them concurrently with an errgroup (bounded by a semaphore at e.g. 8), then apply results to the chain. The LRU cache already amortizes cost across requests; deduplicated concurrent resolution eliminates serial compounding within a single request.",
+      "component": "drs-verify"
+    },
+    {
+      "id": "f032",
+      "rank": 7,
+      "severity": "MEDIUM",
+      "threat_class": "Timestamp evidence integrity — false rejection of archived receipts",
+      "confidence": 0.90,
+      "file": "drs-verify/pkg/anchor/rfc3161.go",
+      "line": 358,
+      "category": "timestamp-validation-logic",
+      "title": "Redundant time.Now() validity check contradicts tst.GenTime — archived receipts falsely rejected",
+      "description": "rfc3161.go:345 correctly sets CurrentTime: tst.GenTime in x509.VerifyOptions. Lines 358-360 then add a second check using time.Now() against the same certificate's validity window. For archived receipts whose TSA certificate has expired since signing, the first check passes (RFC 3161 §2.3 correct) but the second check fails. The two checks diverge and the redundant time.Now() block wins, falsely rejecting a validly-timestamped archived receipt.",
+      "exploit_scenario": "A DRS receipt timestamped in 2024 by a TSA whose cert expired in 2025. The RFC 3161-correct check passes. The redundant time.Now() check fails. VerifyTimestampTrusted returns an error. The receipt is rejected as having an invalid timestamp even though it was validly timestamped at signing time, breaking audit-trail compliance for archived receipts.",
+      "recommendation": "Delete lines 358-360 (the cert.NotAfter / cert.NotBefore / time.Now() block). The cert.Verify(opts) at line 342-350 with CurrentTime: tst.GenTime already performs the correct time-bounded check. The redundant block is the bug.",
+      "component": "drs-verify"
+    },
+    {
+      "id": "f033",
+      "rank": 8,
+      "severity": "MEDIUM",
+      "threat_class": "Timestamp evidence integrity — cert substitution via serial-only match",
+      "confidence": 0.67,
+      "file": "drs-verify/pkg/anchor/rfc3161.go",
+      "line": 431,
+      "category": "insufficient-cert-matching",
+      "title": "extractSignerCert matches on serial number only — RFC 5652 §10.2.3 requires issuer+serial",
+      "description": "extractSignerCert at line 431 discards ias.Issuer and matches only on ias.SerialNumber. RFC 5652 §10.2.3 requires SignerIdentifier be matched by both issuer name AND serial number. For VerifyTimestampTrusted the trust-pool cert.Verify provides a compensating control. For the exported VerifyTimestamp (no trust pool), there is no compensating control: an attacker who controls a TSA response can substitute a certificate from any CA that happens to share a serial number with the legitimate TSA cert.",
+      "exploit_scenario": "Attacker controls a CA that issues a cert with serial 1 (same serial as the legitimate TSA cert). VerifyTimestamp is called with no trust pool. extractSignerCert at line 431 matches on SerialNumber alone and returns the attacker's cert. The attacker's cert passes the signature check on the forged timestamp token. The timestamp is accepted as valid.",
+      "recommendation": "In extractSignerCert, match on both issuer name and serial number. Additionally consider deprecating the exported VerifyTimestamp (no-pool variant) or requiring a non-nil pool.",
+      "component": "drs-verify"
+    },
+    {
+      "id": "f037",
+      "rank": 9,
+      "severity": "LOW",
+      "threat_class": "Delegation chain integrity — latent cross-implementation JCS divergence",
+      "confidence": 0.60,
+      "file": "drs-sdk/src/sdk/jcs.ts",
+      "line": 30,
+      "category": "cryptographic-correctness",
+      "title": "JCS key sort uses UTF-16 code unit order — diverges from RFC 8785 for supplementary-plane characters",
+      "description": "jcs.ts:30 uses Object.keys(obj).sort() with no custom comparator. JavaScript Array.sort() compares by UTF-16 code unit value. For supplementary-plane characters (U+10000+), UTF-16 surrogate pairs produce sort order that diverges from Unicode code point order as required by RFC 8785 §3.2.3. The module comment on line 9 explicitly acknowledges 'UTF-16 code unit order'. The Rust (serde_json_canonicalizer) and Go (gowebpki/jcs) implementations both use code-point order. The conformance vectors contain only ASCII keys; the fixture generator has the same defect, creating circular self-validation. Currently latent: the JWT verifier reads raw signing bytes, and the binding check applies symmetric Go JCS to both sides. Becomes immediately exploitable if the WASM jcs_canonical_bytes path is wired into the signing flow.",
+      "exploit_scenario": "Future: TypeScript SDK signs a receipt whose args contain object keys with U+10000+ characters. A Rust/Go-based audit tool independently computes the canonical form. The canonical bytes differ. The SHA-256 chain hash diverges. Chain verification fails for legitimately signed receipts.",
+      "recommendation": "Replace Object.keys(obj).sort() with a code-point-aware comparator. Add at least one supplementary-plane key test vector to jcs/vectors.json and fix generate.mjs to use the corrected comparator.",
+      "component": "drs-sdk"
+    }
+  ],
+  "needs_manual_test": [
+    {
+      "id": "f014",
+      "severity": "MEDIUM",
+      "vote_split": "2TP:1FP",
+      "file": "drs-verify/pkg/verify/chain.go",
+      "line": 308,
+      "category": "verification-bypass",
+      "title": "nil-child-exp guard may allow unattentuated child to bypass Block D2 policy check",
+      "rationale": "2 votes: nil child expiry combined with non-nil parent expiry leaves D2 attenuation check with incomplete inputs; 1 vote: Block E catches expired parent regardless. Requires hands-on test with crafted nil-exp child receipt against a chain where parent has a non-nil expiry.",
+      "component": "drs-verify"
+    },
+    {
+      "id": "f008",
+      "severity": "MEDIUM",
+      "vote_split": "2FP:1TP",
+      "file": "drs-verify/pkg/verify/chain.go",
+      "line": 0,
+      "category": "replay",
+      "title": "Cross-instance replay: valid chain re-submitted to different tool server",
+      "rationale": "1 vote: D4c tool_server binding check is opt-in (ServerIdentity env var); left empty means replay is possible. 2 votes: documented operator-configuration gap, not a code bug. Requires confirming whether production deployments set SERVER_IDENTITY.",
+      "component": "drs-verify"
+    },
+    {
+      "id": "f016",
+      "severity": "LOW",
+      "vote_split": "2FP:1TP",
+      "file": "drs-verify/pkg/revocation/status.go",
+      "line": 228,
+      "category": "fail-open",
+      "title": "getBit returns false (valid) for out-of-range bit index",
+      "rationale": "1 vote: out-of-range index returns false = receipt not revoked; silent fail-open. 2 votes: status list field is inside signed JWT (Block C covers tampering); attacker cannot manipulate the index without breaking signature. Requires crafting a chain where the status list shrinks between signing and verification.",
+      "component": "drs-verify"
+    },
+    {
+      "id": "f025",
+      "severity": "LOW",
+      "vote_split": "2FP:1TP",
+      "file": "drs-verify/pkg/nonce/store.go",
+      "line": 87,
+      "category": "nonce-exhaustion",
+      "title": "ErrStoreExhausted surfaces when nonce store capacity is reached",
+      "rationale": "1 vote: global rate limit x default TTL = arithmetically fillable in ~100s. 2 votes: Org Rule B (internal service); Redis remedy available; Rule 1 (volumetric DoS at infrastructure layer). Requires confirming store capacity and TTL configuration in production.",
+      "component": "drs-verify"
+    }
+  ],
+  "phase3_complete": true,
+  "generated_at": "2026-06-08"
 }

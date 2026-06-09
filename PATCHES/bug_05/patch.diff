@@ -1,0 +1,260 @@
+--- a/drs-verify/pkg/verify/chain.go
++++ b/drs-verify/pkg/verify/chain.go
+@@ -13,6 +13,7 @@ import (
+ 	"context"
+ 	"crypto/ed25519"
+ 	"crypto/sha256"
+ 	"crypto/x509"
+ 	"encoding/base64"
+ 	"encoding/json"
+ 	"errors"
+ 	"fmt"
+ 	"log/slog"
+ 	"strings"
++	"sync"
+ 	"time"
+
+ 	"github.com/drs-protocol/drs-verify/pkg/anchor"
+@@ -36,6 +37,11 @@ import (
+ var errSignatureMalleability = errors.New("signature malleability")
+
++// blockCConcurrency is the maximum number of concurrent DID resolutions that
++// Block C will run in parallel within a single Chain call. Eight covers the
++// realistic maximum of distinct issuers in a 16-hop chain while keeping
++// outbound HTTP concurrency well below any server-side rate limit.
++const blockCConcurrency = 8
++
+ const (
+ 	expectedDRSVersion = "4.0"
+ 	expectedDRType     = "delegation-receipt"
+@@ -233,14 +239,27 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
+
+ 	// ── Block C: Cryptographic Validity ─────────────────────────────────────
+
+-	for i, jwt := range bundle.Receipts {
+-		if err := verifyJWTSignature(ctx, jwt, receipts[i].Iss, deps.Resolver); err != nil {
++	// Pre-resolve every unique issuer DID concurrently so that did:web round
++	// trips for N distinct issuers happen in parallel (max blockCConcurrency
++	// at once) rather than serially. Cached results are then used by the
++	// signature verification loop, which does no further network I/O.
++	issuerDIDs := make([]string, 0, len(receipts)+1)
++	for _, r := range receipts {
++		issuerDIDs = append(issuerDIDs, r.Iss)
++	}
++	issuerDIDs = append(issuerDIDs, invocation.Iss)
++
++	resolvedKeys, resolveErr := resolveIssuersParallel(ctx, issuerDIDs, deps.Resolver)
++	if resolveErr != nil {
++		code, suggestion := classifySignatureError(resolveErr)
++		return types.Invalid(code,
++			fmt.Sprintf("DID resolution failed during Block C pre-resolution: %v", resolveErr),
++			suggestion)
++	}
++
++	for i, jwt := range bundle.Receipts {
++		if err := verifyJWTSignatureWithKey(jwt, receipts[i].Iss, resolvedKeys); err != nil {
+ 			code, suggestion := classifySignatureError(err)
+ 			return types.Invalid(code,
+ 				fmt.Sprintf("receipt[%d] signature check failed: %v", i, err),
+ 				suggestion)
+ 		}
+ 	}
+-	if err := verifyJWTSignature(ctx, bundle.Invocation, invocation.Iss, deps.Resolver); err != nil {
++	if err := verifyJWTSignatureWithKey(bundle.Invocation, invocation.Iss, resolvedKeys); err != nil {
+ 		code, suggestion := classifySignatureError(err)
+ 		if code == "INVALID_SIGNATURE" {
+ 			code = "INVALID_INVOCATION_SIGNATURE"
+@@ -483,6 +502,58 @@ func decodeJWTPayload(jwt string, dst interface{}) error {
+ 	return nil
+ }
+
++// resolveIssuersParallel resolves each unique DID in dids using at most
++// blockCConcurrency concurrent goroutines. It returns a map from DID to its
++// 32-byte Ed25519 public key, or the first resolution error encountered.
++//
++// Deduplication is performed before dispatch: a chain with repeated issuers
++// incurs only one network round trip per unique DID.
++func resolveIssuersParallel(
++	ctx context.Context,
++	dids []string,
++	res *resolver.Resolver,
++) (map[string][32]byte, error) {
++	seen := make(map[string]struct{}, len(dids))
++	unique := make([]string, 0, len(dids))
++	for _, did := range dids {
++		if _, ok := seen[did]; !ok {
++			seen[did] = struct{}{}
++			unique = append(unique, did)
++		}
++	}
++
++	type resolveResult struct {
++		did string
++		key [32]byte
++		err error
++	}
++
++	results := make(chan resolveResult, len(unique))
++	sem := make(chan struct{}, blockCConcurrency)
++
++	var wg sync.WaitGroup
++	for _, did := range unique {
++		wg.Add(1)
++		go func(d string) {
++			defer wg.Done()
++			sem <- struct{}{}
++			defer func() { <-sem }()
++			key, err := res.Resolve(ctx, d)
++			results <- resolveResult{did: d, key: key, err: err}
++		}(did)
++	}
++
++	wg.Wait()
++	close(results)
++
++	keys := make(map[string][32]byte, len(unique))
++	for r := range results {
++		if r.err != nil {
++			return nil, fmt.Errorf("resolve %s: %w", r.did, r.err)
++		}
++		keys[r.did] = r.key
++	}
++	return keys, nil
++}
++
+ // verifyJWTSignature resolves the issuer DID and verifies the JWT's Ed25519 signature.
+ // Uses Go stdlib crypto/ed25519 — no CGO required.
+ func verifyJWTSignature(ctx context.Context, jwt string, issuerDID string, res *resolver.Resolver) error {
+@@ -508,6 +579,34 @@ func verifyJWTSignature(ctx context.Context, jwt string, issuerDID string, res *
+ 	return nil
+ }
+
++// verifyJWTSignatureWithKey verifies a JWT's Ed25519 signature using a
++// pre-resolved public key from resolvedKeys. It performs no network I/O.
++func verifyJWTSignatureWithKey(jwt string, issuerDID string, resolvedKeys map[string][32]byte) error {
++	hdr, err := decodeJWTHeader(jwt)
++	if err != nil {
++		return fmt.Errorf("JWT header decode failed: %w", err)
++	}
++	if hdr.Alg != "EdDSA" {
++		return fmt.Errorf("unsupported JWT algorithm %q: DRS receipts must use EdDSA", hdr.Alg)
++	}
++
++	pubKeyBytes, ok := resolvedKeys[issuerDID]
++	if !ok {
++		return fmt.Errorf("DID resolution failed: no key found for %s", issuerDID)
++	}
++
++	parts := strings.SplitN(jwt, ".", 4)
++	if len(parts) != 3 {
++		return fmt.Errorf("malformed JWT")
++	}
++	signingInput := parts[0] + "." + parts[1]
++	sigBytes, err := base64.RawURLEncoding.DecodeString(parts[2])
++	if err != nil {
++		return fmt.Errorf("signature base64 decode: %w", err)
++	}
++	if err := strictVerifyEd25519(sigBytes); err != nil {
++		return fmt.Errorf("Ed25519 strict check failed: %w", err)
++	}
++	pubKey := ed25519.PublicKey(pubKeyBytes[:])
++	if !ed25519.Verify(pubKey, []byte(signingInput), sigBytes) {
++		return fmt.Errorf("Ed25519 signature verification failed")
++	}
++	return nil
++}
++
+--- a/drs-verify/pkg/verify/chain_test.go
++++ b/drs-verify/pkg/verify/chain_test.go
+@@ -778,3 +778,67 @@ func TestStrictEd25519RejectsNonCanonicalS(t *testing.T) {
+ 	if err == nil {
+ 		t.Error("strict verifier must reject non-canonical S (S >= L), got nil error")
+ 	}
+ }
++
++// TestResolveIssuersParallelDeduplicates verifies that resolveIssuersParallel
++// returns exactly one entry per unique DID when the input contains duplicates.
++func TestResolveIssuersParallelDeduplicates(t *testing.T) {
++	k0 := newTestKey(t)
++	k1 := newTestKey(t)
++
++	res, err := resolver.New(100, time.Hour)
++	if err != nil {
++		t.Fatalf("resolver.New: %v", err)
++	}
++
++	dids := []string{k0.did, k1.did, k0.did, k1.did, k0.did}
++	keys, err := resolveIssuersParallel(context.Background(), dids, res)
++	if err != nil {
++		t.Fatalf("resolveIssuersParallel: %v", err)
++	}
++	if len(keys) != 2 {
++		t.Errorf("expected 2 entries in resolved map, got %d", len(keys))
++	}
++	if _, ok := keys[k0.did]; !ok {
++		t.Errorf("missing key for %s", k0.did)
++	}
++	if _, ok := keys[k1.did]; !ok {
++		t.Errorf("missing key for %s", k1.did)
++	}
++}
++
++// TestBlockCResolvesAllDistinctIssuers verifies end-to-end that a 4-receipt
++// chain with 5 distinct issuers passes Block C after the concurrent pre-resolution path.
++func TestBlockCResolvesAllDistinctIssuers(t *testing.T) {
++	keys := make([]testKey, 5)
++	for i := range keys {
++		keys[i] = newTestKey(t)
++	}
++
++	now := time.Now().Unix()
++
++	_, jwt0 := makeReceipt(keys[0].did, keys[0].did, keys[1].did, now, nil, keys[0])
++	hash0 := computeChainHash(jwt0)
++
++	prev1 := hash0
++	_, jwt1 := makeReceipt(keys[1].did, keys[0].did, keys[2].did, now, &prev1, keys[1])
++	hash1 := computeChainHash(jwt1)
++
++	prev2 := hash1
++	_, jwt2 := makeReceipt(keys[2].did, keys[0].did, keys[3].did, now, &prev2, keys[2])
++	hash2 := computeChainHash(jwt2)
++
++	prev3 := hash2
++	_, jwt3 := makeReceipt(keys[3].did, keys[0].did, keys[4].did, now, &prev3, keys[3])
++	hash3 := computeChainHash(jwt3)
++
++	invJWT := makeInvocation(keys[4].did, keys[0].did,
++		[]string{hash0, hash1, hash2, hash3}, now, keys[4])
++
++	bundle := types.ChainBundle{
++		BundleVersion: "4.0",
++		Receipts:      []string{jwt0, jwt1, jwt2, jwt3},
++		Invocation:    invJWT,
++	}
++
++	result := Chain(context.Background(), bundle, testDeps(t))
++	if !result.Valid {
++		t.Errorf("expected valid 4-receipt/5-issuer chain, got error: %+v", result.Error)
++	}
++	if result.Context.ChainDepth != 4 {
++		t.Errorf("expected chain depth 4, got %d", result.Context.ChainDepth)
++	}
++}
++
++// TestResolveIssuersParallelContextCancellation verifies no panic or deadlock
++// occurs when the context is cancelled before resolution.
++func TestResolveIssuersParallelContextCancellation(t *testing.T) {
++	k := newTestKey(t)
++	res, err := resolver.New(100, time.Hour)
++	if err != nil {
++		t.Fatalf("resolver.New: %v", err)
++	}
++
++	ctx, cancel := context.WithCancel(context.Background())
++	cancel()
++
++	dids := []string{k.did}
++	_, _ = resolveIssuersParallel(ctx, dids, res)
++	// Reaching here without a deadlock or panic is the assertion.
++}

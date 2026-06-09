@@ -493,3 +493,43 @@ fn sub_path_cmd_is_accepted() {
     let result = verify_chain(&bundle);
     assert!(result.valid, "sub-path cmd should be valid, got: {:?}", result.error);
 }
+
+/// A bundle with 17 receipts must be rejected with CHAIN_TOO_DEEP before any
+/// cryptographic work is attempted.  The receipt strings are intentionally
+/// invalid JWTs — the depth check must fire first.
+#[test]
+fn chain_depth_over_limit_is_rejected() {
+    let receipts: Vec<String> = (0..17).map(|i| format!("stub.stub.stub{i}")).collect();
+    let bundle = ChainBundle {
+        bundle_version: "4.0".into(),
+        receipts,
+        invocation: "stub.stub.stubinv".into(),
+    };
+    let result = verify_chain(&bundle);
+    assert!(!result.valid);
+    let err = result.error.expect("expected an error");
+    assert_eq!(
+        err.code, "CHAIN_TOO_DEEP",
+        "expected CHAIN_TOO_DEEP, got '{}'", err.code
+    );
+}
+
+/// A bundle with exactly 16 receipts must NOT trigger CHAIN_TOO_DEEP.
+/// It will fail for another reason (MALFORMED_RECEIPT) — that is expected.
+#[test]
+fn chain_depth_at_limit_is_not_depth_rejected() {
+    let receipts: Vec<String> = (0..16).map(|i| format!("stub.stub.stub{i}")).collect();
+    let bundle = ChainBundle {
+        bundle_version: "4.0".into(),
+        receipts,
+        invocation: "stub.stub.stubinv".into(),
+    };
+    let result = verify_chain(&bundle);
+    // Must not be CHAIN_TOO_DEEP — it may fail for other reasons (MALFORMED_RECEIPT etc.)
+    if let Some(err) = result.error {
+        assert_ne!(
+            err.code, "CHAIN_TOO_DEEP",
+            "16-receipt bundle must not trigger CHAIN_TOO_DEEP"
+        );
+    }
+}

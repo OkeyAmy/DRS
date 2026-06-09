@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -18,7 +19,7 @@ const (
 	BindingModeOff      = "off"
 	BindingModeLenient  = "lenient"
 	BindingModeEnforced = "enforced"
-	maxBindingBodyBytes = 1_048_576
+	maxBindingBodyBytes = 65_536 // 64 KiB — largest legitimate tool-call body
 )
 
 // checkRequestBinding reads r.Body, compares it with the invocation's args via
@@ -33,21 +34,26 @@ func checkRequestBinding(w http.ResponseWriter, r *http.Request, invocationJWT, 
 		return false
 	}
 
-	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, maxBindingBodyBytes+1))
+	// http.MaxBytesReader caps allocation AND closes the connection on overrun,
+	// preventing slow-drip goroutine exhaustion. io.LimitReader caps bytes but
+	// keeps the connection open; MaxBytesReader is the correct defense here.
+	r.Body = http.MaxBytesReader(w, r.Body, maxBindingBodyBytes)
+	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			metrics.BindingChecks.WithLabelValues("body_too_large").Inc()
+			slog.Warn("binding: request body exceeds maximum", "max_bytes", maxBindingBodyBytes)
+			writeBindingError(w, http.StatusRequestEntityTooLarge, "BINDING_BODY_TOO_LARGE",
+				fmt.Sprintf("request body exceeds %d bytes", maxBindingBodyBytes),
+				"Reduce the request body size or raise MAX_BODY_BYTES for the verifier entrypoint.")
+			return true
+		}
 		metrics.BindingChecks.WithLabelValues("read_error").Inc()
 		slog.Warn("binding: cannot read request body", "error", err)
 		writeBindingError(w, http.StatusBadRequest, "BINDING_BODY_READ_ERROR",
 			err.Error(),
 			"Ensure the request body can be read before DRS binding verification.")
-		return true
-	}
-	if len(bodyBytes) > maxBindingBodyBytes {
-		metrics.BindingChecks.WithLabelValues("body_too_large").Inc()
-		slog.Warn("binding: request body exceeds maximum", "max_bytes", maxBindingBodyBytes)
-		writeBindingError(w, http.StatusRequestEntityTooLarge, "BINDING_BODY_TOO_LARGE",
-			fmt.Sprintf("request body exceeds %d bytes", maxBindingBodyBytes),
-			"Reduce the request body size or raise MAX_BODY_BYTES for the verifier entrypoint.")
 		return true
 	}
 	// Always restore the body so the next handler can read it, regardless of outcome.

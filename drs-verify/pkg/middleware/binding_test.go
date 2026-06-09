@@ -142,6 +142,26 @@ func TestCheckRequestBindingEnforcedOversizedBodyReturns413(t *testing.T) {
 	}
 }
 
+// TestCheckRequestBindingLenientOversizedBodyReturns413 confirms that body-size
+// enforcement applies in lenient mode too — an oversized body is a protocol error
+// regardless of how binding mismatches are handled.
+func TestCheckRequestBindingLenientOversizedBodyReturns413(t *testing.T) {
+	jwt := bindingJWT(`{"to":"amara"}`)
+	body := bytes.Repeat([]byte("x"), maxBindingBodyBytes+1)
+	r := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+
+	if abort := checkRequestBinding(w, r, jwt, BindingModeLenient); !abort {
+		t.Fatal("oversized body must abort even in lenient mode")
+	}
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("status = %d, want 413", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "BINDING_BODY_TOO_LARGE") {
+		t.Errorf("response body must include BINDING_BODY_TOO_LARGE: %s", w.Body.String())
+	}
+}
+
 func TestCheckRequestBindingReadErrorFailsClosed(t *testing.T) {
 	jwt := bindingJWT(`{"to":"amara"}`)
 	r := httptest.NewRequest(http.MethodPost, "/mcp", nil)

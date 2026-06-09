@@ -270,7 +270,7 @@ func VerifyTimestamp(token []byte, expectedHash []byte) (time.Time, error) {
 // VerifyTimestampTrusted is like VerifyTimestamp but additionally validates:
 //  1. The signer certificate chains to a root in trustedRoots
 //  2. The signer certificate has the id-kp-timeStamping EKU
-//  3. The signer certificate is currently valid (not expired, not before NotBefore)
+//  3. The signer certificate was valid at the time the token was generated (RFC 3161 §2.3)
 //
 // trustedRoots is a pool of root CA certificates trusted for timestamp signing.
 // If trustedRoots is nil, the system roots are used.
@@ -354,12 +354,6 @@ func VerifyTimestampTrusted(token []byte, expectedHash []byte, trustedRoots *x50
 		return time.Time{}, fmt.Errorf("rfc3161: signer certificate does not have timestamping EKU (id-kp-timeStamping)")
 	}
 
-	// Trust validation: certificate validity at timestamp time
-	now := time.Now()
-	if now.Before(cert.NotBefore) || now.After(cert.NotAfter) {
-		return time.Time{}, fmt.Errorf("rfc3161: signer certificate is not currently valid (NotBefore: %v, NotAfter: %v)", cert.NotBefore, cert.NotAfter)
-	}
-
 	return tst.GenTime, nil
 }
 
@@ -424,11 +418,16 @@ func extractSignerCert(rawCerts asn1.RawValue, si signerInfo) (*x509.Certificate
 		if firstCert == nil {
 			firstCert = cert
 		}
-		// Match by serial number when SID is IssuerAndSerialNumber (version 1)
+		// Match by issuer DN AND serial number when SID is IssuerAndSerialNumber (version 1).
+		// RFC 5652 §10.2.3: serial numbers are unique per-CA, not globally.
+		// Matching on serial alone allows a cert from a different CA with the same serial
+		// to impersonate the TSA signer.
 		if si.Version == 1 && cert.SerialNumber != nil {
 			var ias issuerAndSerial
 			if _, err := asn1.Unmarshal(si.SID.FullBytes, &ias); err == nil {
-				if ias.SerialNumber != nil && cert.SerialNumber.Cmp(ias.SerialNumber) == 0 {
+				if ias.SerialNumber != nil &&
+					cert.SerialNumber.Cmp(ias.SerialNumber) == 0 &&
+					bytes.Equal(cert.RawIssuer, ias.Issuer.FullBytes) {
 					return cert, nil
 				}
 			}

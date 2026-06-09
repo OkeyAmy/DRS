@@ -1,0 +1,157 @@
+--- a/drs-core/src/capability/policy.rs
++++ b/drs-core/src/capability/policy.rs
+@@ -1,4 +1,5 @@
+ use crate::error::DrsError;
+ use crate::types::Policy;
++use std::collections::HashSet;
+
+ /// Evaluates whether `args` from an invocation satisfy `policy`.
+@@ -155,14 +156,15 @@ pub fn check_policy_attenuation(parent: &Policy, child: &Policy) -> Result<(), D
+     // allowed_tools: child must inherit or narrow the parent's list
+     if let Some(parent_tools) = &parent.allowed_tools {
+         if !parent_tools.iter().any(|t| t == "*") {
++            let parent_tools_set: HashSet<&String> = parent_tools.iter().collect();
+             match &child.allowed_tools {
+                 None => {
+                     return Err(DrsError::PolicyViolation(
+                         "Child omits allowed_tools but parent restricts it; \
+                          child must explicitly list permitted tools."
+                             .to_string(),
+                     ));
+                 }
+                 Some(child_tools) => {
+                     for tool in child_tools {
+                         if tool == "*" {
+                             return Err(DrsError::PolicyViolation(
+                                 "Child adds wildcard '*' to allowed_tools but parent does not allow all tools.".to_string(),
+                             ));
+                         }
+-                        if !parent_tools.contains(tool) {
++                        if !parent_tools_set.contains(tool) {
+                             return Err(DrsError::PolicyViolation(format!(
+                                 "Child adds '{tool}' to allowed_tools not permitted by parent."
+                             )));
+@@ -184,14 +186,15 @@ pub fn check_policy_attenuation(parent: &Policy, child: &Policy) -> Result<(), D
+     // allowed_resources: child must inherit or narrow the parent's list
+     if let Some(parent_res) = &parent.allowed_resources {
+         if !parent_res.iter().any(|r| r == "*") {
++            let parent_res_set: HashSet<&String> = parent_res.iter().collect();
+             match &child.allowed_resources {
+                 None => {
+                     return Err(DrsError::PolicyViolation(
+                         "Child omits allowed_resources but parent restricts it; \
+                          child must explicitly list permitted resources."
+                             .to_string(),
+                     ));
+                 }
+                 Some(child_res) => {
+                     for res in child_res {
+                         if res == "*" {
+                             return Err(DrsError::PolicyViolation(
+                                 "Child adds wildcard '*' to allowed_resources but parent does not allow all.".to_string(),
+                             ));
+                         }
+-                        if !parent_res.contains(res) {
++                        if !parent_res_set.contains(res) {
+                             return Err(DrsError::PolicyViolation(format!(
+                                 "Child adds '{res}' to allowed_resources not permitted by parent."
+                             )));
+@@ -213,12 +216,13 @@ pub fn check_policy_attenuation(parent: &Policy, child: &Policy) -> Result<(), D
+     // allowed_data_classes: child must inherit or narrow the parent's list
+     if let Some(parent_cls) = &parent.allowed_data_classes {
+         if !parent_cls.iter().any(|c| c == "*") {
++            let parent_cls_set: HashSet<&String> = parent_cls.iter().collect();
+             match &child.allowed_data_classes {
+                 None => {
+                     return Err(DrsError::PolicyViolation(
+                         "Child omits allowed_data_classes but parent restricts it; \
+                          child must explicitly list permitted data classes."
+                             .to_string(),
+                     ));
+                 }
+                 Some(child_cls) => {
+                     for cls in child_cls {
+-                        if cls == "*" || !parent_cls.contains(cls) {
++                        if cls == "*" || !parent_cls_set.contains(cls) {
+                             return Err(DrsError::PolicyViolation(format!(
+                                 "Child adds '{cls}' to allowed_data_classes not permitted by parent."
+                             )));
+--- a/drs-core/tests/test_policy.rs
++++ b/drs-core/tests/test_policy.rs
+@@ -169,3 +169,68 @@ fn child_lowering_max_calls_passes() {
+     let child = policy(None, None, None, None, Some(10));
+     assert!(check_policy_attenuation(&parent, &child).is_ok());
+ }
++
++fn policy_full(
++    tools: Option<Vec<String>>,
++    resources: Option<Vec<String>>,
++    data_classes: Option<Vec<String>>,
++) -> Policy {
++    Policy {
++        max_cost_usd: None,
++        pii_access: None,
++        write_access: None,
++        max_calls: None,
++        allowed_tools: tools,
++        allowed_resources: resources,
++        allowed_data_classes: data_classes,
++    }
++}
++
++#[test]
++fn large_tool_list_subset_passes_attenuation() {
++    let parent_tools: Vec<String> = (0..500).map(|i| format!("tool_{i}")).collect();
++    let child_tools: Vec<String> = (0..250).map(|i| format!("tool_{i}")).collect();
++    let parent = policy_full(Some(parent_tools), None, None);
++    let child = policy_full(Some(child_tools), None, None);
++    assert!(check_policy_attenuation(&parent, &child).is_ok());
++}
++
++#[test]
++fn large_tool_list_escalation_fails_attenuation() {
++    let parent_tools: Vec<String> = (0..500).map(|i| format!("tool_{i}")).collect();
++    let mut child_tools: Vec<String> = (0..500).map(|i| format!("tool_{i}")).collect();
++    child_tools.push("tool_escalated".to_string());
++    let parent = policy_full(Some(parent_tools), None, None);
++    let child = policy_full(Some(child_tools), None, None);
++    assert!(check_policy_attenuation(&parent, &child).is_err());
++}
++
++#[test]
++fn large_resource_list_subset_passes_attenuation() {
++    let parent_res: Vec<String> = (0..500).map(|i| format!("https://example.com/res/{i}")).collect();
++    let child_res: Vec<String> = (0..250).map(|i| format!("https://example.com/res/{i}")).collect();
++    let parent = policy_full(None, Some(parent_res), None);
++    let child = policy_full(None, Some(child_res), None);
++    assert!(check_policy_attenuation(&parent, &child).is_ok());
++}
++
++#[test]
++fn large_resource_list_escalation_fails_attenuation() {
++    let parent_res: Vec<String> = (0..500).map(|i| format!("https://example.com/res/{i}")).collect();
++    let mut child_res: Vec<String> = (0..500).map(|i| format!("https://example.com/res/{i}")).collect();
++    child_res.push("https://example.com/res/escalated".to_string());
++    let parent = policy_full(None, Some(parent_res), None);
++    let child = policy_full(None, Some(child_res), None);
++    assert!(check_policy_attenuation(&parent, &child).is_err());
++}
++
++#[test]
++fn large_data_class_list_subset_passes_attenuation() {
++    let parent_cls: Vec<String> = (0..500).map(|i| format!("class_{i}")).collect();
++    let child_cls: Vec<String> = (0..250).map(|i| format!("class_{i}")).collect();
++    let parent = policy_full(None, None, Some(parent_cls));
++    let child = policy_full(None, None, Some(child_cls));
++    assert!(check_policy_attenuation(&parent, &child).is_ok());
++}
++
++#[test]
++fn large_data_class_list_escalation_fails_attenuation() {
++    let parent_cls: Vec<String> = (0..500).map(|i| format!("class_{i}")).collect();
++    let mut child_cls: Vec<String> = (0..500).map(|i| format!("class_{i}")).collect();
++    child_cls.push("class_escalated".to_string());
++    let parent = policy_full(None, None, Some(parent_cls));
++    let child = policy_full(None, None, Some(child_cls));
++    assert!(check_policy_attenuation(&parent, &child).is_err());
++}

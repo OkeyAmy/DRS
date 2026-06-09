@@ -36,6 +36,7 @@ docs-site/book/
 dr-store/
 .threat-model-state/
 .triage-state/
+.patch-state/
 
 # ── Local security docs (generated/kept local) ─────────────────────────────────
 THREAT_MODEL.md

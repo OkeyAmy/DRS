@@ -1,0 +1,91 @@
+--- a/drs-verify/pkg/middleware/binding.go
++++ b/drs-verify/pkg/middleware/binding.go
+@@ -1,14 +1,15 @@
+ package middleware
+
+ import (
+ 	"bytes"
+ 	"encoding/json"
++	"errors"
+ 	"fmt"
+ 	"io"
+ 	"log/slog"
+ 	"net/http"
+
+ 	"github.com/drs-protocol/drs-verify/pkg/binding"
+ 	"github.com/drs-protocol/drs-verify/pkg/metrics"
+ )
+
+@@ -17,7 +18,7 @@ import (
+ const (
+ 	BindingModeOff      = "off"
+ 	BindingModeLenient  = "lenient"
+ 	BindingModeEnforced = "enforced"
+-	maxBindingBodyBytes = 1_048_576
++	maxBindingBodyBytes = 65_536 // 64 KiB — largest legitimate tool-call body
+ )
+
+ // checkRequestBinding reads r.Body, compares it with the invocation's args via
+@@ -32,18 +33,21 @@ func checkRequestBinding(w http.ResponseWriter, r *http.Request, invocationJWT,
+ 		return false
+ 	}
+
+-	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, maxBindingBodyBytes+1))
++	// http.MaxBytesReader caps allocation AND closes the connection on overrun,
++	// preventing slow-drip goroutine exhaustion. io.LimitReader caps bytes but
++	// keeps the connection open; MaxBytesReader is the correct defense here.
++	r.Body = http.MaxBytesReader(w, r.Body, maxBindingBodyBytes)
++	bodyBytes, err := io.ReadAll(r.Body)
+ 	if err != nil {
++		var maxErr *http.MaxBytesError
++		if errors.As(err, &maxErr) {
++			metrics.BindingChecks.WithLabelValues("body_too_large").Inc()
++			slog.Warn("binding: request body exceeds maximum", "max_bytes", maxBindingBodyBytes)
++			writeBindingError(w, http.StatusRequestEntityTooLarge, "BINDING_BODY_TOO_LARGE",
++				fmt.Sprintf("request body exceeds %d bytes", maxBindingBodyBytes),
++				"Reduce the request body size or raise MAX_BODY_BYTES for the verifier entrypoint.")
++			return true
++		}
+ 		metrics.BindingChecks.WithLabelValues("read_error").Inc()
+ 		slog.Warn("binding: cannot read request body", "error", err)
+ 		writeBindingError(w, http.StatusBadRequest, "BINDING_BODY_READ_ERROR",
+ 			err.Error(),
+ 			"Ensure the request body can be read before DRS binding verification.")
+ 		return true
+ 	}
+-	if len(bodyBytes) > maxBindingBodyBytes {
+-		metrics.BindingChecks.WithLabelValues("body_too_large").Inc()
+-		slog.Warn("binding: request body exceeds maximum", "max_bytes", maxBindingBodyBytes)
+-		writeBindingError(w, http.StatusRequestEntityTooLarge, "BINDING_BODY_TOO_LARGE",
+-			fmt.Sprintf("request body exceeds %d bytes", maxBindingBodyBytes),
+-			"Reduce the request body size or raise MAX_BODY_BYTES for the verifier entrypoint.")
+-		return true
+-	}
+ 	// Always restore the body so the next handler can read it, regardless of outcome.
+ 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+--- a/drs-verify/pkg/middleware/binding_test.go
++++ b/drs-verify/pkg/middleware/binding_test.go
+@@ -126,6 +126,25 @@ func TestCheckRequestBindingEnforcedOversizedBodyReturns413(t *testing.T) {
+ 	// body := bytes.Repeat([]byte("a"), maxBindingBodyBytes+1) already covers
+ 	// the over-limit path. No changes needed to this test.
+ }
++
++// TestCheckRequestBindingLenientOversizedBodyReturns413 confirms that body-size
++// enforcement applies in lenient mode too — an oversized body is a protocol error
++// regardless of how binding mismatches are handled.
++func TestCheckRequestBindingLenientOversizedBodyReturns413(t *testing.T) {
++	jwt := bindingJWT(`{"to":"amara"}`)
++	body := bytes.Repeat([]byte("x"), maxBindingBodyBytes+1)
++	r := httptest.NewRequest(http.MethodPost, "/mcp", bytes.NewReader(body))
++	w := httptest.NewRecorder()
++
++	if abort := checkRequestBinding(w, r, jwt, BindingModeLenient); !abort {
++		t.Fatal("oversized body must abort even in lenient mode")
++	}
++	if w.Code != http.StatusRequestEntityTooLarge {
++		t.Errorf("status = %d, want 413", w.Code)
++	}
++	if !strings.Contains(w.Body.String(), "BINDING_BODY_TOO_LARGE") {
++		t.Errorf("response body must include BINDING_BODY_TOO_LARGE: %s", w.Body.String())
++	}
++}

@@ -1,0 +1,87 @@
+{
+  "patch_completed": true,
+  "mode": "static",
+  "repo": "/home/okey/Desktop/Projects/DRS",
+  "summary": {
+    "input_count": 9,
+    "patched": 8,
+    "no_patch": 1,
+    "accepted": 8,
+    "rejected": 0,
+    "ladder_passed": 0
+  },
+  "findings": [
+    {
+      "id": "f001", "bug_nn": "00", "severity": "HIGH", "status": "no_patch",
+      "verified": "static_review_only", "review": null, "style_score": null,
+      "title": "keygen prints Ed25519 private key hex to stdout",
+      "file": "drs-sdk/src/cli/commands/keygen.ts", "line": 23,
+      "category": "sensitive-key-disclosure", "owner_hint": "drs-sdk",
+      "rationale": "Code already patched — privHex written to 0600 file only; existing test keygen.test.ts:27 guards this property."
+    },
+    {
+      "id": "f007", "bug_nn": "01", "severity": "HIGH", "status": "patched",
+      "verified": "static_review_only", "review": "ACCEPT", "style_score": 8,
+      "title": "io.ReadAll on request body in binding middleware — no MaxBytesReader",
+      "file": "drs-verify/pkg/middleware/binding.go", "line": 34,
+      "category": "unbounded-read", "owner_hint": "drs-verify",
+      "diff": "PATCHES/bug_01/patch.diff"
+    },
+    {
+      "id": "f015", "bug_nn": "02", "severity": "MEDIUM", "status": "patched",
+      "verified": "static_review_only", "review": "ACCEPT", "style_score": 8,
+      "title": "X-DRS-Bundle header decoded before size check — no header size cap",
+      "file": "drs-verify/pkg/middleware/mcp.go", "line": 55,
+      "category": "unbounded-read", "owner_hint": "drs-verify",
+      "diff": "PATCHES/bug_02/patch.diff"
+    },
+    {
+      "id": "f011", "bug_nn": "03", "severity": "MEDIUM", "status": "patched",
+      "verified": "static_review_only", "review": "ACCEPT", "style_score": 8,
+      "title": "O(n*m) Vec::contains in capability attenuation check",
+      "file": "drs-core/src/capability/policy.rs", "line": 167,
+      "category": "algorithmic-complexity", "owner_hint": "drs-core",
+      "diff": "PATCHES/bug_03/patch.diff"
+    },
+    {
+      "id": "f018", "bug_nn": "04", "severity": "MEDIUM", "status": "patched",
+      "verified": "static_review_only", "review": "ACCEPT", "style_score": 9,
+      "title": "Rust verify_chain has no depth cap — WASM stack overflow on deep chains",
+      "file": "drs-core/src/chain/verify.rs", "line": 26,
+      "category": "unbounded-recursion", "owner_hint": "drs-core",
+      "diff": "PATCHES/bug_04/patch.diff"
+    },
+    {
+      "id": "f023", "bug_nn": "05", "severity": "MEDIUM", "status": "patched",
+      "verified": "static_review_only", "review": "ACCEPT", "style_score": 8,
+      "title": "Block C DID resolution is fully serial — 16 distinct issuers force 16 sequential HTTPS round trips",
+      "file": "drs-verify/pkg/verify/chain.go", "line": 236,
+      "category": "serial-blocking-io", "owner_hint": "drs-verify",
+      "diff": "PATCHES/bug_05/patch.diff"
+    },
+    {
+      "id": "f032", "bug_nn": "06", "severity": "MEDIUM", "status": "patched",
+      "verified": "static_review_only", "review": "ACCEPT", "style_score": 9,
+      "title": "Redundant time.Now() validity check contradicts tst.GenTime — archived receipts falsely rejected",
+      "file": "drs-verify/pkg/anchor/rfc3161.go", "line": 358,
+      "category": "timestamp-validation-logic", "owner_hint": "drs-verify",
+      "diff": "PATCHES/bug_06/patch.diff"
+    },
+    {
+      "id": "f033", "bug_nn": "07", "severity": "MEDIUM", "status": "patched",
+      "verified": "static_review_only", "review": "ACCEPT", "style_score": 8,
+      "title": "extractSignerCert matches on serial number only — RFC 5652 §10.2.3 requires issuer+serial",
+      "file": "drs-verify/pkg/anchor/rfc3161.go", "line": 431,
+      "category": "insufficient-cert-matching", "owner_hint": "drs-verify",
+      "diff": "PATCHES/bug_07/patch.diff"
+    },
+    {
+      "id": "f037", "bug_nn": "08", "severity": "LOW", "status": "patched",
+      "verified": "static_review_only", "review": "ACCEPT", "style_score": 9,
+      "title": "JCS key sort uses UTF-16 code unit order — diverges from RFC 8785 for supplementary-plane characters",
+      "file": "drs-sdk/src/sdk/jcs.ts", "line": 30,
+      "category": "cryptographic-correctness", "owner_hint": "drs-sdk",
+      "diff": "PATCHES/bug_08/patch.diff"
+    }
+  ]
+}

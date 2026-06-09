@@ -1,0 +1,22 @@
+{
+  "id": "f023",
+  "source": "TRIAGE.json#5",
+  "title": "Block C DID resolution is fully serial — 16 distinct issuers force 16 sequential HTTPS round trips",
+  "file": "drs-verify/pkg/verify/chain.go",
+  "line": 236,
+  "category": "serial-blocking-io",
+  "severity": "MEDIUM",
+  "owner_hint": "drs-verify",
+  "mode": "static",
+  "status": "patched",
+  "verified": "static_review_only",
+  "review": "ACCEPT",
+  "style_score": 8,
+  "out_of_scope_hunks": [],
+  "rationale": "Added resolveIssuersParallel (dedup + bounded goroutine pool via buffered channel semaphore of size 8 using stdlib sync.WaitGroup) and verifyJWTSignatureWithKey (network-free sibling). Block C now pre-resolves all unique issuer DIDs concurrently then verifies signatures from map. No new dependencies.",
+  "variants_checked": "chain.go Block C receipt loop (line 236) and invocation verification (line 243) — both converted; original verifyJWTSignature preserved for future callers",
+  "bypass_considered": "16 distinct did:web issuers at 10s each: was 160s serial, now ceil(16/8)*10s=20s parallel. Context cancellation propagates to all goroutines via ctx",
+  "test_note": "TestResolveIssuersParallelDeduplicates (5 DIDs with duplicates → 2 unique entries), TestBlockCResolvesAllDistinctIssuers (4-receipt/5-issuer chain end-to-end), TestResolveIssuersParallelContextCancellation added to chain_test.go",
+  "review_reason": "The patch fixes the serial-blocking-IO root cause by lifting all DID resolutions out of the Block C loop into resolveIssuersParallel (bounded to 8 concurrent goroutines via semaphore). The resolvedKeys map is written sequentially after wg.Wait() closes the fully-buffered results channel — no data race. The fail-closed !ok check on missing DIDs preserves the security invariant. Note: original verifyJWTSignature is now dead code within Chain and should be cleaned up in a follow-up.",
+  "verdict": null
+}

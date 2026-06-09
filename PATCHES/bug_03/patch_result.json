@@ -1,0 +1,22 @@
+{
+  "id": "f011",
+  "source": "TRIAGE.json#3",
+  "title": "O(n*m) Vec::contains in capability attenuation check",
+  "file": "drs-core/src/capability/policy.rs",
+  "line": 167,
+  "category": "algorithmic-complexity",
+  "severity": "MEDIUM",
+  "owner_hint": "drs-core",
+  "mode": "static",
+  "status": "patched",
+  "verified": "static_review_only",
+  "review": "ACCEPT",
+  "style_score": 8,
+  "out_of_scope_hunks": [],
+  "rationale": "Added use std::collections::HashSet; and built parent_*_set before each child-iteration loop in check_policy_attenuation. Replaced Vec::contains with HashSet::contains for all three allowlist sections (allowed_tools, allowed_resources, allowed_data_classes). O(n+m) per call, down from O(n*m).",
+  "variants_checked": "policy.rs:check_policy_attenuation — all three sites fixed; capability/index.rs — uses BTreeMap, different pattern, not affected",
+  "bypass_considered": "500-child vs 500-parent: was 250k comparisons, now 500+500=1000 ops. HashSet::contains semantically identical to Vec::contains for exact String equality",
+  "test_note": "6 regression tests added to test_policy.rs covering all three allowlist sections with passing subset and failing escalation cases at 500-element scale",
+  "review_reason": "All three production hunks confined to check_policy_attenuation in policy.rs:156-235, replacing Vec::contains (O(m) per lookup) with pre-built HashSet lookup (O(1)). HashSet populated from already-validated policy fields; no new input surface opened; wildcard guards and combined cls=='*'||!set.contains(cls) predicate in allowed_data_classes both preserved intact.",
+  "verdict": null
+}

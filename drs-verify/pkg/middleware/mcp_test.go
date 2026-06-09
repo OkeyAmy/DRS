@@ -3,6 +3,7 @@ package middleware
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -214,5 +215,52 @@ func TestMCPMiddlewareNilNonceStoreSkipsCheck(t *testing.T) {
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
+	}
+}
+
+// TestDecodeBundleRejectsOversizedHeader verifies that decodeBundle refuses to
+// allocate when the caller supplies a header value that exceeds
+// maxBundleHeaderBytes. This guards against an attacker sending a megabyte-scale
+// header to force a proportional heap allocation before any structural check.
+func TestDecodeBundleRejectsOversizedHeader(t *testing.T) {
+	atLimit := make([]byte, maxBundleHeaderBytes)
+	for i := range atLimit {
+		atLimit[i] = 'A'
+	}
+	_, err := decodeBundle(string(atLimit))
+	if errors.Is(err, errBundleTooLarge) {
+		t.Errorf("header at exactly maxBundleHeaderBytes should not be rejected by size gate")
+	}
+
+	overLimit := make([]byte, maxBundleHeaderBytes+1)
+	for i := range overLimit {
+		overLimit[i] = 'A'
+	}
+	_, err = decodeBundle(string(overLimit))
+	if !errors.Is(err, errBundleTooLarge) {
+		t.Errorf("header exceeding maxBundleHeaderBytes must return errBundleTooLarge, got: %v", err)
+	}
+}
+
+// TestMCPMiddlewareRejectsBadRequestForOversizedHeader verifies the middleware
+// surfaces a 400 Bad Request (not a panic or OOM) when an oversized
+// X-DRS-Bundle header is sent.
+func TestMCPMiddlewareRejectsBadRequestForOversizedHeader(t *testing.T) {
+	overLimit := make([]byte, maxBundleHeaderBytes+1)
+	for i := range overLimit {
+		overLimit[i] = 'A'
+	}
+
+	handler := MCPMiddleware(testDeps(t), nil, BindingModeOff, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("next handler must not be called for oversized bundle header")
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp/tools/call", nil)
+	req.Header.Set("X-DRS-Bundle", string(overLimit))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for oversized X-DRS-Bundle header, got %d", rr.Code)
 	}
 }
