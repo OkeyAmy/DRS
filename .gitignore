@@ -37,6 +37,9 @@ dr-store/
 .threat-model-state/
 .triage-state/
 .patch-state/
+PATCHES/
+PATCHES.json
+PATCHES.md
 
 # ── Local security docs (generated/kept local) ─────────────────────────────────
 THREAT_MODEL.md
