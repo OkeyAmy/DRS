@@ -18,6 +18,7 @@ These errors are returned by `verify_chain` when a bundle fails verification.
 | Code | Block | Description |
 |---|---|---|
 | `BUNDLE_INCOMPLETE` | A | Bundle has no receipts or is missing the invocation receipt |
+| `CHAIN_TOO_DEEP` | A | Bundle exceeds `MAX_CHAIN_DEPTH` (16) receipts; checked before any cryptographic work |
 | `ISSUER_AUDIENCE_GAP` | B | `receipts[i].aud` ≠ `receipts[i+1].iss` |
 | `CHAIN_HASH_MISMATCH` | B | `prev_dr_hash` does not match SHA-256 of previous DR JWT bytes |
 | `DR_CHAIN_MISMATCH` | B | `invocation.dr_chain[i]` does not match SHA-256 of `receipts[i]` JWT bytes |

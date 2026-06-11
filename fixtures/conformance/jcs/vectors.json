@@ -112,6 +112,14 @@
       "id": "jcs-015-negative",
       "input": -42,
       "expected": "-42"
+    },
+    {
+      "id": "jcs-016-supplementary-plane-key",
+      "input": {
+        "𝄞": 1,
+        "a": 2
+      },
+      "expected": "{\"a\":2,\"𝄞\":1}"
     }
   ]
 }

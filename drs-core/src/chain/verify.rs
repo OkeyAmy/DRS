@@ -11,6 +11,10 @@ use crate::types::{
     ChainBundle, DelegationReceipt, InvocationReceipt, VerificationContext, VerificationResult,
 };
 
+/// Maximum number of delegation receipts permitted in a single chain bundle.
+/// Mirrors the Go layer's `maxChainDepth` constant in `drs-verify/pkg/verify/chain.go`.
+const MAX_CHAIN_DEPTH: usize = 16;
+
 const EXPECTED_DRS_VERSION: &str = "4.0";
 const EXPECTED_DR_TYPE: &str = "delegation-receipt";
 const EXPECTED_INV_TYPE: &str = "invocation-receipt";
@@ -31,6 +35,18 @@ pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
             "EMPTY_CHAIN",
             "bundle.receipts is empty — at least one delegation receipt is required.",
             "Ensure the chain bundle includes all delegation receipts from root to leaf.",
+        );
+    }
+    // A1b: depth cap — reject before any crypto work to prevent CPU exhaustion
+    // and WASM stack pressure on deep chains submitted via the WASM surface.
+    if bundle.receipts.len() > MAX_CHAIN_DEPTH {
+        return VerificationResult::invalid(
+            "CHAIN_TOO_DEEP",
+            format!(
+                "bundle has {} receipts; maximum allowed chain depth is {MAX_CHAIN_DEPTH}.",
+                bundle.receipts.len()
+            ),
+            "Reduce the delegation chain depth. Legitimate chains rarely exceed 4 hops.",
         );
     }
     // A2: bundle.invocation exists

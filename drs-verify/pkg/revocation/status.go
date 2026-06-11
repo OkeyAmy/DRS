@@ -106,6 +106,14 @@ func (s *StatusCache) IsRevoked(ctx context.Context, statusListIndex uint64) (bo
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	if len(s.bitstring) > 0 {
+		byteIndex := statusListIndex / 8
+		if byteIndex >= uint64(len(s.bitstring)) {
+			return false, fmt.Errorf("revocation: status list index %d is out of range (list covers 0..%d)",
+				statusListIndex, uint64(len(s.bitstring))*8-1)
+		}
+	}
+
 	return getBit(s.bitstring, statusListIndex), nil
 }
 

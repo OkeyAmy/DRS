@@ -198,8 +198,9 @@ for this — forgetting it is the most common mistake.
 
 ### Bundle is too large for HTTP headers
 
-Some gateways cap header size at 8 KB. If your delegation chain has many
-sub-delegations, consider sending the bundle as a request body field
-using the JSON-RPC `_meta` pattern instead of the `X-DRS-Bundle`
-header. Both shapes are defined in
+Some gateways cap header size at 8 KB. Additionally, drs-verify enforces a hard
+**85 KB** limit on the `X-DRS-Bundle` header regardless of gateway settings. If
+your delegation chain has many sub-delegations, consider sending the bundle as a
+request body field using the JSON-RPC `_meta` pattern instead of the
+`X-DRS-Bundle` header. Both shapes are defined in
 [`drs-source-of-truth.md`](https://github.com/OkeyAmy/DRS/blob/main/docs/drs-source-of-truth.md).

@@ -169,3 +169,76 @@ fn child_lowering_max_calls_passes() {
     let child = policy(None, None, None, None, Some(10));
     assert!(check_policy_attenuation(&parent, &child).is_ok());
 }
+
+fn policy_full(
+    tools: Option<Vec<String>>,
+    resources: Option<Vec<String>>,
+    data_classes: Option<Vec<String>>,
+) -> Policy {
+    Policy {
+        max_cost_usd: None,
+        pii_access: None,
+        write_access: None,
+        max_calls: None,
+        allowed_tools: tools,
+        allowed_resources: resources,
+        allowed_data_classes: data_classes,
+    }
+}
+
+#[test]
+fn large_tool_list_subset_passes_attenuation() {
+    let parent_tools: Vec<String> = (0..500).map(|i| format!("tool_{i}")).collect();
+    let child_tools: Vec<String> = (0..250).map(|i| format!("tool_{i}")).collect();
+    let parent = policy_full(Some(parent_tools), None, None);
+    let child = policy_full(Some(child_tools), None, None);
+    assert!(check_policy_attenuation(&parent, &child).is_ok());
+}
+
+#[test]
+fn large_tool_list_escalation_fails_attenuation() {
+    let parent_tools: Vec<String> = (0..500).map(|i| format!("tool_{i}")).collect();
+    let mut child_tools: Vec<String> = (0..500).map(|i| format!("tool_{i}")).collect();
+    child_tools.push("tool_escalated".to_string());
+    let parent = policy_full(Some(parent_tools), None, None);
+    let child = policy_full(Some(child_tools), None, None);
+    assert!(check_policy_attenuation(&parent, &child).is_err());
+}
+
+#[test]
+fn large_resource_list_subset_passes_attenuation() {
+    let parent_res: Vec<String> = (0..500).map(|i| format!("https://example.com/res/{i}")).collect();
+    let child_res: Vec<String> = (0..250).map(|i| format!("https://example.com/res/{i}")).collect();
+    let parent = policy_full(None, Some(parent_res), None);
+    let child = policy_full(None, Some(child_res), None);
+    assert!(check_policy_attenuation(&parent, &child).is_ok());
+}
+
+#[test]
+fn large_resource_list_escalation_fails_attenuation() {
+    let parent_res: Vec<String> = (0..500).map(|i| format!("https://example.com/res/{i}")).collect();
+    let mut child_res: Vec<String> = (0..500).map(|i| format!("https://example.com/res/{i}")).collect();
+    child_res.push("https://example.com/res/escalated".to_string());
+    let parent = policy_full(None, Some(parent_res), None);
+    let child = policy_full(None, Some(child_res), None);
+    assert!(check_policy_attenuation(&parent, &child).is_err());
+}
+
+#[test]
+fn large_data_class_list_subset_passes_attenuation() {
+    let parent_cls: Vec<String> = (0..500).map(|i| format!("class_{i}")).collect();
+    let child_cls: Vec<String> = (0..250).map(|i| format!("class_{i}")).collect();
+    let parent = policy_full(None, None, Some(parent_cls));
+    let child = policy_full(None, None, Some(child_cls));
+    assert!(check_policy_attenuation(&parent, &child).is_ok());
+}
+
+#[test]
+fn large_data_class_list_escalation_fails_attenuation() {
+    let parent_cls: Vec<String> = (0..500).map(|i| format!("class_{i}")).collect();
+    let mut child_cls: Vec<String> = (0..500).map(|i| format!("class_{i}")).collect();
+    child_cls.push("class_escalated".to_string());
+    let parent = policy_full(None, None, Some(parent_cls));
+    let child = policy_full(None, None, Some(child_cls));
+    assert!(check_policy_attenuation(&parent, &child).is_err());
+}
