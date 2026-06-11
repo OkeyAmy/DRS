@@ -1,12 +1,19 @@
 name: E2E Integration Tests
 
-# Runs the integration-tests/ suite against a locally-built Docker image
-# on every PR, and against the currently-tagged image after publish.
-# The published-artifact run is the one that catches drift between the
-# source tree and the shipped container.
+# Two jobs:
+#
+# e2e-local-build   — always builds image from source; runs on every PR/push.
+#                     The PR gate: proves the current Dockerfile + code works.
+#
+# e2e-published-image — smoke-tests whatever image would be in production:
+#   • PR / main push  → build from source (published 'latest' may predate
+#                        features being developed; building from source keeps
+#                        this job green and meaningful throughout the cycle)
+#   • tag push        → poll GHCR until the new tagged image is available,
+#                        then run E2E against it (the real publish smoke test)
 #
 # Security note: github.ref_name on tag events is a tag string, not user
-# input from an issue/PR body. We still funnel it through `env:` before
+# input from an issue/PR body. We still funnel it through env: before
 # using it in run: shell, which is the safe pattern for any expression.
 
 on:
@@ -65,13 +72,10 @@ jobs:
   e2e-published-image:
     name: E2E against published image (smoke test)
     runs-on: ubuntu-latest
-    # Runs on every trigger — no gate.
-    # PRs and main branch pushes test against 'latest' (image already exists).
-    # Tag pushes test against the new version tag and poll until it is available.
     steps:
       - uses: actions/checkout@v6
 
-      - name: Resolve image tag
+      - name: Resolve image strategy
         id: image
         env:
           REF: ${{ github.ref }}
@@ -79,34 +83,41 @@ jobs:
           REPO_OWNER: ${{ github.repository_owner }}
         run: |
           if echo "$REF" | grep -q '^refs/tags/v'; then
-            echo "tag=${REF_NAME}" >> "$GITHUB_OUTPUT"
-            echo "wait=true"      >> "$GITHUB_OUTPUT"
+            # Tag push: test the real published artifact.
+            echo "tag=${REF_NAME}"               >> "$GITHUB_OUTPUT"
+            echo "build=false"                   >> "$GITHUB_OUTPUT"
+            echo "wait=true"                     >> "$GITHUB_OUTPUT"
           else
-            echo "tag=latest"     >> "$GITHUB_OUTPUT"
-            echo "wait=false"     >> "$GITHUB_OUTPUT"
+            # PR / main: published 'latest' may predate features under
+            # development. Build from source so this job stays green and
+            # tests the full current surface.
+            echo "tag=smoke-local"               >> "$GITHUB_OUTPUT"
+            echo "build=true"                    >> "$GITHUB_OUTPUT"
+            echo "wait=false"                    >> "$GITHUB_OUTPUT"
           fi
           echo "image=ghcr.io/${REPO_OWNER,,}/drs-verify" >> "$GITHUB_OUTPUT"
 
-      - name: Setup Node
-        uses: actions/setup-node@v6
+      # ── PR / main: build image from current source ───────────────────────
+
+      - name: Set up Docker Buildx (PR / main)
+        if: steps.image.outputs.build == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build drs-verify image from source (PR / main)
+        if: steps.image.outputs.build == 'true'
+        uses: docker/build-push-action@v7
         with:
-          node-version: '20'
+          context: drs-verify
+          file: drs-verify/Dockerfile
+          tags: ${{ steps.image.outputs.image }}:smoke-local
+          load: true
+          push: false
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9
+      # ── tag push: poll until published image is available ─────────────────
 
-      - name: Install workspace deps
-        run: pnpm install --frozen-lockfile
-
-      - name: Build workspace packages used by E2E
-        run: pnpm --filter @okeyamy/drs-sdk --filter @drs/mcp-server build
-
-      - name: Wait for new image (tag pushes only)
+      - name: Wait for published image (tag pushes only)
         # publish.yml runs concurrently: test + multi-arch build + Trivy
         # takes 5-15 min. Poll until the tagged image is pullable.
-        # On PRs and main pushes this step is skipped — 'latest' is already there.
         if: steps.image.outputs.wait == 'true'
         env:
           IMAGE: ${{ steps.image.outputs.image }}
@@ -125,17 +136,29 @@ jobs:
           echo "Image not available after 15 minutes — aborting"
           exit 1
 
-      - name: Pull published image (PRs and main)
-        # For non-tag runs 'latest' is stable; pull once so the run step
-        # uses a definite image ID rather than whatever is cached on the runner.
-        if: steps.image.outputs.wait == 'false'
-        env:
-          IMAGE: ${{ steps.image.outputs.image }}
-          TAG: ${{ steps.image.outputs.tag }}
-        run: docker pull "${IMAGE}:${TAG}"
+      # ── shared: Node / pnpm setup and E2E run ────────────────────────────
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages used by E2E
+        run: pnpm --filter @okeyamy/drs-sdk --filter @drs/mcp-server build
 
       - name: Run E2E against the published image
         working-directory: integration-tests
         env:
+          # run.sh builds DRS_VERIFY_IMAGE=ghcr.io/okeyamy/drs-verify:$DRS_VERIFY_TAG
+          # For the locally-built path the tag is 'smoke-local' which matches
+          # the image we loaded above. For the tag-push path it is the version tag.
           DRS_VERIFY_TAG: ${{ steps.image.outputs.tag }}
         run: ./run.sh
