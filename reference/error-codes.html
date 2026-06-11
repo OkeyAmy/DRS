@@ -194,6 +194,7 @@
 <p>These errors are returned by <code>verify_chain</code> when a bundle fails verification.</p>
 <div class="table-wrapper"><table><thead><tr><th>Code</th><th>Block</th><th>Description</th></tr></thead><tbody>
 <tr><td><code>BUNDLE_INCOMPLETE</code></td><td>A</td><td>Bundle has no receipts or is missing the invocation receipt</td></tr>
+<tr><td><code>CHAIN_TOO_DEEP</code></td><td>A</td><td>Bundle exceeds <code>MAX_CHAIN_DEPTH</code> (16) receipts; checked before any cryptographic work</td></tr>
 <tr><td><code>ISSUER_AUDIENCE_GAP</code></td><td>B</td><td><code>receipts[i].aud</code> ≠ <code>receipts[i+1].iss</code></td></tr>
 <tr><td><code>CHAIN_HASH_MISMATCH</code></td><td>B</td><td><code>prev_dr_hash</code> does not match SHA-256 of previous DR JWT bytes</td></tr>
 <tr><td><code>DR_CHAIN_MISMATCH</code></td><td>B</td><td><code>invocation.dr_chain[i]</code> does not match SHA-256 of <code>receipts[i]</code> JWT bytes</td></tr>

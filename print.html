@@ -583,7 +583,7 @@ pub fn compute_chain_hash(jwt: &amp;str) -&gt; String {
 <h2 id="the-six-blocks"><a class="header" href="#the-six-blocks">The six blocks</a></h2>
 <h3 id="block-a--completeness"><a class="header" href="#block-a--completeness">Block A — Completeness</a></h3>
 <p><strong>What:</strong> Bundle has at least one delegation receipt and exactly one invocation receipt.</p>
-<p><strong>Fail condition:</strong> <code>receipts</code> array is empty, or <code>invocation</code> field is missing or null.</p>
+<p><strong>Fail condition:</strong> <code>receipts</code> array is empty, <code>invocation</code> field is missing or null, or <code>len(receipts) &gt; MAX_CHAIN_DEPTH</code> (16). The depth check fires before any cryptographic work so a malicious deep chain cannot exhaust CPU.</p>
 <hr />
 <h3 id="block-b--structural-integrity"><a class="header" href="#block-b--structural-integrity">Block B — Structural Integrity</a></h3>
 <p><strong>What:</strong> The delegation receipts form a valid tamper-evident chain.</p>
@@ -655,6 +655,7 @@ revocation check errors.</p>
   # Block A
   if bundle.receipts is empty: return Err(BUNDLE_INCOMPLETE)
   if bundle.invocation is null: return Err(BUNDLE_INCOMPLETE)
+  if len(bundle.receipts) &gt; MAX_CHAIN_DEPTH: return Err(CHAIN_TOO_DEEP)  # MAX_CHAIN_DEPTH = 16
 
   drs = [decode_jwt(r) for r in bundle.receipts]
   inv = decode_jwt(bundle.invocation)
@@ -685,8 +686,10 @@ revocation check errors.</p>
   # Block F
   for dr in drs:
     if dr.drs_status_list_index != null:
-      if remote_status_list_configured and remote_status_list.is_revoked(dr.drs_status_list_index):
-        return Err(RECEIPT_REVOKED)
+      if remote_status_list_configured:
+        result = remote_status_list.is_revoked(dr.drs_status_list_index)
+        if result is Err: return Err(result)  # OOB index is an error, not "not revoked"
+        if result is Ok(true): return Err(RECEIPT_REVOKED)
       if local_revocation_store.is_revoked(dr.drs_status_list_index):
         return Err(RECEIPT_REVOKED)
 
@@ -1582,10 +1585,11 @@ pnpm start -- --reset-cache
 (<code>sha256:...</code>), not raw JWTs. The SDK exposes <code>computeChainHash(jwt)</code>
 for this — forgetting it is the most common mistake.</p>
 <h3 id="bundle-is-too-large-for-http-headers"><a class="header" href="#bundle-is-too-large-for-http-headers">Bundle is too large for HTTP headers</a></h3>
-<p>Some gateways cap header size at 8 KB. If your delegation chain has many
-sub-delegations, consider sending the bundle as a request body field
-using the JSON-RPC <code>_meta</code> pattern instead of the <code>X-DRS-Bundle</code>
-header. Both shapes are defined in
+<p>Some gateways cap header size at 8 KB. Additionally, drs-verify enforces a hard
+<strong>85 KB</strong> limit on the <code>X-DRS-Bundle</code> header regardless of gateway settings. If
+your delegation chain has many sub-delegations, consider sending the bundle as a
+request body field using the JSON-RPC <code>_meta</code> pattern instead of the
+<code>X-DRS-Bundle</code> header. Both shapes are defined in
 <a href="https://github.com/OkeyAmy/DRS/blob/main/docs/drs-source-of-truth.md"><code>drs-source-of-truth.md</code></a>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="integrate-drs-with-an-mcp-server-node--typescript"><a class="header" href="#integrate-drs-with-an-mcp-server-node--typescript">Integrate DRS with an MCP server (Node / TypeScript)</a></h1>
 <p>Your MCP server runs on Node. Agents send tool-call requests with a
@@ -1821,7 +1825,7 @@ export async function drsA2A(req, res, next) {
 import { drsA2A } from "./a2a-middleware.js";
 
 const app = express();
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "65kb" })); // drs-verify binding middleware enforces 64 KiB
 
 app.post("/a2a/task", drsA2A, async (req, res) =&gt; {
   // req.drs.root_principal is the original human/organisation
@@ -3032,7 +3036,7 @@ drs-sdk/src/sdk/issue.test.ts
 <p><strong>Boundary conditions:</strong></p>
 <ul>
 <li>Empty input (empty chain, empty policy, empty args)</li>
-<li>Maximum chain depth (10 hops)</li>
+<li>Maximum chain depth (16 hops — <code>MAX_CHAIN_DEPTH</code>; a 17-receipt bundle must return <code>CHAIN_TOO_DEEP</code>)</li>
 <li>Expired timestamps (<code>now &gt; exp</code>)</li>
 <li>Not-yet-valid timestamps (<code>now &lt; nbf</code>)</li>
 </ul>
@@ -3047,7 +3051,7 @@ drs-sdk/src/sdk/issue.test.ts
 <li>Temporal violations (sub-DR <code>exp &gt; parent exp</code>) must fail Block E</li>
 </ul>
 <h2 id="rfc-test-vectors"><a class="header" href="#rfc-test-vectors">RFC test vectors</a></h2>
-<p><code>jcs_canonicalise</code> and <code>compute_cid</code> must pass all official RFC 8785 test vectors. These are non-negotiable:</p>
+<p><code>jcs_canonicalise</code> and <code>compute_chain_hash</code> must pass all official RFC 8785 test vectors. These are non-negotiable:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[test]
@@ -3315,6 +3319,7 @@ govulncheck ./...
 <p>These errors are returned by <code>verify_chain</code> when a bundle fails verification.</p>
 <div class="table-wrapper"><table><thead><tr><th>Code</th><th>Block</th><th>Description</th></tr></thead><tbody>
 <tr><td><code>BUNDLE_INCOMPLETE</code></td><td>A</td><td>Bundle has no receipts or is missing the invocation receipt</td></tr>
+<tr><td><code>CHAIN_TOO_DEEP</code></td><td>A</td><td>Bundle exceeds <code>MAX_CHAIN_DEPTH</code> (16) receipts; checked before any cryptographic work</td></tr>
 <tr><td><code>ISSUER_AUDIENCE_GAP</code></td><td>B</td><td><code>receipts[i].aud</code> ≠ <code>receipts[i+1].iss</code></td></tr>
 <tr><td><code>CHAIN_HASH_MISMATCH</code></td><td>B</td><td><code>prev_dr_hash</code> does not match SHA-256 of previous DR JWT bytes</td></tr>
 <tr><td><code>DR_CHAIN_MISMATCH</code></td><td>B</td><td><code>invocation.dr_chain[i]</code> does not match SHA-256 of <code>receipts[i]</code> JWT bytes</td></tr>
@@ -3731,7 +3736,7 @@ work are now implemented.</p>
 <p><strong>DID (Decentralised Identifier)</strong> — A URI that identifies an actor without a central registry. Format: <code>did:method:identifier</code>. DRS uses <code>did:key</code> and <code>did:web</code>.</p>
 <p><strong>did:key</strong> — A DID where the identifier encodes the public key directly: <code>did:key:z{base58btc(multicodec_prefix + pubkey_bytes)}</code>. No registry, no DNS. Preferred for DRS because it is self-contained and requires no network resolution.</p>
 <p><strong>did:web</strong> — A DID whose identifier is a domain name. Resolved by fetching a DID document from <code>https://domain/.well-known/did.json</code>. Requires DNS and TLS security.</p>
-<p><strong>DR Store</strong> — The storage backend for delegation receipts. One of five tiers from in-memory (tier 0) to on-chain (tier 4).</p>
+<p><strong>DR Store</strong> — The storage backend for delegation receipts. One of six tiers from in-memory (tier 0) to on-chain (tier 5).</p>
 <p><strong>EdDSA / Ed25519</strong> — The signature algorithm used in all DRS JWTs. Deterministic (no random nonce), constant-time, and immune to fault attacks. DRS uses <code>ed25519-dalek 2.x</code> (Rust) and <code>golang.org/x/crypto</code> (Go).</p>
 <p><strong>Invocation Receipt</strong> — A signed JWT recording an actual tool call. Contains the command, arguments, the ordered array of DR hashes (<code>dr_chain</code>), and the tool server's DID.</p>
 <p><strong>JCS (JSON Canonicalization Scheme)</strong> — RFC 8785. Defines a canonical serialisation of JSON where object keys are sorted recursively by Unicode code point with no whitespace. Used by DRS to ensure identical JWT bytes for logically equivalent objects across all implementations.</p>

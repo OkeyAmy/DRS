@@ -185,7 +185,7 @@
 <h2 id="the-six-blocks"><a class="header" href="#the-six-blocks">The six blocks</a></h2>
 <h3 id="block-a--completeness"><a class="header" href="#block-a--completeness">Block A — Completeness</a></h3>
 <p><strong>What:</strong> Bundle has at least one delegation receipt and exactly one invocation receipt.</p>
-<p><strong>Fail condition:</strong> <code>receipts</code> array is empty, or <code>invocation</code> field is missing or null.</p>
+<p><strong>Fail condition:</strong> <code>receipts</code> array is empty, <code>invocation</code> field is missing or null, or <code>len(receipts) &gt; MAX_CHAIN_DEPTH</code> (16). The depth check fires before any cryptographic work so a malicious deep chain cannot exhaust CPU.</p>
 <hr />
 <h3 id="block-b--structural-integrity"><a class="header" href="#block-b--structural-integrity">Block B — Structural Integrity</a></h3>
 <p><strong>What:</strong> The delegation receipts form a valid tamper-evident chain.</p>
@@ -257,6 +257,7 @@ revocation check errors.</p>
   # Block A
   if bundle.receipts is empty: return Err(BUNDLE_INCOMPLETE)
   if bundle.invocation is null: return Err(BUNDLE_INCOMPLETE)
+  if len(bundle.receipts) &gt; MAX_CHAIN_DEPTH: return Err(CHAIN_TOO_DEEP)  # MAX_CHAIN_DEPTH = 16
 
   drs = [decode_jwt(r) for r in bundle.receipts]
   inv = decode_jwt(bundle.invocation)
@@ -287,8 +288,10 @@ revocation check errors.</p>
   # Block F
   for dr in drs:
     if dr.drs_status_list_index != null:
-      if remote_status_list_configured and remote_status_list.is_revoked(dr.drs_status_list_index):
-        return Err(RECEIPT_REVOKED)
+      if remote_status_list_configured:
+        result = remote_status_list.is_revoked(dr.drs_status_list_index)
+        if result is Err: return Err(result)  # OOB index is an error, not "not revoked"
+        if result is Ok(true): return Err(RECEIPT_REVOKED)
       if local_revocation_store.is_revoked(dr.drs_status_list_index):
         return Err(RECEIPT_REVOKED)
 

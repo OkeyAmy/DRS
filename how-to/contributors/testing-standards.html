@@ -201,7 +201,7 @@ drs-sdk/src/sdk/issue.test.ts
 <p><strong>Boundary conditions:</strong></p>
 <ul>
 <li>Empty input (empty chain, empty policy, empty args)</li>
-<li>Maximum chain depth (10 hops)</li>
+<li>Maximum chain depth (16 hops — <code>MAX_CHAIN_DEPTH</code>; a 17-receipt bundle must return <code>CHAIN_TOO_DEEP</code>)</li>
 <li>Expired timestamps (<code>now &gt; exp</code>)</li>
 <li>Not-yet-valid timestamps (<code>now &lt; nbf</code>)</li>
 </ul>
@@ -216,7 +216,7 @@ drs-sdk/src/sdk/issue.test.ts
 <li>Temporal violations (sub-DR <code>exp &gt; parent exp</code>) must fail Block E</li>
 </ul>
 <h2 id="rfc-test-vectors"><a class="header" href="#rfc-test-vectors">RFC test vectors</a></h2>
-<p><code>jcs_canonicalise</code> and <code>compute_cid</code> must pass all official RFC 8785 test vectors. These are non-negotiable:</p>
+<p><code>jcs_canonicalise</code> and <code>compute_chain_hash</code> must pass all official RFC 8785 test vectors. These are non-negotiable:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[test]

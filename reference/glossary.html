@@ -188,7 +188,7 @@
 <p><strong>DID (Decentralised Identifier)</strong> — A URI that identifies an actor without a central registry. Format: <code>did:method:identifier</code>. DRS uses <code>did:key</code> and <code>did:web</code>.</p>
 <p><strong>did:key</strong> — A DID where the identifier encodes the public key directly: <code>did:key:z{base58btc(multicodec_prefix + pubkey_bytes)}</code>. No registry, no DNS. Preferred for DRS because it is self-contained and requires no network resolution.</p>
 <p><strong>did:web</strong> — A DID whose identifier is a domain name. Resolved by fetching a DID document from <code>https://domain/.well-known/did.json</code>. Requires DNS and TLS security.</p>
-<p><strong>DR Store</strong> — The storage backend for delegation receipts. One of five tiers from in-memory (tier 0) to on-chain (tier 4).</p>
+<p><strong>DR Store</strong> — The storage backend for delegation receipts. One of six tiers from in-memory (tier 0) to on-chain (tier 5).</p>
 <p><strong>EdDSA / Ed25519</strong> — The signature algorithm used in all DRS JWTs. Deterministic (no random nonce), constant-time, and immune to fault attacks. DRS uses <code>ed25519-dalek 2.x</code> (Rust) and <code>golang.org/x/crypto</code> (Go).</p>
 <p><strong>Invocation Receipt</strong> — A signed JWT recording an actual tool call. Contains the command, arguments, the ordered array of DR hashes (<code>dr_chain</code>), and the tool server's DID.</p>
 <p><strong>JCS (JSON Canonicalization Scheme)</strong> — RFC 8785. Defines a canonical serialisation of JSON where object keys are sorted recursively by Unicode code point with no whitespace. Used by DRS to ensure identical JWT bytes for logically equivalent objects across all implementations.</p>

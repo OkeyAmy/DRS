@@ -343,10 +343,11 @@ pnpm start -- --reset-cache
 (<code>sha256:...</code>), not raw JWTs. The SDK exposes <code>computeChainHash(jwt)</code>
 for this — forgetting it is the most common mistake.</p>
 <h3 id="bundle-is-too-large-for-http-headers"><a class="header" href="#bundle-is-too-large-for-http-headers">Bundle is too large for HTTP headers</a></h3>
-<p>Some gateways cap header size at 8 KB. If your delegation chain has many
-sub-delegations, consider sending the bundle as a request body field
-using the JSON-RPC <code>_meta</code> pattern instead of the <code>X-DRS-Bundle</code>
-header. Both shapes are defined in
+<p>Some gateways cap header size at 8 KB. Additionally, drs-verify enforces a hard
+<strong>85 KB</strong> limit on the <code>X-DRS-Bundle</code> header regardless of gateway settings. If
+your delegation chain has many sub-delegations, consider sending the bundle as a
+request body field using the JSON-RPC <code>_meta</code> pattern instead of the
+<code>X-DRS-Bundle</code> header. Both shapes are defined in
 <a href="https://github.com/OkeyAmy/DRS/blob/main/docs/drs-source-of-truth.md"><code>drs-source-of-truth.md</code></a>.</p>
 
                     </main>
