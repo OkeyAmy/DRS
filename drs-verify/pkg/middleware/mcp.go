@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/drs-protocol/drs-verify/pkg/nonce"
@@ -18,6 +19,18 @@ import (
 type contextKey string
 
 const verificationContextKey contextKey = "drs_verification_context"
+
+// maxBundleHeaderBytes is the maximum allowed length of the raw (base64url-encoded)
+// X-DRS-Bundle header value. It corresponds to a decoded payload ceiling of 65,535
+// bytes (ceil(65535 × 4/3) = 87,381). A legitimate DRS chain bundle — which carries
+// a handful of compact JWTs — is well under this limit. Any value that exceeds it
+// is either malformed or an attempt to force a large heap allocation in
+// base64.RawURLEncoding.DecodeString before any structural check is applied.
+const maxBundleHeaderBytes = 87_381
+
+// errBundleTooLarge is returned by decodeBundle when the encoded header exceeds
+// maxBundleHeaderBytes.
+var errBundleTooLarge = errors.New("X-DRS-Bundle header exceeds maximum allowed size")
 
 // MCPMiddleware extracts the X-DRS-Bundle header, verifies it, and attaches
 // the VerificationContext to the request context.
@@ -94,6 +107,9 @@ func withVerificationContext(ctx context.Context, vc *types.VerificationContext)
 
 // decodeBundle decodes a base64url-encoded JSON bundle from the X-DRS-Bundle header.
 func decodeBundle(encoded string) (types.ChainBundle, error) {
+	if len(encoded) > maxBundleHeaderBytes {
+		return types.ChainBundle{}, errBundleTooLarge
+	}
 	jsonBytes, err := base64.RawURLEncoding.DecodeString(encoded)
 	if err != nil {
 		return types.ChainBundle{}, err

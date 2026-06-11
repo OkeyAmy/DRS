@@ -882,3 +882,90 @@ func replaceJWTSignature(t *testing.T, jwt string, mutate func([]byte) []byte) s
 	}
 	return parts[0] + "." + parts[1] + "." + base64.RawURLEncoding.EncodeToString(mutate(sig))
 }
+
+// TestResolveIssuersParallelDeduplicates verifies that resolveIssuersParallel
+// returns exactly one entry per unique DID when the input contains duplicates.
+func TestResolveIssuersParallelDeduplicates(t *testing.T) {
+	k0 := newTestKey(t)
+	k1 := newTestKey(t)
+
+	res, err := resolver.New(100, time.Hour)
+	if err != nil {
+		t.Fatalf("resolver.New: %v", err)
+	}
+
+	dids := []string{k0.did, k1.did, k0.did, k1.did, k0.did}
+	keys, err := resolveIssuersParallel(context.Background(), dids, res)
+	if err != nil {
+		t.Fatalf("resolveIssuersParallel: %v", err)
+	}
+	if len(keys) != 2 {
+		t.Errorf("expected 2 entries in resolved map, got %d", len(keys))
+	}
+	if _, ok := keys[k0.did]; !ok {
+		t.Errorf("missing key for %s", k0.did)
+	}
+	if _, ok := keys[k1.did]; !ok {
+		t.Errorf("missing key for %s", k1.did)
+	}
+}
+
+// TestBlockCResolvesAllDistinctIssuers verifies end-to-end that a 4-receipt
+// chain with 5 distinct issuers passes Block C after the concurrent pre-resolution path.
+func TestBlockCResolvesAllDistinctIssuers(t *testing.T) {
+	keys := make([]testKey, 5)
+	for i := range keys {
+		keys[i] = newTestKey(t)
+	}
+
+	now := time.Now().Unix()
+
+	_, jwt0 := makeReceipt(keys[0].did, keys[0].did, keys[1].did, now, nil, keys[0])
+	hash0 := computeChainHash(jwt0)
+
+	prev1 := hash0
+	_, jwt1 := makeReceipt(keys[1].did, keys[0].did, keys[2].did, now, &prev1, keys[1])
+	hash1 := computeChainHash(jwt1)
+
+	prev2 := hash1
+	_, jwt2 := makeReceipt(keys[2].did, keys[0].did, keys[3].did, now, &prev2, keys[2])
+	hash2 := computeChainHash(jwt2)
+
+	prev3 := hash2
+	_, jwt3 := makeReceipt(keys[3].did, keys[0].did, keys[4].did, now, &prev3, keys[3])
+	hash3 := computeChainHash(jwt3)
+
+	invJWT := makeInvocation(keys[4].did, keys[0].did,
+		[]string{hash0, hash1, hash2, hash3}, now, keys[4])
+
+	bundle := types.ChainBundle{
+		BundleVersion: "4.0",
+		Receipts:      []string{jwt0, jwt1, jwt2, jwt3},
+		Invocation:    invJWT,
+	}
+
+	result := Chain(context.Background(), bundle, testDeps(t))
+	if !result.Valid {
+		t.Errorf("expected valid 4-receipt/5-issuer chain, got error: %+v", result.Error)
+	}
+	if result.Context.ChainDepth != 4 {
+		t.Errorf("expected chain depth 4, got %d", result.Context.ChainDepth)
+	}
+}
+
+// TestResolveIssuersParallelContextCancellation verifies no panic or deadlock
+// occurs when the context is cancelled before resolution.
+func TestResolveIssuersParallelContextCancellation(t *testing.T) {
+	k := newTestKey(t)
+	res, err := resolver.New(100, time.Hour)
+	if err != nil {
+		t.Fatalf("resolver.New: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	dids := []string{k.did}
+	_, _ = resolveIssuersParallel(ctx, dids, res)
+	// Reaching here without a deadlock or panic is the assertion.
+}

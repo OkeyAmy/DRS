@@ -65,6 +65,30 @@ func TestIsRevokedReturnsFalseWhenNoStatusList(t *testing.T) {
 	}
 }
 
+func TestIsRevokedErrorsOnOutOfRangeIndex(t *testing.T) {
+	// A fetched 1-byte bitstring covers indices 0-7. Index 8 is out of range.
+	// IsRevoked must return an error rather than silently returning false (not-revoked),
+	// which would be a fail-open revocation bypass.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte{0x00}) // 1-byte bitstring: indices 0-7 all clear
+	}))
+	defer srv.Close()
+
+	cache := New(srv.URL, time.Hour)
+	if err := cache.WarmUp(); err != nil {
+		t.Fatalf("WarmUp: %v", err)
+	}
+
+	_, err := cache.IsRevoked(context.Background(), 8) // index 8 is beyond 1-byte list
+	if err == nil {
+		t.Fatal("IsRevoked must return an error for an out-of-range index, not (false, nil)")
+	}
+	if !strings.Contains(err.Error(), "out of range") {
+		t.Errorf("error should mention out-of-range: %v", err)
+	}
+}
+
 func TestReadyTrueAfterSuccessfulFetch(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

@@ -1,5 +1,6 @@
 use crate::error::DrsError;
 use crate::types::Policy;
+use std::collections::HashSet;
 
 /// Evaluates whether `args` from an invocation satisfy `policy`.
 ///
@@ -155,6 +156,7 @@ pub fn check_policy_attenuation(parent: &Policy, child: &Policy) -> Result<(), D
     // allowed_tools: child must inherit or narrow the parent's list
     if let Some(parent_tools) = &parent.allowed_tools {
         if !parent_tools.iter().any(|t| t == "*") {
+            let parent_tools_set: HashSet<&String> = parent_tools.iter().collect();
             match &child.allowed_tools {
                 None => {
                     return Err(DrsError::PolicyViolation(
@@ -170,7 +172,7 @@ pub fn check_policy_attenuation(parent: &Policy, child: &Policy) -> Result<(), D
                                 "Child adds wildcard '*' to allowed_tools but parent does not allow all tools.".to_string(),
                             ));
                         }
-                        if !parent_tools.contains(tool) {
+                        if !parent_tools_set.contains(tool) {
                             return Err(DrsError::PolicyViolation(format!(
                                 "Child adds '{tool}' to allowed_tools not permitted by parent."
                             )));
@@ -184,6 +186,7 @@ pub fn check_policy_attenuation(parent: &Policy, child: &Policy) -> Result<(), D
     // allowed_resources: child must inherit or narrow the parent's list
     if let Some(parent_res) = &parent.allowed_resources {
         if !parent_res.iter().any(|r| r == "*") {
+            let parent_res_set: HashSet<&String> = parent_res.iter().collect();
             match &child.allowed_resources {
                 None => {
                     return Err(DrsError::PolicyViolation(
@@ -199,7 +202,7 @@ pub fn check_policy_attenuation(parent: &Policy, child: &Policy) -> Result<(), D
                                 "Child adds wildcard '*' to allowed_resources but parent does not allow all.".to_string(),
                             ));
                         }
-                        if !parent_res.contains(res) {
+                        if !parent_res_set.contains(res) {
                             return Err(DrsError::PolicyViolation(format!(
                                 "Child adds '{res}' to allowed_resources not permitted by parent."
                             )));
@@ -213,6 +216,7 @@ pub fn check_policy_attenuation(parent: &Policy, child: &Policy) -> Result<(), D
     // allowed_data_classes: child must inherit or narrow the parent's list
     if let Some(parent_cls) = &parent.allowed_data_classes {
         if !parent_cls.iter().any(|c| c == "*") {
+            let parent_cls_set: HashSet<&String> = parent_cls.iter().collect();
             match &child.allowed_data_classes {
                 None => {
                     return Err(DrsError::PolicyViolation(
@@ -223,7 +227,7 @@ pub fn check_policy_attenuation(parent: &Policy, child: &Policy) -> Result<(), D
                 }
                 Some(child_cls) => {
                     for cls in child_cls {
-                        if cls == "*" || !parent_cls.contains(cls) {
+                        if cls == "*" || !parent_cls_set.contains(cls) {
                             return Err(DrsError::PolicyViolation(format!(
                                 "Child adds '{cls}' to allowed_data_classes not permitted by parent."
                             )));

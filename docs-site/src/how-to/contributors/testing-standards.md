@@ -26,7 +26,7 @@ For every module, write tests covering:
 
 **Boundary conditions:**
 - Empty input (empty chain, empty policy, empty args)
-- Maximum chain depth (10 hops)
+- Maximum chain depth (16 hops — `MAX_CHAIN_DEPTH`; a 17-receipt bundle must return `CHAIN_TOO_DEEP`)
 - Expired timestamps (`now > exp`)
 - Not-yet-valid timestamps (`now < nbf`)
 
@@ -42,7 +42,7 @@ For every module, write tests covering:
 
 ## RFC test vectors
 
-`jcs_canonicalise` and `compute_cid` must pass all official RFC 8785 test vectors. These are non-negotiable:
+`jcs_canonicalise` and `compute_chain_hash` must pass all official RFC 8785 test vectors. These are non-negotiable:
 
 ```rust
 #[test]

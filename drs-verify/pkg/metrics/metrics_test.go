@@ -80,9 +80,10 @@ func TestStartServerServesMetrics(t *testing.T) {
 }
 
 func TestStartServerUnknownPortFails(t *testing.T) {
-	// Port 1 is privileged — bind should fail without root.
-	_, err := StartServer("127.0.0.1:1")
+	// Port 99999 is outside the valid range (0–65535) so net.Listen always
+	// returns an error regardless of whether the process runs as root.
+	_, err := StartServer("127.0.0.1:99999")
 	if err == nil {
-		t.Error("StartServer on privileged port should return error")
+		t.Error("StartServer on invalid port should return error")
 	}
 }

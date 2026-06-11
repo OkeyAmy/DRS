@@ -726,3 +726,316 @@ func TestVerifyTimestamp_SignedAttrs_SwappedTSTInfo(t *testing.T) {
 		t.Fatal("swapped TSTInfo must be rejected, got nil — SignedAttrs binding is broken")
 	}
 }
+
+// buildExpiredCertTimestampResp constructs a token whose TSA certificate's
+// validity window is entirely in the past: the certificate was valid at
+// tst.GenTime but is expired at time.Now(). This exercises the RFC 3161 §2.3
+// requirement that cert validity is checked at GenTime, not at verification time.
+func buildExpiredCertTimestampResp(t *testing.T, hashForImprint []byte) (token []byte, trustedRoot *x509.CertPool) {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("ecdsa.GenerateKey: %v", err)
+	}
+
+	certNotBefore := time.Now().Add(-2 * 365 * 24 * time.Hour)
+	certNotAfter := time.Now().Add(-365 * 24 * time.Hour)
+	genTime := certNotBefore.Add(time.Hour).UTC().Truncate(time.Second)
+
+	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 64))
+	tmpl := &x509.Certificate{
+		SerialNumber:          serial,
+		Subject:               pkix.Name{CommonName: "expired-tsa"},
+		NotBefore:             certNotBefore,
+		NotAfter:              certNotAfter,
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageTimeStamping},
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("x509.CreateCertificate: %v", err)
+	}
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		t.Fatalf("x509.ParseCertificate: %v", err)
+	}
+
+	tstInfoDER, err := asn1.Marshal(tvTSTInfo{
+		Version: 1,
+		Policy:  tvDummyPolicy,
+		MessageImprint: tvMessageImprint{
+			HashAlgorithm: tvHashAlgorithm{
+				Algorithm:  tvSHA256OID,
+				Parameters: asn1.NullRawValue,
+			},
+			HashedMessage: hashForImprint,
+		},
+		SerialNumber: big.NewInt(42),
+		GenTime:      genTime,
+	})
+	if err != nil {
+		t.Fatalf("marshal TSTInfo: %v", err)
+	}
+
+	h := sha256.Sum256(tstInfoDER)
+	sig, err := ecdsa.SignASN1(rand.Reader, key, h[:])
+	if err != nil {
+		t.Fatalf("ecdsa.SignASN1: %v", err)
+	}
+
+	sidDER, err := asn1.Marshal(tvIssuerAndSerial{
+		Issuer:       asn1.RawValue{FullBytes: cert.RawIssuer},
+		SerialNumber: cert.SerialNumber,
+	})
+	if err != nil {
+		t.Fatalf("marshal IssuerAndSerial: %v", err)
+	}
+
+	si := tvSignerInfo{
+		Version:            1,
+		SID:                asn1.RawValue{FullBytes: sidDER},
+		DigestAlgorithm:    pkix.AlgorithmIdentifier{Algorithm: tvSHA256OID},
+		SignatureAlgorithm: pkix.AlgorithmIdentifier{Algorithm: tvOIDECDSAWithSHA256},
+		Signature:          sig,
+	}
+
+	certTaggedDER, err := asn1.Marshal(asn1.RawValue{
+		Class:      asn1.ClassContextSpecific,
+		Tag:        0,
+		IsCompound: true,
+		Bytes:      certDER,
+	})
+	if err != nil {
+		t.Fatalf("marshal cert [0] IMPLICIT: %v", err)
+	}
+
+	tstOctetDER, err := asn1.Marshal(tstInfoDER)
+	if err != nil {
+		t.Fatalf("marshal TSTInfo as OCTET STRING: %v", err)
+	}
+	eContentWrapper, err := asn1.Marshal(asn1.RawValue{
+		Class:      asn1.ClassContextSpecific,
+		Tag:        0,
+		IsCompound: true,
+		Bytes:      tstOctetDER,
+	})
+	if err != nil {
+		t.Fatalf("marshal eContent [0] EXPLICIT wrapper: %v", err)
+	}
+	sd := tvSignedData{
+		Version:          3,
+		DigestAlgorithms: []pkix.AlgorithmIdentifier{{Algorithm: tvSHA256OID}},
+		EncapContentInfo: tvEncapContentInfo{
+			EContentType: tvOIDTSTInfo,
+			EContent:     asn1.RawValue{FullBytes: eContentWrapper},
+		},
+		Certificates: asn1.RawValue{FullBytes: certTaggedDER},
+		SignerInfos:   []tvSignerInfo{si},
+	}
+	sdDER, err := asn1.Marshal(sd)
+	if err != nil {
+		t.Fatalf("marshal SignedData: %v", err)
+	}
+
+	explicitWrapper, err := asn1.Marshal(asn1.RawValue{
+		Class:      asn1.ClassContextSpecific,
+		Tag:        0,
+		IsCompound: true,
+		Bytes:      sdDER,
+	})
+	if err != nil {
+		t.Fatalf("marshal [0] explicit wrapper: %v", err)
+	}
+	ci := tvContentInfo{
+		ContentType: tvOIDSignedData,
+		Content:     asn1.RawValue{FullBytes: explicitWrapper},
+	}
+	ciDER, err := asn1.Marshal(ci)
+	if err != nil {
+		t.Fatalf("marshal ContentInfo: %v", err)
+	}
+
+	resp := tvTimeStampResp{
+		Status:         tvPKIStatusInfo{Status: 0},
+		TimeStampToken: asn1.RawValue{FullBytes: ciDER},
+	}
+	respDER, err := asn1.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal TimeStampResp: %v", err)
+	}
+
+	pool := x509.NewCertPool()
+	pool.AddCert(cert)
+	return respDER, pool
+}
+
+// TestVerifyTimestampTrusted_AcceptsArchivedReceiptWithExpiredTSACert is the
+// regression test for finding f032. A receipt timestamped in the past by a TSA
+// whose certificate has since expired must be accepted: RFC 3161 §2.3 requires
+// cert validity be checked at GenTime, not at time.Now().
+func TestVerifyTimestampTrusted_AcceptsArchivedReceiptWithExpiredTSACert(t *testing.T) {
+	hash := make([]byte, 32)
+	_, _ = rand.Read(hash)
+	der, trustedPool := buildExpiredCertTimestampResp(t, hash)
+
+	ts, err := anchor.VerifyTimestampTrusted(der, hash, trustedPool)
+	if err != nil {
+		t.Fatalf("archived receipt with expired TSA cert must be accepted, got: %v", err)
+	}
+	if ts.IsZero() {
+		t.Error("returned zero time on success")
+	}
+}
+
+// TestVerifyTimestamp_SerialOnlyCollision is the regression test for f033.
+// A token whose SignedData.Certificates contains a decoy cert from a different CA
+// with the SAME serial number as the legitimate TSA cert must NOT be verified
+// using the decoy cert. The issuer+serial match introduced by this fix selects
+// only the correct cert.
+func TestVerifyTimestamp_SerialOnlyCollision(t *testing.T) {
+	sharedSerial := big.NewInt(0xDEADBEEF)
+
+	tsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("ecdsa.GenerateKey (TSA): %v", err)
+	}
+	tsaTmpl := &x509.Certificate{
+		SerialNumber: sharedSerial,
+		Subject:      pkix.Name{CommonName: "legitimate-tsa"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	tsaCertDER, err := x509.CreateCertificate(rand.Reader, tsaTmpl, tsaTmpl, &tsaKey.PublicKey, tsaKey)
+	if err != nil {
+		t.Fatalf("CreateCertificate (TSA): %v", err)
+	}
+	tsaCert, err := x509.ParseCertificate(tsaCertDER)
+	if err != nil {
+		t.Fatalf("ParseCertificate (TSA): %v", err)
+	}
+
+	decoyKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("ecdsa.GenerateKey (decoy): %v", err)
+	}
+	decoyTmpl := &x509.Certificate{
+		SerialNumber: sharedSerial,
+		Subject:      pkix.Name{CommonName: "attacker-ca"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	decoyCertDER, err := x509.CreateCertificate(rand.Reader, decoyTmpl, decoyTmpl, &decoyKey.PublicKey, decoyKey)
+	if err != nil {
+		t.Fatalf("CreateCertificate (decoy): %v", err)
+	}
+
+	hash := make([]byte, 32)
+	_, _ = rand.Read(hash)
+	tstInfoDER, err := asn1.Marshal(tvTSTInfo{
+		Version: 1,
+		Policy:  tvDummyPolicy,
+		MessageImprint: tvMessageImprint{
+			HashAlgorithm: tvHashAlgorithm{Algorithm: tvSHA256OID, Parameters: asn1.NullRawValue},
+			HashedMessage: hash,
+		},
+		SerialNumber: big.NewInt(1),
+		GenTime:      time.Now().UTC().Truncate(time.Second),
+	})
+	if err != nil {
+		t.Fatalf("marshal TSTInfo: %v", err)
+	}
+	h := sha256.Sum256(tstInfoDER)
+	sig, err := ecdsa.SignASN1(rand.Reader, tsaKey, h[:])
+	if err != nil {
+		t.Fatalf("ecdsa.SignASN1: %v", err)
+	}
+
+	sidDER, err := asn1.Marshal(tvIssuerAndSerial{
+		Issuer:       asn1.RawValue{FullBytes: tsaCert.RawIssuer},
+		SerialNumber: sharedSerial,
+	})
+	if err != nil {
+		t.Fatalf("marshal SID: %v", err)
+	}
+
+	si := tvSignerInfo{
+		Version:            1,
+		SID:                asn1.RawValue{FullBytes: sidDER},
+		DigestAlgorithm:    pkix.AlgorithmIdentifier{Algorithm: tvSHA256OID},
+		SignatureAlgorithm: pkix.AlgorithmIdentifier{Algorithm: tvOIDECDSAWithSHA256},
+		Signature:          sig,
+	}
+
+	// Decoy cert is listed FIRST — a serial-only matcher would select it (wrong key).
+	concatCerts := append(decoyCertDER, tsaCertDER...)
+	certTaggedDER, err := asn1.Marshal(asn1.RawValue{
+		Class:      asn1.ClassContextSpecific,
+		Tag:        0,
+		IsCompound: true,
+		Bytes:      concatCerts,
+	})
+	if err != nil {
+		t.Fatalf("marshal [0] IMPLICIT certs: %v", err)
+	}
+
+	tstOctetDER, err := asn1.Marshal(tstInfoDER)
+	if err != nil {
+		t.Fatalf("marshal TSTInfo as OCTET STRING: %v", err)
+	}
+	eContentWrapper, err := asn1.Marshal(asn1.RawValue{
+		Class: asn1.ClassContextSpecific, Tag: 0, IsCompound: true, Bytes: tstOctetDER,
+	})
+	if err != nil {
+		t.Fatalf("marshal eContent wrapper: %v", err)
+	}
+
+	sd := tvSignedData{
+		Version:          3,
+		DigestAlgorithms: []pkix.AlgorithmIdentifier{{Algorithm: tvSHA256OID}},
+		EncapContentInfo: tvEncapContentInfo{
+			EContentType: tvOIDTSTInfo,
+			EContent:     asn1.RawValue{FullBytes: eContentWrapper},
+		},
+		Certificates: asn1.RawValue{FullBytes: certTaggedDER},
+		SignerInfos:   []tvSignerInfo{si},
+	}
+	sdDER, err := asn1.Marshal(sd)
+	if err != nil {
+		t.Fatalf("marshal SignedData: %v", err)
+	}
+	explicitWrapper, err := asn1.Marshal(asn1.RawValue{
+		Class: asn1.ClassContextSpecific, Tag: 0, IsCompound: true, Bytes: sdDER,
+	})
+	if err != nil {
+		t.Fatalf("marshal [0] explicit wrapper: %v", err)
+	}
+	ci := tvContentInfo{
+		ContentType: tvOIDSignedData,
+		Content:     asn1.RawValue{FullBytes: explicitWrapper},
+	}
+	ciDER, err := asn1.Marshal(ci)
+	if err != nil {
+		t.Fatalf("marshal ContentInfo: %v", err)
+	}
+	resp := tvTimeStampResp{
+		Status:         tvPKIStatusInfo{Status: 0},
+		TimeStampToken: asn1.RawValue{FullBytes: ciDER},
+	}
+	respDER, err := asn1.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal TimeStampResp: %v", err)
+	}
+
+	ts, err := anchor.VerifyTimestamp(respDER, hash)
+	if err != nil {
+		t.Fatalf("issuer+serial match should select the correct cert and verify: %v", err)
+	}
+	if ts.IsZero() {
+		t.Error("returned zero timestamp on success")
+	}
+}

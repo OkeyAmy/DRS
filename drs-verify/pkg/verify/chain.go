@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/drs-protocol/drs-verify/pkg/anchor"
@@ -32,6 +33,12 @@ import (
 )
 
 var errSignatureMalleability = errors.New("signature malleability")
+
+// blockCConcurrency is the maximum number of concurrent DID resolutions that
+// Block C will run in parallel within a single Chain call. Eight covers the
+// realistic maximum of distinct issuers in a 16-hop chain while keeping
+// outbound HTTP concurrency well below any server-side rate limit.
+const blockCConcurrency = 8
 
 const (
 	expectedDRSVersion = "4.0"
@@ -232,15 +239,33 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 
 	// ── Block C: Cryptographic Validity ─────────────────────────────────────
 
+	// Pre-resolve every unique issuer DID concurrently so that did:web round
+	// trips for N distinct issuers happen in parallel (max blockCConcurrency
+	// at once) rather than serially. Cached results are then used by the
+	// signature verification loop, which does no further network I/O.
+	issuerDIDs := make([]string, 0, len(receipts)+1)
+	for _, r := range receipts {
+		issuerDIDs = append(issuerDIDs, r.Iss)
+	}
+	issuerDIDs = append(issuerDIDs, invocation.Iss)
+
+	resolvedKeys, resolveErr := resolveIssuersParallel(ctx, issuerDIDs, deps.Resolver)
+	if resolveErr != nil {
+		code, suggestion := classifySignatureError(resolveErr)
+		return types.Invalid(code,
+			fmt.Sprintf("DID resolution failed during Block C pre-resolution: %v", resolveErr),
+			suggestion)
+	}
+
 	for i, jwt := range bundle.Receipts {
-		if err := verifyJWTSignature(ctx, jwt, receipts[i].Iss, deps.Resolver); err != nil {
+		if err := verifyJWTSignatureWithKey(jwt, receipts[i].Iss, resolvedKeys); err != nil {
 			code, suggestion := classifySignatureError(err)
 			return types.Invalid(code,
 				fmt.Sprintf("receipt[%d] signature check failed: %v", i, err),
 				suggestion)
 		}
 	}
-	if err := verifyJWTSignature(ctx, bundle.Invocation, invocation.Iss, deps.Resolver); err != nil {
+	if err := verifyJWTSignatureWithKey(bundle.Invocation, invocation.Iss, resolvedKeys); err != nil {
 		code, suggestion := classifySignatureError(err)
 		if code == "INVALID_SIGNATURE" {
 			code = "INVALID_INVOCATION_SIGNATURE"
@@ -476,6 +501,95 @@ func decodeJWTPayload(jwt string, dst interface{}) error {
 	}
 	if err := json.Unmarshal(payloadBytes, dst); err != nil {
 		return fmt.Errorf("JSON unmarshal: %w", err)
+	}
+	return nil
+}
+
+// resolveIssuersParallel resolves each unique DID in dids using at most
+// blockCConcurrency concurrent goroutines. It returns a map from DID to its
+// 32-byte Ed25519 public key, or the first resolution error encountered.
+//
+// Deduplication is performed before dispatch: a chain with repeated issuers
+// incurs only one network round trip per unique DID.
+func resolveIssuersParallel(
+	ctx context.Context,
+	dids []string,
+	res *resolver.Resolver,
+) (map[string][32]byte, error) {
+	seen := make(map[string]struct{}, len(dids))
+	unique := make([]string, 0, len(dids))
+	for _, did := range dids {
+		if _, ok := seen[did]; !ok {
+			seen[did] = struct{}{}
+			unique = append(unique, did)
+		}
+	}
+
+	type resolveResult struct {
+		did string
+		key [32]byte
+		err error
+	}
+
+	results := make(chan resolveResult, len(unique))
+	sem := make(chan struct{}, blockCConcurrency)
+
+	var wg sync.WaitGroup
+	for _, did := range unique {
+		wg.Add(1)
+		go func(d string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			key, err := res.Resolve(ctx, d)
+			results <- resolveResult{did: d, key: key, err: err}
+		}(did)
+	}
+
+	wg.Wait()
+	close(results)
+
+	keys := make(map[string][32]byte, len(unique))
+	for r := range results {
+		if r.err != nil {
+			return nil, fmt.Errorf("resolve %s: %w", r.did, r.err)
+		}
+		keys[r.did] = r.key
+	}
+	return keys, nil
+}
+
+// verifyJWTSignatureWithKey verifies a JWT's Ed25519 signature using a
+// pre-resolved public key from resolvedKeys. It performs no network I/O.
+func verifyJWTSignatureWithKey(jwt string, issuerDID string, resolvedKeys map[string][32]byte) error {
+	hdr, err := decodeJWTHeader(jwt)
+	if err != nil {
+		return fmt.Errorf("JWT header decode failed: %w", err)
+	}
+	if hdr.Alg != "EdDSA" {
+		return fmt.Errorf("unsupported JWT algorithm %q: DRS receipts must use EdDSA", hdr.Alg)
+	}
+
+	pubKeyBytes, ok := resolvedKeys[issuerDID]
+	if !ok {
+		return fmt.Errorf("DID resolution failed: no key found for %s", issuerDID)
+	}
+
+	parts := strings.SplitN(jwt, ".", 4)
+	if len(parts) != 3 {
+		return fmt.Errorf("malformed JWT")
+	}
+	signingInput := parts[0] + "." + parts[1]
+	sigBytes, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		return fmt.Errorf("signature base64 decode: %w", err)
+	}
+	if err := strictVerifyEd25519(sigBytes); err != nil {
+		return fmt.Errorf("Ed25519 strict check failed: %w", err)
+	}
+	pubKey := ed25519.PublicKey(pubKeyBytes[:])
+	if !ed25519.Verify(pubKey, []byte(signingInput), sigBytes) {
+		return fmt.Errorf("Ed25519 signature verification failed")
 	}
 	return nil
 }

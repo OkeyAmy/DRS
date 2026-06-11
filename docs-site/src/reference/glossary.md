@@ -14,7 +14,7 @@
 
 **did:web** — A DID whose identifier is a domain name. Resolved by fetching a DID document from `https://domain/.well-known/did.json`. Requires DNS and TLS security.
 
-**DR Store** — The storage backend for delegation receipts. One of five tiers from in-memory (tier 0) to on-chain (tier 4).
+**DR Store** — The storage backend for delegation receipts. One of six tiers from in-memory (tier 0) to on-chain (tier 5).
 
 **EdDSA / Ed25519** — The signature algorithm used in all DRS JWTs. Deterministic (no random nonce), constant-time, and immune to fault attacks. DRS uses `ed25519-dalek 2.x` (Rust) and `golang.org/x/crypto` (Go).
 

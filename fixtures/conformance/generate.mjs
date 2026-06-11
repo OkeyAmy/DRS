@@ -78,6 +78,23 @@ function base64urlBytes(bytes) {
     .replace(/=/g, "");
 }
 
+/**
+ * Compares two strings by Unicode code point order (RFC 8785 sec3.2.3).
+ * See jcs.ts for the full rationale.
+ */
+function compareKeysByCodePoint(a, b) {
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    const cpA = a.codePointAt(i);
+    const cpB = b.codePointAt(j);
+    if (cpA !== cpB) return cpA - cpB;
+    i += cpA > 0xffff ? 2 : 1;
+    j += cpB > 0xffff ? 2 : 1;
+  }
+  return a.length - b.length;
+}
+
 function jcsSerialise(value) {
   if (value === null || value === undefined) return "null";
   if (typeof value === "boolean") return value ? "true" : "false";
@@ -91,7 +108,7 @@ function jcsSerialise(value) {
     return `[${value.map(jcsSerialise).join(",")}]`;
   }
   if (typeof value === "object") {
-    const sortedKeys = Object.keys(value).sort();
+    const sortedKeys = Object.keys(value).sort(compareKeysByCodePoint);
     const entries = sortedKeys.map(
       (k) => `${JSON.stringify(k)}:${jcsSerialise(value[k])}`,
     );
@@ -229,6 +246,13 @@ const jcsVectors = [
   },
   { id: "jcs-014-float", input: 1.5, expected: "1.5" },
   { id: "jcs-015-negative", input: -42, expected: "-42" },
+  {
+    id: "jcs-016-supplementary-plane-key",
+    // U+1D11E MUSICAL SYMBOL G CLEF encoded as UTF-16 surrogate pair 𝄞.
+    // Code point 0x1D11E > 0x61 ("a"), so "a" must sort first.
+    input: { "𝄞": 1, a: 2 },
+    expected: '{"a":2,"𝄞":1}',
+  },
 ];
 
 for (const v of jcsVectors) {
