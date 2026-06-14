@@ -41,10 +41,10 @@ fn cost_over_limit_fails() {
 }
 
 #[test]
-fn wrong_cost_field_name_is_ignored() {
-    // "cost" is not the spec field name — check must not fire
+fn wrong_cost_field_name_fails_closed() {
+    // "cost" is not the spec field name — estimated_cost_usd is absent — fail closed.
     let p = policy(Some(1.0), None, None, None, None);
-    assert!(evaluate_policy(&p, &json!({"cost": 9999.0})).is_ok());
+    assert!(evaluate_policy(&p, &json!({"cost": 9999.0})).is_err());
 }
 
 #[test]
@@ -54,10 +54,11 @@ fn pii_access_denied_when_policy_says_false() {
 }
 
 #[test]
-fn pii_access_allowed_when_not_requested() {
+fn pii_access_must_be_declared_when_policy_restricts_it() {
+    // Policy restricts PII — agent must explicitly declare false, absent = fail closed.
     let p = policy(None, Some(false), None, None, None);
     assert!(evaluate_policy(&p, &json!({"pii_access": false})).is_ok());
-    assert!(evaluate_policy(&p, &json!({"query": "hello"})).is_ok());
+    assert!(evaluate_policy(&p, &json!({"query": "hello"})).is_err());
 }
 
 #[test]
@@ -92,10 +93,10 @@ fn wildcard_tool_allows_any_tool() {
 }
 
 #[test]
-fn no_tool_in_args_skips_tool_check() {
+fn tool_absent_fails_closed() {
+    // When policy restricts tools, absent "tool" arg = unknown intent = capability denied.
     let p = policy(None, None, None, Some(vec!["web_search"]), None);
-    // No "tool" key — check is skipped, not a violation
-    assert!(evaluate_policy(&p, &json!({"query": "hello"})).is_ok());
+    assert!(evaluate_policy(&p, &json!({"query": "hello"})).is_err());
 }
 
 // ── check_policy_attenuation ─────────────────────────────────────────────────

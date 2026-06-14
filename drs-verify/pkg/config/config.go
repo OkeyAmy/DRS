@@ -14,6 +14,12 @@ type Config struct {
 	// HTTP listen address, e.g. ":8080"
 	ListenAddr string
 
+	// TLSCertFile and TLSKeyFile enable HTTPS when both are set (via
+	// TLS_CERT_FILE / TLS_KEY_FILE). When unset, the server listens on plain
+	// HTTP and should be fronted by a TLS-terminating proxy.
+	TLSCertFile string
+	TLSKeyFile  string
+
 	// Maximum entries in the DID resolver LRU cache (hard cap ~640 KB at 10 000 entries)
 	DidCacheSize int
 
@@ -130,6 +136,8 @@ type Config struct {
 // Returns an error if required variables are absent or invalid.
 func Load() (Config, error) {
 	listenAddr := getEnvOrDefault("LISTEN_ADDR", ":8080")
+	tlsCertFile := os.Getenv("TLS_CERT_FILE")
+	tlsKeyFile := os.Getenv("TLS_KEY_FILE")
 
 	didCacheSize, err := getEnvInt("DID_CACHE_SIZE", 10_000)
 	if err != nil {
@@ -206,6 +214,8 @@ func Load() (Config, error) {
 
 	return Config{
 		ListenAddr:                 listenAddr,
+		TLSCertFile:                tlsCertFile,
+		TLSKeyFile:                 tlsKeyFile,
 		DidCacheSize:               didCacheSize,
 		DidCacheTTLSecs:            didCacheTTL,
 		StatusListCacheTTLSecs:     statusCacheTTL,

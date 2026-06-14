@@ -179,15 +179,31 @@ pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
             "The first receipt in the chain must be the root delegation with no parent.",
         );
     }
-    // B2: If drs_root_type == "human", drs_consent must be present
-    if receipts[0].drs_root_type.as_deref() == Some("human")
-        && receipts[0].drs_consent.is_none()
-    {
-        return VerificationResult::invalid(
-            "MISSING_CONSENT",
-            "receipt[0].drs_root_type is 'human' but drs_consent is absent.",
-            "Human-rooted delegations must include consent evidence (method, timestamp, session_id, policy_hash, locale).",
-        );
+    // B2: If drs_root_type == "human", drs_consent must be present AND populated.
+    // A structurally-present but all-empty consent record must not satisfy the
+    // human-root requirement (otherwise the audit trail records "consent present"
+    // with no actual evidence). Full policy_hash↔policy binding is intentionally
+    // NOT enforced here: the canonical preimage for policy_hash is not yet defined
+    // in the DRS spec, so equality enforcement would reject legitimate chains.
+    if receipts[0].drs_root_type.as_deref() == Some("human") {
+        match &receipts[0].drs_consent {
+            None => {
+                return VerificationResult::invalid(
+                    "MISSING_CONSENT",
+                    "receipt[0].drs_root_type is 'human' but drs_consent is absent.",
+                    "Human-rooted delegations must include consent evidence (method, timestamp, session_id, policy_hash, locale).",
+                );
+            }
+            Some(consent) => {
+                if let Some(missing) = consent_missing_field(consent) {
+                    return VerificationResult::invalid(
+                        "INVALID_CONSENT",
+                        format!("receipt[0].drs_consent is structurally present but {missing} is empty."),
+                        "Human-rooted delegations must carry a fully-populated consent record.",
+                    );
+                }
+            }
+        }
     }
 
     // B3: Each DR at index i ≥ 1 must have prev_dr_hash == SHA-256(receipts[i-1])
@@ -282,10 +298,11 @@ pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
         }
     }
 
-    // C2: Verify invocation's Ed25519 signature
+    // C2: Verify invocation's Ed25519 signature. Classify against the invocation
+    // path so a bad invocation signature reports INVALID_INVOCATION_SIGNATURE,
+    // distinct from a delegation-receipt signature failure, for audit clarity.
     if let Err(e) = verify_jwt_signature(&bundle.invocation, &invocation.iss) {
-        let (code, suggestion) = classify_signature_error(&e);
-        let code = if code == "INVALID_SIGNATURE" { "INVALID_INVOCATION_SIGNATURE" } else { code };
+        let (code, suggestion) = classify_signature_error_for(&e, true);
         return VerificationResult::invalid(
             code,
             format!("invocation verification failed: {e}"),
@@ -297,29 +314,43 @@ pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
     // D1–D4 are spec section numbers from §6.2, not execution order.
     // Execution order is D3 → D4 → D2 → D1 (structural checks before semantic).
 
-    // D3: All DRs must share the same cmd (or be a sub-path of DR₀.cmd)
-    // Sub-path: "/mcp/tools/call/web_search" is a sub-path of "/mcp/tools/call"
+    // D3: Command narrowing must hold hop-by-hop, not merely against the root.
+    // Each receipt's cmd must equal or be a sub-path of its PARENT's cmd, and the
+    // invocation cmd must be a sub-path of the LEAF receipt's cmd. Checking only
+    // against the root would let a chain that narrows /tools → /tools/read still
+    // authorise an invocation of /tools/write (both are sub-paths of /tools).
+    // Sub-path: "/mcp/tools/call/web_search" is a sub-path of "/mcp/tools/call".
     let root_cmd = &receipts[0].cmd;
+    if root_cmd.is_empty() || !root_cmd.starts_with('/') {
+        return VerificationResult::invalid(
+            "INVALID_ROOT_CMD",
+            format!("root receipt cmd '{root_cmd}' must be a non-empty absolute path beginning with '/'."),
+            "The root delegation must declare a concrete command path so sub-path checks are meaningful.",
+        );
+    }
     for i in 1..receipts.len() {
-        if !cmd_is_subpath(root_cmd, &receipts[i].cmd) {
+        if !cmd_is_subpath(&receipts[i - 1].cmd, &receipts[i].cmd) {
             return VerificationResult::invalid(
                 "COMMAND_MISMATCH",
                 format!(
-                    "receipt[{i}].cmd '{}' is not equal to or a sub-path of root cmd '{root_cmd}'.",
-                    receipts[i].cmd
+                    "receipt[{i}].cmd '{}' is not equal to or a sub-path of parent receipt[{}].cmd '{}'.",
+                    receipts[i].cmd,
+                    i - 1,
+                    receipts[i - 1].cmd
                 ),
-                "All delegation receipts in a chain must delegate the same command or a sub-command.",
+                "Each delegation may only narrow — never widen — the command path of its parent.",
             );
         }
     }
-    if !cmd_is_subpath(root_cmd, &invocation.cmd) {
+    let leaf_cmd = &receipts[receipts.len() - 1].cmd;
+    if !cmd_is_subpath(leaf_cmd, &invocation.cmd) {
         return VerificationResult::invalid(
             "COMMAND_MISMATCH",
             format!(
-                "invocation.cmd '{}' is not equal to or a sub-path of root cmd '{root_cmd}'.",
+                "invocation.cmd '{}' is not equal to or a sub-path of leaf cmd '{leaf_cmd}'.",
                 invocation.cmd
             ),
-            "The invocation command must match or be a sub-path of the delegated command.",
+            "The invocation command must match or be a sub-path of the leaf delegation's command.",
         );
     }
 
@@ -370,17 +401,32 @@ pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
                 "A sub-delegation cannot become active before its parent delegation.",
             );
         }
-        // D2 (temporal): child exp must be <= parent exp when both are set
-        if let (Some(child_exp), Some(parent_exp)) = (receipts[i].exp, receipts[i - 1].exp) {
-            if child_exp > parent_exp {
-                return VerificationResult::invalid(
-                    "TEMPORAL_BOUNDS_VIOLATION",
-                    format!(
-                        "receipt[{i}].exp {child_exp} > receipt[{}].exp {parent_exp} — child cannot outlive parent.",
-                        i - 1
-                    ),
-                    "A sub-delegation cannot expire after its parent delegation.",
-                );
+        // D2 (temporal): child exp must be <= parent exp. If the parent sets an
+        // expiry, the child may not omit it — an absent child exp means unbounded
+        // lifetime, which outlives the time-bounded parent (temporal escalation).
+        if let Some(parent_exp) = receipts[i - 1].exp {
+            match receipts[i].exp {
+                None => {
+                    return VerificationResult::invalid(
+                        "TEMPORAL_BOUNDS_VIOLATION",
+                        format!(
+                            "receipt[{i}] omits exp but parent receipt[{}] expires at {parent_exp} — child cannot outlive parent.",
+                            i - 1
+                        ),
+                        "A sub-delegation must carry an exp no later than its parent's expiry.",
+                    );
+                }
+                Some(child_exp) if child_exp > parent_exp => {
+                    return VerificationResult::invalid(
+                        "TEMPORAL_BOUNDS_VIOLATION",
+                        format!(
+                            "receipt[{i}].exp {child_exp} > receipt[{}].exp {parent_exp} — child cannot outlive parent.",
+                            i - 1
+                        ),
+                        "A sub-delegation cannot expire after its parent delegation.",
+                    );
+                }
+                Some(_) => {}
             }
         }
     }
@@ -397,7 +443,16 @@ pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
     }
 
     // ── Block E: Temporal Validity ─────────────────────────────────────────────
-    let now = unix_now();
+    let now = match unix_now() {
+        Ok(t) => t,
+        Err(_) => {
+            return VerificationResult::invalid(
+                "CLOCK_ERROR",
+                "the verifier's system clock is unavailable or out of range; temporal validity cannot be checked.",
+                "Ensure the host clock is set correctly (and available on WASM hosts) before verifying.",
+            );
+        }
+    };
     for (i, receipt) in receipts.iter().enumerate() {
         // E1: now >= DR.nbf
         if now < receipt.nbf {
@@ -450,6 +505,18 @@ fn verify_jwt_signature(jwt: &str, issuer_did: &str) -> Result<(), crate::error:
 /// DID resolution failures get `UNRESOLVABLE_DID`; all other failures
 /// (bad signature, malformed JWT) get `INVALID_SIGNATURE`.
 fn classify_signature_error(e: &crate::error::DrsError) -> (&'static str, &'static str) {
+    classify_signature_error_for(e, false)
+}
+
+/// Classifies a signature-path error. When `is_invocation` is true, a generic
+/// signature failure maps to `INVALID_INVOCATION_SIGNATURE` so the invocation
+/// layer is distinguishable from a delegation-receipt failure in audit logs.
+/// Matching on the error variant (not on a previously-returned string) keeps
+/// this robust if other code codes are renamed.
+fn classify_signature_error_for(
+    e: &crate::error::DrsError,
+    is_invocation: bool,
+) -> (&'static str, &'static str) {
     use crate::error::DrsError;
     match e {
         DrsError::UnsupportedDidMethod(_)
@@ -460,11 +527,34 @@ fn classify_signature_error(e: &crate::error::DrsError) -> (&'static str, &'stat
             "UNRESOLVABLE_DID",
             "Could not resolve public key from issuer DID. Check DID format (did:key) or verify DNS/TLS (did:web).",
         ),
+        _ if is_invocation => (
+            "INVALID_INVOCATION_SIGNATURE",
+            "The invocation has been tampered with or was signed with the wrong key.",
+        ),
         _ => (
             "INVALID_SIGNATURE",
             "The receipt has been tampered with or was signed with the wrong key.",
         ),
     }
+}
+
+/// Returns the name of the first required consent field that is empty (after
+/// trimming), or `None` if every required field is populated. `locale` is not
+/// required. See B2 for why policy_hash is checked for presence but not bound.
+fn consent_missing_field(c: &crate::types::ConsentRecord) -> Option<&'static str> {
+    if c.method.trim().is_empty() {
+        return Some("method");
+    }
+    if c.timestamp.trim().is_empty() {
+        return Some("timestamp");
+    }
+    if c.session_id.trim().is_empty() {
+        return Some("session_id");
+    }
+    if c.policy_hash.trim().is_empty() {
+        return Some("policy_hash");
+    }
+    None
 }
 
 /// Returns true if `cmd` is equal to `root_cmd` or is a sub-path of it.
@@ -483,11 +573,21 @@ fn cmd_is_subpath(root_cmd: &str, cmd: &str) -> bool {
     false
 }
 
-fn unix_now() -> i64 {
-    SystemTime::now()
+/// Returns the current Unix time in seconds, or an error if the system clock is
+/// unavailable or before the epoch.
+///
+/// Fail-closed: callers must treat the error as a verification failure rather
+/// than substituting a sentinel. Returning 0 on error (the previous behaviour)
+/// made every receipt with a positive `exp` pass the expiry check — a temporal
+/// bypass on any clock anomaly (notably on WASM hosts with no clock). The cast
+/// uses `i64::try_from` so a clock past year 2262 fails closed instead of
+/// silently wrapping to a negative timestamp.
+fn unix_now() -> Result<i64, crate::error::DrsError> {
+    let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
+        .map_err(|_| crate::error::DrsError::ClockError)?
+        .as_secs();
+    i64::try_from(secs).map_err(|_| crate::error::DrsError::ClockError)
 }
 
 #[cfg(test)]

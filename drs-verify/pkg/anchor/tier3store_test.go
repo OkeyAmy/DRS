@@ -49,7 +49,7 @@ func TestTier3Store_PutStoresJWTAndToken(t *testing.T) {
 
 	ts := anchor.NewTier3Store(inner, anchor.NewTSAClient(tsaSrv.URL))
 
-	const hash = "sha256:aabb00112233445566778899aabb00112233445566778899aabb001122334455"
+	const hash = "sha256:7cd1a4f86efa8b153b99ee0186131978f4955727c46e1a1d6928819c5049275e"
 	const jwt = "header.payload.sig"
 
 	if err := ts.Put(hash, jwt); err != nil {
@@ -82,7 +82,7 @@ func TestTier3Store_PutWithTSAFailureStillStoresJWT(t *testing.T) {
 
 	ts := anchor.NewTier3Store(inner, anchor.NewTSAClient(tsaSrv.URL))
 
-	const hash = "sha256:ccdd00112233445566778899aabb00112233445566778899aabb001122334455"
+	const hash = "sha256:7cd1a4f86efa8b153b99ee0186131978f4955727c46e1a1d6928819c5049275e"
 	const jwt = "header.payload.sig"
 
 	// Put must succeed even though TSA is unavailable.
@@ -140,7 +140,7 @@ func TestTier3Store_DeleteRemovesJWTAndToken(t *testing.T) {
 
 	ts := anchor.NewTier3Store(inner, anchor.NewTSAClient(tsaSrv.URL))
 
-	const hash = "sha256:1122334455aabb00112233445566778899aabb00112233445566778899aabb00"
+	const hash = "sha256:7cd1a4f86efa8b153b99ee0186131978f4955727c46e1a1d6928819c5049275e"
 	const jwt = "header.payload.sig"
 
 	if err := ts.Put(hash, jwt); err != nil {
@@ -159,5 +159,23 @@ func TestTier3Store_DeleteRemovesJWTAndToken(t *testing.T) {
 	// Token must be gone.
 	if _, err := inner.Get(hash + ".tst"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("token after Delete: want ErrNotFound, got %v", err)
+	}
+}
+
+// F-010: Put must reject a (hash, jwt) pair whose hash is not SHA-256(jwt),
+// so a timestamp anchor can never be filed against content it does not prove.
+func TestTier3Store_PutRejectsHashMismatch(t *testing.T) {
+	inner := newTestMemory(t)
+	tsaSrv := newTSAServer(t)
+	ts := anchor.NewTier3Store(inner, anchor.NewTSAClient(tsaSrv.URL))
+
+	// hash does not match SHA-256("header.payload.sig")
+	const wrongHash = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+	if err := ts.Put(wrongHash, "header.payload.sig"); err == nil {
+		t.Fatal("expected Put to reject a hash that does not match SHA-256(jwt)")
+	}
+	// Nothing should have been written under the bogus key.
+	if _, err := inner.Get(wrongHash); err == nil {
+		t.Error("Put wrote JWT under a mismatched hash key")
 	}
 }

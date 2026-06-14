@@ -50,9 +50,12 @@ func checkRequestBinding(w http.ResponseWriter, r *http.Request, invocationJWT, 
 			return true
 		}
 		metrics.BindingChecks.WithLabelValues("read_error").Inc()
+		// Full error is logged server-side; the client receives a stable,
+		// generic message so OS/network error strings (internal IPs, ports)
+		// are not echoed back as reconnaissance data.
 		slog.Warn("binding: cannot read request body", "error", err)
 		writeBindingError(w, http.StatusBadRequest, "BINDING_BODY_READ_ERROR",
-			err.Error(),
+			"request body could not be read",
 			"Ensure the request body can be read before DRS binding verification.")
 		return true
 	}

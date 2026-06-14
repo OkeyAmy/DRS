@@ -544,11 +544,39 @@ func didWebDocumentURL(did string) (string, error) {
 		return "", fmt.Errorf("did:web missing domain in %q", did)
 	}
 
+	// Reject any character that could smuggle userinfo, an alternate host, a
+	// path, or a query into the constructed URL. Without this, a domain like
+	// "evil.com%40target" decodes to "evil.com@target", turning the attacker's
+	// string into URL userinfo (and an Authorization-bearing request to target).
+	if i := strings.IndexAny(domain, "@/?#\\ "); i >= 0 {
+		return "", fmt.Errorf("did:web domain contains illegal character %q", domain[i])
+	}
+	if strings.ContainsAny(domain, "\x00") || strings.TrimSpace(domain) != domain {
+		return "", fmt.Errorf("did:web domain contains control or whitespace characters")
+	}
+
 	if pathPart == "" {
 		return fmt.Sprintf("https://%s/.well-known/did.json", domain), nil
 	}
-	// Colons in the path portion become URL path separators
-	path := strings.ReplaceAll(pathPart, ":", "/")
+	// Colons in the path portion become URL path separators. Each segment is
+	// percent-decoded and validated so "." / ".." / empty segments cannot be
+	// used to traverse out of the intended did.json path.
+	rawSegs := strings.Split(pathPart, ":")
+	cleanSegs := make([]string, 0, len(rawSegs))
+	for _, seg := range rawSegs {
+		decoded, decErr := url.PathUnescape(seg)
+		if decErr != nil {
+			return "", fmt.Errorf("did:web invalid path encoding: %w", decErr)
+		}
+		if decoded == "" || decoded == "." || decoded == ".." {
+			return "", fmt.Errorf("did:web path segment %q is not allowed", decoded)
+		}
+		if strings.ContainsAny(decoded, "/\\\x00") {
+			return "", fmt.Errorf("did:web path segment contains illegal character")
+		}
+		cleanSegs = append(cleanSegs, seg)
+	}
+	path := strings.Join(cleanSegs, "/")
 	return fmt.Sprintf("https://%s/%s/did.json", domain, path), nil
 }
 

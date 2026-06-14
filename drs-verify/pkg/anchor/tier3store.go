@@ -2,7 +2,10 @@ package anchor
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/drs-protocol/drs-verify/pkg/store"
 )
@@ -27,14 +30,25 @@ func NewTier3Store(inner store.Store, tsa *TSAClient) *Tier3Store {
 // Put stores the JWT in the inner store, then requests an RFC 3161 timestamp
 // for it and stores that token under hash+".tst".
 //
-// TSA failure is non-fatal: if the timestamp request fails, Put logs the error
-// and returns nil. The JWT is always stored regardless of TSA availability.
+// The caller-supplied hash MUST be the SHA-256 of jwt (the chain-hash key,
+// "sha256:"+hex). Put asserts this binding so a mismatched (hash, jwt) pair
+// cannot store a timestamp token that proves different content than the JWT
+// filed under the same key.
+//
+// TSA fetch failure is non-fatal: if the timestamp request fails, Put logs the
+// error and returns nil (the JWT is still stored). A failure to STORE a token
+// that was successfully fetched IS returned to the caller — silently dropping a
+// fetched anchor would leave a receipt with no verifiable timestamp evidence.
 func (t *Tier3Store) Put(hash string, jwt string) error {
+	digest := sha256.Sum256([]byte(jwt))
+	if err := assertHashBinding(hash, digest[:]); err != nil {
+		return err
+	}
+
 	if err := t.inner.Put(hash, jwt); err != nil {
 		return err
 	}
 
-	digest := sha256.Sum256([]byte(jwt))
 	token, err := t.tsa.Timestamp(digest[:])
 	if err != nil {
 		slog.Warn("tier3: TSA timestamp failed", "hash", hash, "error", err)
@@ -43,7 +57,19 @@ func (t *Tier3Store) Put(hash string, jwt string) error {
 
 	tokenKey := hash + ".tst"
 	if err := t.inner.Put(tokenKey, string(token)); err != nil {
-		slog.Warn("tier3: failed to store timestamp token", "hash", hash, "error", err)
+		slog.Error("tier3: failed to store timestamp token", "hash", hash, "error", err)
+		return fmt.Errorf("tier3: timestamp token for %s could not be stored: %w", hash, err)
+	}
+	return nil
+}
+
+// assertHashBinding verifies that key is the canonical chain-hash of the digest:
+// "sha256:"+hex(digest). Returns an error on any mismatch so the timestamp anchor
+// is always bound to the exact content being stored.
+func assertHashBinding(key string, digest []byte) error {
+	want := "sha256:" + hex.EncodeToString(digest)
+	if !strings.EqualFold(key, want) {
+		return fmt.Errorf("tier3: hash key %q does not match SHA-256 of JWT (%q)", key, want)
 	}
 	return nil
 }

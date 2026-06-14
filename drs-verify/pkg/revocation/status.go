@@ -106,6 +106,10 @@ func (s *StatusCache) IsRevoked(ctx context.Context, statusListIndex uint64) (bo
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	// A configured (non-empty) list fails closed on an out-of-range index: an
+	// index beyond the list cannot be confirmed not-revoked. An empty bitstring
+	// means revocation is intentionally disabled for this cache (baseURL==""),
+	// in which case main.go wires deps.Revocation=nil and this path is unused.
 	if len(s.bitstring) > 0 {
 		byteIndex := statusListIndex / 8
 		if byteIndex >= uint64(len(s.bitstring)) {

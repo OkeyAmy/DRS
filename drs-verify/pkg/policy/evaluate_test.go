@@ -291,3 +291,52 @@ func TestAllowedDataClassesOmissionIsEscalation(t *testing.T) {
 		t.Error("expected error when child omits allowed_data_classes that parent restricts, got nil")
 	}
 }
+
+// ── resourceCovered path traversal ───────────────────────────────────────────
+
+func TestResourcePathTraversalBlocked(t *testing.T) {
+	// Policy grants "mcp://tools/*". A URI with ../ must not escape the prefix.
+	p := types.Policy{AllowedResources: []string{"mcp://tools/*"}}
+	cases := []struct {
+		name    string
+		uri     string
+		wantErr bool
+	}{
+		{"normal uri inside prefix", "mcp://tools/web_search", false},
+		{"traversal one level", "mcp://tools/../admin/delete", true},
+		{"traversal two levels", "mcp://tools/../../etc/passwd", true},
+		{"encoded dot-dot not normalized", "mcp://tools/%2e%2e/admin", true},
+		{"exact prefix match disallowed", "mcp://toolsadmin", true},
+		{"sibling prefix", "mcp://toolset/anything", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Evaluate(p, map[string]interface{}{"resource_uri": tc.uri})
+			if tc.wantErr && err == nil {
+				t.Errorf("uri %q: expected error (traversal blocked), got nil", tc.uri)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("uri %q: unexpected error: %v", tc.uri, err)
+			}
+		})
+	}
+}
+
+func TestNormalizeResourceURIHelper(t *testing.T) {
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{"mcp://tools/web_search", "mcp://tools/web_search"},
+		{"mcp://tools/../admin", "mcp://admin"},
+		{"mcp://tools/./search", "mcp://tools/search"},
+		{"mcp://a/b/../../c", "mcp://c"},
+		{"no-scheme/a/../b", "no-scheme/b"},
+	}
+	for _, tc := range cases {
+		got := normalizeResourceURI(tc.input)
+		if got != tc.want {
+			t.Errorf("normalizeResourceURI(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}

@@ -323,6 +323,22 @@ func TestVerifyTimestamp_ValidToken(t *testing.T) {
 
 // ── VerifyTimestampTrusted tests ───────────────────────────────────────────────
 
+// F-005: nil trust pool must be rejected outright — falling back to OS system
+// roots would let any publicly-trusted timestamping cert forge an accepted token.
+func TestVerifyTimestampTrusted_RejectsNilRoots(t *testing.T) {
+	hash := make([]byte, 32)
+	_, _ = rand.Read(hash)
+	der := buildTestTimestampResp(t, hash, 0)
+
+	_, err := anchor.VerifyTimestampTrusted(der, hash, nil)
+	if err == nil {
+		t.Fatal("expected error for nil trustedRoots, got nil")
+	}
+	if !strings.Contains(err.Error(), "trust anchor") {
+		t.Errorf("error should mention missing trust anchor, got: %v", err)
+	}
+}
+
 func TestVerifyTimestampTrusted_RejectsUntrustedSelfSignedToken(t *testing.T) {
 	hash := make([]byte, 32)
 	_, _ = rand.Read(hash)

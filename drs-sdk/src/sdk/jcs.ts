@@ -9,11 +9,21 @@
  * - Object keys are sorted by Unicode code point order (RFC 8785 sec3.2.3-compliant).
  * - Numbers use JSON.stringify (V8 produces RFC 8785-compliant output).
  * - No whitespace between tokens.
- * - null/undefined serialize to "null".
+ * - A top-level null/undefined serialises to "null". Object keys whose value is
+ *   undefined are OMITTED (matching JSON.stringify and serde_json), so the
+ *   canonical bytes agree with the Rust verifier which never emits `null` for
+ *   an absent field.
  *
  * IMPORTANT: Do not use JSON.stringify for signed content — it does not
  * sort nested object keys.
  */
+
+/**
+ * Maximum nesting depth. Matches serde_json's default recursion limit (128) on
+ * the Rust side so that any payload the Rust verifier would reject for depth is
+ * also rejected here, and a deeply-nested input cannot exhaust the JS call stack.
+ */
+const MAX_JCS_DEPTH = 128;
 
 /**
  * Compares two strings by Unicode code point order as required by RFC 8785
@@ -36,7 +46,10 @@ function compareKeysByCodePoint(a: string, b: string): number {
   return a.length - b.length;
 }
 
-export function jcsSerialise(value: unknown): string {
+export function jcsSerialise(value: unknown, depth = 0): string {
+  if (depth > MAX_JCS_DEPTH) {
+    throw new Error(`jcsSerialise: nesting depth exceeds ${MAX_JCS_DEPTH}`);
+  }
   if (value === null || value === undefined) return "null";
   if (typeof value === "boolean") return value ? "true" : "false";
   if (typeof value === "number") {
@@ -45,12 +58,16 @@ export function jcsSerialise(value: unknown): string {
   }
   if (typeof value === "string") return JSON.stringify(value);
   if (Array.isArray(value)) {
-    return `[${value.map(jcsSerialise).join(",")}]`;
+    // Array elements keep their position: an undefined element is `null` in JSON.
+    return `[${value.map((v) => jcsSerialise(v, depth + 1)).join(",")}]`;
   }
   if (typeof value === "object") {
     const obj = value as Record<string, unknown>;
-    const sortedKeys = Object.keys(obj).sort(compareKeysByCodePoint);
-    const entries = sortedKeys.map((k) => `${JSON.stringify(k)}:${jcsSerialise(obj[k])}`);
+    // Omit keys whose value is undefined, matching JSON.stringify / serde_json.
+    const sortedKeys = Object.keys(obj)
+      .filter((k) => obj[k] !== undefined)
+      .sort(compareKeysByCodePoint);
+    const entries = sortedKeys.map((k) => `${JSON.stringify(k)}:${jcsSerialise(obj[k], depth + 1)}`);
     return `{${entries.join(",")}}`;
   }
   return "null";

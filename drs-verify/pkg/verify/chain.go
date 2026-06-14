@@ -91,7 +91,17 @@ type Deps struct {
 	// timestamp token verification. When nil, system roots are used.
 	// Set via TSA_ROOT_CERT_PEM env var parsed in main().
 	TSARootPool *x509.CertPool
+	// MaxInvocationAge bounds how old an invocation's iat may be. Once the nonce
+	// store evicts a JTI (after its TTL) the same invocation could otherwise be
+	// replayed; rejecting stale invocations closes that window. Set from the
+	// nonce TTL in main(). Zero disables the check.
+	MaxInvocationAge time.Duration
 }
+
+// invocationClockSkew is the tolerance for an invocation iat that is slightly in
+// the future relative to this verifier's clock (NTP jitter between issuer and
+// verifier). Beyond this, the iat is treated as malformed.
+const invocationClockSkew = 5 * time.Minute
 
 // Chain verifies a DRS chain bundle through all six blocks.
 // Returns a VerificationResult — never panics.
@@ -183,10 +193,17 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 			"receipt[0] must have no prev_dr_hash (it is the root delegation).",
 			"The first receipt in the chain must be the root delegation with no parent.")
 	}
-	if receipts[0].DrsRootType != nil && *receipts[0].DrsRootType == "human" && receipts[0].DrsConsent == nil {
-		return types.Invalid("MISSING_CONSENT",
-			"receipt[0].drs_root_type is 'human' but drs_consent is absent.",
-			"Human-rooted delegations must include consent evidence (method, timestamp, session_id, policy_hash, locale).")
+	if receipts[0].DrsRootType != nil && *receipts[0].DrsRootType == "human" {
+		if receipts[0].DrsConsent == nil {
+			return types.Invalid("MISSING_CONSENT",
+				"receipt[0].drs_root_type is 'human' but drs_consent is absent.",
+				"Human-rooted delegations must include consent evidence (method, timestamp, session_id, policy_hash, locale).")
+		}
+		if msg := validateConsentRecord(receipts[0].DrsConsent); msg != "" {
+			return types.Invalid("INVALID_CONSENT",
+				fmt.Sprintf("receipt[0].drs_consent is structurally present but %s", msg),
+				"Human-rooted delegations must carry a fully-populated consent record.")
+		}
 	}
 
 	// B3: chain hash linkage
@@ -279,19 +296,30 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 	// D1–D4 are spec section numbers from §6.2, not execution order.
 	// Execution order is D3 → D4 → D2 → D1 (structural checks before semantic).
 
-	// D3: command must be equal or a sub-path of root cmd
+	// D3: command narrowing must hold hop-by-hop, not merely against the root.
+	// Each receipt's cmd must equal or be a sub-path of its PARENT's cmd, and the
+	// invocation cmd must be a sub-path of the LEAF receipt's cmd. Checking only
+	// against the root would let a chain that narrows /tools → /tools/read still
+	// authorise an invocation of /tools/write (both are sub-paths of /tools).
 	rootCmd := receipts[0].Cmd
+	if rootCmd == "" || !strings.HasPrefix(rootCmd, "/") {
+		return types.Invalid("INVALID_ROOT_CMD",
+			fmt.Sprintf("root receipt cmd %q must be a non-empty absolute path beginning with '/'.", rootCmd),
+			"The root delegation must declare a concrete command path so sub-path checks are meaningful.")
+	}
 	for i := 1; i < len(receipts); i++ {
-		if !cmdIsSubpath(rootCmd, receipts[i].Cmd) {
+		if !cmdIsSubpath(receipts[i-1].Cmd, receipts[i].Cmd) {
 			return types.Invalid("COMMAND_MISMATCH",
-				fmt.Sprintf("receipt[%d].cmd %q is not equal to or a sub-path of root cmd %q.", i, receipts[i].Cmd, rootCmd),
-				"All delegation receipts in a chain must delegate the same command or a sub-command.")
+				fmt.Sprintf("receipt[%d].cmd %q is not equal to or a sub-path of parent receipt[%d].cmd %q.",
+					i, receipts[i].Cmd, i-1, receipts[i-1].Cmd),
+				"Each delegation may only narrow — never widen — the command path of its parent.")
 		}
 	}
-	if !cmdIsSubpath(rootCmd, invocation.Cmd) {
+	leafCmd := receipts[len(receipts)-1].Cmd
+	if !cmdIsSubpath(leafCmd, invocation.Cmd) {
 		return types.Invalid("COMMAND_MISMATCH",
-			fmt.Sprintf("invocation.cmd %q is not equal to or a sub-path of root cmd %q.", invocation.Cmd, rootCmd),
-			"The invocation command must match or be a sub-path of the delegated command.")
+			fmt.Sprintf("invocation.cmd %q is not equal to or a sub-path of leaf cmd %q.", invocation.Cmd, leafCmd),
+			"The invocation command must match or be a sub-path of the leaf delegation's command.")
 	}
 
 	// D4: all DRs must share the same sub
@@ -311,11 +339,21 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 			"The invocation must reference the same subject as the delegation chain.")
 	}
 
-	// D4c: invocation.tool_server must match the server's configured identity
-	if deps.ServerIdentity != "" && invocation.ToolServer != deps.ServerIdentity {
+	// D4c: bind the invocation to this server. When ServerIdentity is configured
+	// it must match invocation.tool_server. When it is NOT configured, an
+	// invocation that names a specific tool_server is rejected fail-closed —
+	// otherwise a bundle minted for server A would verify on any server B that
+	// simply left SERVER_IDENTITY unset (cross-server replay / confused deputy).
+	if deps.ServerIdentity != "" {
+		if invocation.ToolServer != deps.ServerIdentity {
+			return types.Invalid("TOOL_SERVER_MISMATCH",
+				fmt.Sprintf("invocation.tool_server %q ≠ expected server identity %q.", invocation.ToolServer, deps.ServerIdentity),
+				"The invocation targets a different tool server than this verifier.")
+		}
+	} else if invocation.ToolServer != "" {
 		return types.Invalid("TOOL_SERVER_MISMATCH",
-			fmt.Sprintf("invocation.tool_server %q ≠ expected server identity %q.", invocation.ToolServer, deps.ServerIdentity),
-			"The invocation targets a different tool server than this verifier.")
+			fmt.Sprintf("invocation.tool_server %q is set but this verifier has no SERVER_IDENTITY configured.", invocation.ToolServer),
+			"Set SERVER_IDENTITY on the verifier so tool_server binding can be enforced.")
 	}
 
 	// D2: policy attenuation — child policy must be a subset of parent policy
@@ -332,8 +370,16 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 					i, receipts[i].Nbf, i-1, receipts[i-1].Nbf),
 				"A sub-delegation cannot become active before its parent delegation.")
 		}
-		// D2 (temporal): child exp must be <= parent exp when both are set
-		if receipts[i].Exp != nil && receipts[i-1].Exp != nil {
+		// D2 (temporal): child exp must be <= parent exp. If the parent sets an
+		// expiry, the child may not omit it — an absent child exp means unbounded
+		// lifetime, which outlives the time-bounded parent (temporal escalation).
+		if receipts[i-1].Exp != nil {
+			if receipts[i].Exp == nil {
+				return types.Invalid("TEMPORAL_BOUNDS_VIOLATION",
+					fmt.Sprintf("receipt[%d] omits exp but parent receipt[%d] expires at %d — child cannot outlive parent.",
+						i, i-1, *receipts[i-1].Exp),
+					"A sub-delegation must carry an exp no later than its parent's expiry.")
+			}
 			if *receipts[i].Exp > *receipts[i-1].Exp {
 				return types.Invalid("TEMPORAL_BOUNDS_VIOLATION",
 					fmt.Sprintf("receipt[%d].exp %d > receipt[%d].exp %d — child cannot outlive parent.",
@@ -355,6 +401,25 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 	// ── Block E: Temporal Validity ───────────────────────────────────────────
 
 	now := time.Now().Unix()
+
+	// Invocation freshness: an invocation must be recent. This bounds the replay
+	// window to the nonce TTL — after a JTI is evicted from the nonce store, a
+	// captured invocation older than MaxInvocationAge is rejected here rather than
+	// being re-accepted. A far-future iat (beyond clock skew) is also rejected.
+	if invocation.Iat > now+int64(invocationClockSkew.Seconds()) {
+		return types.Invalid("INVOCATION_NOT_YET_VALID",
+			fmt.Sprintf("invocation.iat %d is in the future (now: %d).", invocation.Iat, now),
+			"Check clock synchronisation between the issuer and the verifier.")
+	}
+	if deps.MaxInvocationAge > 0 {
+		if age := now - invocation.Iat; age > int64(deps.MaxInvocationAge.Seconds()) {
+			return types.Invalid("INVOCATION_STALE",
+				fmt.Sprintf("invocation.iat %d is %ds old; maximum allowed age is %ds.",
+					invocation.Iat, age, int64(deps.MaxInvocationAge.Seconds())),
+				"Re-issue the invocation; a stale invocation can be a replay after its nonce expired.")
+		}
+	}
+
 	for i, r := range receipts {
 		if now < r.Nbf {
 			return types.Invalid("NOT_YET_VALID",
@@ -689,6 +754,29 @@ func classifySignatureError(err error) (code, suggestion string) {
 	}
 	return "INVALID_SIGNATURE",
 		"The receipt has been tampered with or was signed with the wrong key."
+}
+
+// validateConsentRecord returns a non-empty description of the first missing
+// required field in a human-consent record, or "" if the record is complete.
+//
+// This enforces that a structurally-present consent record actually carries
+// evidence: an all-empty ConsentRecord must not satisfy the human-root check.
+// Full policy_hash↔policy binding is intentionally NOT enforced here: the
+// canonical preimage for policy_hash is not yet defined in the DRS spec (the
+// SDK accepts it as caller-supplied), so equality enforcement would reject
+// legitimate chains. Non-emptiness is the safe interim guarantee.
+func validateConsentRecord(c *types.ConsentRecord) string {
+	switch {
+	case strings.TrimSpace(c.Method) == "":
+		return "method is empty"
+	case strings.TrimSpace(c.Timestamp) == "":
+		return "timestamp is empty"
+	case strings.TrimSpace(c.SessionID) == "":
+		return "session_id is empty"
+	case strings.TrimSpace(c.PolicyHash) == "":
+		return "policy_hash is empty"
+	}
+	return ""
 }
 
 // cmdIsSubpath returns true if cmd equals rootCmd or is a sub-path of it.
