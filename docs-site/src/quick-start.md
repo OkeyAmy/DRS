@@ -63,6 +63,11 @@ const rootDR = await issueRootDelegation({
 });
 ```
 
+> `max_cost_usd` is a self-declared bound, not a metered one — it is reliable
+> only for costs known before the call (e.g. a transaction amount), not for LLM
+> token spend. See the
+> [`max_cost_usd` caveat](./reference/policy-schema.md#caveat-max_cost_usd-is-a-self-declared-bound-not-a-metered-one).
+
 ## 4. Start `drs-verify` (from the published image)
 
 ```bash
@@ -79,14 +84,23 @@ repo's release pipeline.
 
 ## 5. Build and verify a bundle
 
+The agent is a **separate identity** from the operator — it has its own
+keypair (the `audienceDid` the root delegation was issued to). In a real
+deployment the agent generates and holds this key itself; here we just need
+its private key to sign the invocation.
+
 ```typescript
 import { createInvocationBundle, serialiseBundle } from "@okeyamy/drs-sdk";
 import { writeFileSync } from "node:fs";
 
+// The agent's own key — the holder of the audienceDid from step 3.
+const agentPrivateKey = Uint8Array.from(Buffer.from("AGENT_PRIVATE_KEY_HEX", "hex"));
+const agentDid = "did:key:z6MkAGENT_DID";
+
 const bundle = await createInvocationBundle({
   rootReceipt: rootDR,
   signingKey: agentPrivateKey,
-  issuerDid: "did:key:z6MkAGENT_DID",
+  issuerDid: agentDid,
   subjectDid: "did:key:z6MkYOUR_DID",
   toolServer: "did:key:z6MkTOOL_DID",
   tool: "web_search",

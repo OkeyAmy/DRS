@@ -118,6 +118,9 @@ Rust binary or experimenting with the WASM target, use the crate:
 drs-core = "0.1"
 ```
 
+See [Use drs-core directly (Rust / WASM)](./rust-core.md) for the in-process
+primitives, offline verification, and WASM build.
+
 ## Combining them
 
 A typical production deployment uses all three:

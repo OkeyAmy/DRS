@@ -45,12 +45,14 @@ Body is capped at `MAX_BODY_BYTES` (default 1 MiB).
 {
   "valid": false,
   "error": {
-    "code": "CHAIN_HASH_MISMATCH",
-    "message": "prev_dr_hash mismatch at chain index 1",
-    "suggestion": "Ensure receipts are in root-first order and were not modified after signing"
+    "code": "CHAIN_BREAK",
+    "message": "receipt[1] prev_dr_hash mismatch: claimed \"sha256:def456...\", expected \"sha256:abc123...\".",
+    "suggestion": "DR at index 0 may have been modified after DR at index 1 was issued, or the receipts are in the wrong order."
   }
 }
 ```
+
+> See [Error Codes](./error-codes.md) for the full list of `code` values by verification block.
 
 **Response — malformed input (400):**
 ```json
