@@ -17,9 +17,11 @@ const MULTICODEC_ED25519_LO: u8 = 0x01;
 /// to prevent timing side-channels.
 pub fn resolve_did_key(did: &str) -> Result<[u8; 32], DrsError> {
     if !did.starts_with(DID_KEY_PREFIX) {
-        return Err(DrsError::UnsupportedDidMethod(
-            did.split(':').nth(1).unwrap_or("unknown").to_string(),
-        ));
+        // Bound the echoed method name: it is attacker-controlled and flows into
+        // error messages / logs. Cap at 32 chars so a multi-KB "method" cannot be
+        // used for log amplification.
+        let method: String = did.split(':').nth(1).unwrap_or("unknown").chars().take(32).collect();
+        return Err(DrsError::UnsupportedDidMethod(method));
     }
 
     let encoded = &did[DID_KEY_PREFIX.len()..];

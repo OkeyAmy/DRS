@@ -14,6 +14,12 @@ use crate::error::DrsError;
 /// This is the correct function to use for CID computation and signature payloads.
 /// Never use `serde_json::to_string` or `JSON.stringify` for this purpose — they
 /// do not sort nested keys.
+///
+/// Depth note: this function accepts an already-parsed `Value`, so it does NOT
+/// enforce serde_json's parse-time recursion limit (128). Callers MUST obtain
+/// untrusted input via `serde_json::from_str`/`from_slice` (which enforces that
+/// limit) rather than constructing deeply-nested `Value` trees programmatically
+/// from untrusted data, otherwise canonicalisation could recurse without bound.
 pub fn jcs_canonical_bytes(value: &Value) -> Result<Vec<u8>, DrsError> {
     to_vec(value).map_err(|e| DrsError::SerdeError(e.to_string()))
 }

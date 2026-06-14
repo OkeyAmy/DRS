@@ -51,6 +51,13 @@ func OptionalMCPMiddleware(deps verify.Deps, nonceStore nonce.Checker, bindingMo
 
 func mcpMiddleware(deps verify.Deps, nonceStore nonce.Checker, bindingMode string, next http.Handler, allowMissing bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Reject ambiguous multi-valued headers: if a proxy and a client each
+		// supply X-DRS-Bundle, Header.Get would silently verify only the first
+		// while a downstream hop might act on a different value.
+		if len(r.Header.Values("X-DRS-Bundle")) > 1 {
+			http.Error(w, `{"error":"multiple X-DRS-Bundle headers are not allowed"}`, http.StatusBadRequest)
+			return
+		}
 		bundleHeader := r.Header.Get("X-DRS-Bundle")
 		if bundleHeader == "" {
 			if allowMissing {

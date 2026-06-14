@@ -4,49 +4,93 @@ use std::collections::HashSet;
 
 /// Evaluates whether `args` from an invocation satisfy `policy`.
 ///
-/// Field names in `args` are the canonical DRS argument names from §6.3 of
-/// the technical audit. Using the wrong field name produces a false pass —
-/// the spec is explicit: `estimated_cost_usd`, `pii_access`, `write_access`.
+/// All checks are fail-closed: when a policy restricts a field, the corresponding
+/// arg key MUST be present. An absent key means unknown intent — the capability
+/// is denied. This matches the Go port in drs-verify/pkg/policy/evaluate.go.
 ///
-/// max_calls is not checked here (requires session-level state outside this function).
+/// `estimated_cost_usd` is only meaningful for costs known before invocation
+/// (transaction amounts, fixed-fee APIs). It cannot enforce LLM inference costs —
+/// those are unknowable until after the model call completes.
+///
+/// max_calls is not checked here; it requires session-level call-counting state.
 /// Unknown fields in args are ignored (forward compatibility per §6.3).
 pub fn evaluate_policy(policy: &Policy, args: &serde_json::Value) -> Result<(), DrsError> {
-    // max_cost_usd: args.estimated_cost_usd must not exceed the limit
-    // Field name is "estimated_cost_usd", not "cost" — see technical_audit §6.3
+    // max_cost_usd: agent must declare estimated_cost_usd when policy restricts it.
+    // Absent field is fail-closed — unknown cost cannot be allowed under a cost cap.
     if let Some(max_cost) = policy.max_cost_usd {
-        if let Some(cost) = args.get("estimated_cost_usd").and_then(|v| v.as_f64()) {
-            if cost > max_cost {
-                return Err(DrsError::PolicyViolation(format!(
-                    "Cost limit exceeded. Max: ${max_cost:.2}. Provided: ${cost:.2}."
-                )));
-            }
+        let cost = args
+            .get("estimated_cost_usd")
+            .and_then(|v| v.as_f64())
+            .ok_or_else(|| {
+                DrsError::PolicyViolation(
+                    "estimated_cost_usd is required when max_cost_usd policy is set.".to_string(),
+                )
+            })?;
+        if cost < 0.0 || cost.is_nan() || cost.is_infinite() {
+            return Err(DrsError::PolicyViolation(format!(
+                "estimated_cost_usd must be a finite non-negative number, got {cost}."
+            )));
+        }
+        if cost > max_cost {
+            return Err(DrsError::PolicyViolation(format!(
+                "Cost limit exceeded. Max: ${max_cost:.2}. Provided: ${cost:.2}."
+            )));
         }
     }
 
-    // pii_access: false means pii must not be requested
-    // Field name is "pii_access", not "pii" — see technical_audit §6.3
+    // pii_access: agent must explicitly declare false when policy denies PII.
+    // Absent field is fail-closed — undeclared intent cannot pass a restriction.
     if let Some(false) = policy.pii_access {
-        if let Some(true) = args.get("pii_access").and_then(|v| v.as_bool()) {
+        let pii = args
+            .get("pii_access")
+            .and_then(|v| v.as_bool())
+            .ok_or_else(|| {
+                DrsError::PolicyViolation(
+                    "pii_access is required by this delegation policy; \
+                     set pii_access: false in args to confirm no PII is accessed."
+                        .to_string(),
+                )
+            })?;
+        if pii {
             return Err(DrsError::PolicyViolation(
                 "PII access not permitted by this delegation.".to_string(),
             ));
         }
     }
 
-    // write_access: false means write operations are not permitted
-    // Field name is "write_access", not "write" — see technical_audit §6.3
+    // write_access: agent must explicitly declare false when policy denies writes.
     if let Some(false) = policy.write_access {
-        if let Some(true) = args.get("write_access").and_then(|v| v.as_bool()) {
+        let write = args
+            .get("write_access")
+            .and_then(|v| v.as_bool())
+            .ok_or_else(|| {
+                DrsError::PolicyViolation(
+                    "write_access is required by this delegation policy; \
+                     set write_access: false in args to confirm no writes are performed."
+                        .to_string(),
+                )
+            })?;
+        if write {
             return Err(DrsError::PolicyViolation(
                 "Write access not permitted.".to_string(),
             ));
         }
     }
 
-    // allowed_tools: args.tool must be in the permitted list
+    // allowed_tools: agent must declare tool when policy restricts it.
+    // Absent key = unknown tool = capability denied.
     if let Some(allowed) = &policy.allowed_tools {
-        if let Some(tool) = args.get("tool").and_then(|v| v.as_str()) {
-            if !allowed.iter().any(|t| t == tool || t == "*") {
+        if !allowed.iter().any(|t| t == "*") {
+            let tool = args
+                .get("tool")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| {
+                    DrsError::PolicyViolation(format!(
+                        "tool is required by this delegation policy. Allowed: [{}].",
+                        allowed.join(", ")
+                    ))
+                })?;
+            if !allowed.iter().any(|t| t == tool) {
                 return Err(DrsError::PolicyViolation(format!(
                     "Tool not permitted. Allowed: [{}]. Requested: {tool}.",
                     allowed.join(", ")
@@ -55,14 +99,30 @@ pub fn evaluate_policy(policy: &Policy, args: &serde_json::Value) -> Result<(), 
         }
     }
 
-    // allowed_resources: args.resource_uri must match at least one permitted pattern
-    // Field name is "resource_uri" — see technical_audit §6.3
+    // allowed_resources: agent must declare resource_uri when policy restricts it.
+    // URI is normalized before matching to prevent ../ path traversal bypasses.
     if let Some(allowed) = &policy.allowed_resources {
-        if let Some(uri) = args.get("resource_uri").and_then(|v| v.as_str()) {
+        if !allowed.iter().any(|r| r == "*") {
+            let uri = args
+                .get("resource_uri")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| {
+                    DrsError::PolicyViolation(format!(
+                        "resource_uri is required by this delegation policy. Allowed: [{}].",
+                        allowed.join(", ")
+                    ))
+                })?;
+            let norm_uri = normalize_resource_uri(uri);
             if !allowed.iter().any(|pattern| {
-                pattern == "*"
-                    || pattern == uri
-                    || (pattern.ends_with("/*") && uri.starts_with(&pattern[..pattern.len() - 1]))
+                if pattern.as_str() == uri || pattern.as_str() == norm_uri {
+                    return true;
+                }
+                if pattern.ends_with("/*") {
+                    let prefix = &pattern[..pattern.len() - 1];
+                    let norm_prefix = normalize_resource_uri(prefix);
+                    return norm_uri.starts_with(&norm_prefix);
+                }
+                false
             }) {
                 return Err(DrsError::PolicyViolation(format!(
                     "Resource not permitted. Allowed: [{}]. Requested: {uri}.",
@@ -72,10 +132,19 @@ pub fn evaluate_policy(policy: &Policy, args: &serde_json::Value) -> Result<(), 
         }
     }
 
-    // allowed_data_classes: args.data_class must be in the permitted list
+    // allowed_data_classes: agent must declare data_class when policy restricts it.
     if let Some(allowed) = &policy.allowed_data_classes {
-        if let Some(class) = args.get("data_class").and_then(|v| v.as_str()) {
-            if !allowed.iter().any(|c| c == class || c == "*") {
+        if !allowed.iter().any(|c| c == "*") {
+            let class = args
+                .get("data_class")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| {
+                    DrsError::PolicyViolation(format!(
+                        "data_class is required by this delegation policy. Allowed: [{}].",
+                        allowed.join(", ")
+                    ))
+                })?;
+            if !allowed.iter().any(|c| c == class) {
                 return Err(DrsError::PolicyViolation(format!(
                     "Data class not permitted. Allowed: [{}]. Requested: {class}.",
                     allowed.join(", ")
@@ -85,6 +154,26 @@ pub fn evaluate_policy(policy: &Policy, args: &serde_json::Value) -> Result<(), 
     }
 
     Ok(())
+}
+
+/// Normalises a resource URI by resolving `..` and `.` path segments.
+/// Prevents prefix-wildcard bypass via paths like `mcp://tools/../admin/delete`.
+fn normalize_resource_uri(uri: &str) -> String {
+    let (scheme, path) = match uri.find("://") {
+        Some(i) => (&uri[..i + 3], &uri[i + 3..]),
+        None => ("", uri),
+    };
+    let mut parts: Vec<&str> = Vec::new();
+    for seg in path.split('/') {
+        match seg {
+            ".." => {
+                parts.pop();
+            }
+            "." | "" => {}
+            s => parts.push(s),
+        }
+    }
+    format!("{}{}", scheme, parts.join("/"))
 }
 
 /// Checks that `child` policy does not escalate beyond `parent` policy.
@@ -279,32 +368,46 @@ mod tests {
     }
 
     #[test]
-    fn wrong_cost_field_name_does_not_trigger_check() {
-        // Using "cost" instead of "estimated_cost_usd" means the policy is not evaluated.
-        // This verifies we're using the correct field name from the spec.
+    fn cost_absent_field_fails_closed() {
+        // When max_cost_usd is set, estimated_cost_usd must be present.
+        // Wrong field name is treated the same as absent — both fail.
         let p = policy_with(Some(10.0), None, None, None);
-        // "cost" is the WRONG field — policy check is skipped (unknown field)
-        assert!(evaluate_policy(&p, &json!({"cost": 999.0})).is_ok());
-        // "estimated_cost_usd" is the RIGHT field — policy check fires
-        assert!(evaluate_policy(&p, &json!({"estimated_cost_usd": 999.0})).is_err());
+        assert!(evaluate_policy(&p, &json!({})).is_err());
+        assert!(evaluate_policy(&p, &json!({"cost": 999.0})).is_err()); // wrong field name
+    }
+
+    #[test]
+    fn cost_invalid_value_fails() {
+        let p = policy_with(Some(10.0), None, None, None);
+        assert!(evaluate_policy(&p, &json!({"estimated_cost_usd": -1.0})).is_err());
     }
 
     #[test]
     fn pii_access_denied_with_correct_field_name() {
         let p = policy_with(None, Some(false), None, None);
-        // Correct field name per §6.3: "pii_access"
         assert!(evaluate_policy(&p, &json!({"pii_access": true})).is_err());
         assert!(evaluate_policy(&p, &json!({"pii_access": false})).is_ok());
-        // Without the field — passes (not applicable)
-        assert!(evaluate_policy(&p, &json!({"query": "hello"})).is_ok());
+    }
+
+    #[test]
+    fn pii_access_absent_fails_closed() {
+        // When policy restricts pii_access, agent must explicitly declare false.
+        let p = policy_with(None, Some(false), None, None);
+        assert!(evaluate_policy(&p, &json!({})).is_err());
+        assert!(evaluate_policy(&p, &json!({"query": "hello"})).is_err());
     }
 
     #[test]
     fn write_access_denied_with_correct_field_name() {
         let p = policy_with(None, None, Some(false), None);
-        // Correct field name per §6.3: "write_access"
         assert!(evaluate_policy(&p, &json!({"write_access": true})).is_err());
         assert!(evaluate_policy(&p, &json!({"write_access": false})).is_ok());
+    }
+
+    #[test]
+    fn write_access_absent_fails_closed() {
+        let p = policy_with(None, None, Some(false), None);
+        assert!(evaluate_policy(&p, &json!({})).is_err());
     }
 
     #[test]
@@ -317,6 +420,54 @@ mod tests {
     fn disallowed_tool_fails() {
         let p = policy_with(None, None, None, Some(vec!["web_search"]));
         assert!(evaluate_policy(&p, &json!({"tool": "delete_database"})).is_err());
+    }
+
+    #[test]
+    fn tool_absent_fails_closed() {
+        // When policy restricts tools, agent must declare which tool it's calling.
+        let p = policy_with(None, None, None, Some(vec!["web_search"]));
+        assert!(evaluate_policy(&p, &json!({})).is_err());
+        assert!(evaluate_policy(&p, &json!({"query": "hello"})).is_err());
+    }
+
+    #[test]
+    fn wildcard_tool_policy_skips_check() {
+        // Wildcard parent = all tools allowed; tool key not required.
+        let p = policy_with(None, None, None, Some(vec!["*"]));
+        assert!(evaluate_policy(&p, &json!({})).is_ok());
+        assert!(evaluate_policy(&p, &json!({"tool": "anything"})).is_ok());
+    }
+
+    #[test]
+    fn resource_path_traversal_blocked() {
+        let p = Policy {
+            max_cost_usd: None,
+            pii_access: None,
+            write_access: None,
+            allowed_tools: None,
+            max_calls: None,
+            allowed_resources: Some(vec!["mcp://tools/*".to_string()]),
+            allowed_data_classes: None,
+        };
+        // Normal URI inside allowed prefix — passes
+        assert!(evaluate_policy(&p, &json!({"resource_uri": "mcp://tools/web_search"})).is_ok());
+        // Path traversal via ../ — blocked after normalization
+        assert!(evaluate_policy(&p, &json!({"resource_uri": "mcp://tools/../admin/delete"})).is_err());
+        assert!(evaluate_policy(&p, &json!({"resource_uri": "mcp://tools/../../etc/passwd"})).is_err());
+    }
+
+    #[test]
+    fn resource_absent_fails_closed() {
+        let p = Policy {
+            max_cost_usd: None,
+            pii_access: None,
+            write_access: None,
+            allowed_tools: None,
+            max_calls: None,
+            allowed_resources: Some(vec!["mcp://tools/*".to_string()]),
+            allowed_data_classes: None,
+        };
+        assert!(evaluate_policy(&p, &json!({})).is_err());
     }
 
     // ── check_policy_attenuation ─────────────────────────────────────────────

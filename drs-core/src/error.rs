@@ -37,4 +37,7 @@ pub enum DrsError {
 
     #[error("could not resolve public key from DID: {0}")]
     UnresolvableDid(String),
+
+    #[error("system clock unavailable or out of range")]
+    ClockError,
 }

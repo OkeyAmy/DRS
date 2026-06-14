@@ -6,6 +6,8 @@ package policy
 import (
 	"fmt"
 	"math"
+	"net/url"
+	"strings"
 
 	"github.com/drs-protocol/drs-verify/pkg/types"
 )
@@ -217,19 +219,61 @@ func toolCovered(tool string, allowed []string) bool {
 }
 
 func resourceCovered(uri string, patterns []string) bool {
+	normURI := normalizeResourceURI(uri)
 	for _, p := range patterns {
-		if p == "*" || p == uri {
+		if p == "*" || p == uri || p == normURI {
 			return true
 		}
-		// Prefix wildcard: "mcp://tools/*" covers "mcp://tools/web_search"
+		// Prefix wildcard: "mcp://tools/*" covers "mcp://tools/web_search".
+		// Both the requested URI and the pattern prefix are normalized before
+		// comparison to block "../" traversal. The prefix is required to end
+		// with "/" so that "mcp://tools/*" does not match "mcp://toolsadmin".
 		if len(p) > 1 && p[len(p)-1] == '*' && p[len(p)-2] == '/' {
-			prefix := p[:len(p)-1]
-			if len(uri) >= len(prefix) && uri[:len(prefix)] == prefix {
+			normPrefix := normalizeResourceURI(p[:len(p)-1])
+			if !strings.HasSuffix(normPrefix, "/") {
+				normPrefix += "/"
+			}
+			if strings.HasPrefix(normURI, normPrefix) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// normalizeResourceURI resolves percent-encoded dots, ".." and "." path segments
+// in a resource URI so that prefix-wildcard checks cannot be bypassed via traversal.
+// Each path segment is percent-decoded independently (split on "/" first) so that
+// a "%2F" inside a segment cannot be confused with a path separator.
+// Example: "mcp://tools/../admin/delete"  → "mcp://admin/delete"
+// Example: "mcp://tools/%2e%2e/admin"     → "mcp://admin"
+func normalizeResourceURI(uri string) string {
+	const sep = "://"
+	scheme := ""
+	path := uri
+	if idx := strings.Index(uri, sep); idx >= 0 {
+		scheme = uri[:idx+len(sep)]
+		path = uri[idx+len(sep):]
+	}
+	var parts []string
+	for _, seg := range strings.Split(path, "/") {
+		// Decode percent-encoding within each segment so %2e%2e → ..
+		decoded := seg
+		if d, err := url.PathUnescape(seg); err == nil {
+			decoded = d
+		}
+		switch decoded {
+		case "..":
+			if len(parts) > 0 {
+				parts = parts[:len(parts)-1]
+			}
+		case ".", "":
+			// drop
+		default:
+			parts = append(parts, decoded)
+		}
+	}
+	return scheme + strings.Join(parts, "/")
 }
 
 func classCovered(class string, allowed []string) bool {

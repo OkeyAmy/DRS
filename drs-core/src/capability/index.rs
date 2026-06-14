@@ -59,10 +59,13 @@ impl CapabilityIndex {
             return true;
         }
 
+        // An exact resource entry is the most specific match and is authoritative:
+        // if the resource has an exact entry, the decision is whatever that entry
+        // says about the tool. Falling through to the broader prefix loop here
+        // would let a permissive prefix grant override a deliberately restrictive
+        // exact entry for the same resource.
         if let Some(tools) = self.exact.get(resource) {
-            if tool_covered(tool, tools) {
-                return true;
-            }
+            return tool_covered(tool, tools);
         }
 
         for (ns_prefix, tools) in &self.prefix {
@@ -133,5 +136,27 @@ mod tests {
     fn empty_index_covers_nothing() {
         let idx = CapabilityIndex::build(&[], &[]);
         assert!(!idx.covers("mcp://tools/web_search", "search"));
+    }
+
+    // F-028: a restrictive exact entry must be authoritative. Even if a broader
+    // prefix grant would cover the tool, an exact entry for the same resource
+    // that does NOT cover the tool must deny — no fall-through to the prefix loop.
+    #[test]
+    fn exact_entry_is_authoritative_over_prefix() {
+        let idx = CapabilityIndex {
+            exact: {
+                let mut m = HashMap::new();
+                m.insert("mcp://tools/database".to_string(), s(&["read"]));
+                m
+            },
+            prefix: vec![("mcp://tools/".to_string(), s(&["*"]))],
+            universal: false,
+        };
+        // Exact entry allows only "read" — "drop_table" must be denied despite the
+        // prefix entry granting "*" for the same namespace.
+        assert!(idx.covers("mcp://tools/database", "read"));
+        assert!(!idx.covers("mcp://tools/database", "drop_table"));
+        // A resource with no exact entry still falls through to the prefix grant.
+        assert!(idx.covers("mcp://tools/other", "anything"));
     }
 }

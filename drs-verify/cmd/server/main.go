@@ -161,6 +161,9 @@ func main() {
 		Store:           drStore,
 		ServerIdentity:  cfg.ServerIdentity,
 		TSARootPool:     tsaRootPool,
+		// Bound invocation replay to the nonce TTL: once a JTI is evicted, an
+		// invocation older than this is rejected as stale rather than re-accepted.
+		MaxInvocationAge: time.Duration(cfg.NonceStoreTTLSecs) * time.Second,
 	}
 	warnIfServerIdentityUnset(cfg.ServerIdentity)
 
@@ -194,6 +197,7 @@ func main() {
 			"backend", "memory",
 			"max_entries", cfg.NonceStoreMaxEntries,
 			"ttl_secs", cfg.NonceStoreTTLSecs)
+		slog.Warn("nonce store is in-memory: replay protection is lost on restart and is NOT shared across replicas. Set NONCE_STORE_BACKEND=redis for multi-replica or restart-durable deployments.")
 	}
 
 	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitPerIP, cfg.RateLimitGlobal, cfg.TrustProxy)
@@ -214,7 +218,17 @@ func main() {
 
 	// Admin revocation endpoint — marks a local status list index as revoked immediately.
 	// Requires DRS_ADMIN_TOKEN to be set; responds 503 otherwise.
-	mux.Handle("/admin/revoke", revocation.AdminRevokeHandler(localRev, cfg.AdminToken))
+	//
+	// The admin path gets its OWN tight rate limiter (in addition to the global
+	// one) so token-guessing against /admin/revoke is throttled far below the
+	// general /verify request budget. These are deliberately small, security
+	// defaults — not tuning knobs — so they are not env-configurable.
+	if cfg.AdminToken == "" {
+		slog.Warn("DRS_ADMIN_TOKEN is not set: the POST /admin/revoke endpoint is DISABLED and will return 503. Emergency revocation will not be possible until a token is configured.")
+	}
+	const adminPerIPRPS, adminGlobalRPS = 1.0, 5.0
+	adminLimiter := middleware.NewRateLimiter(adminPerIPRPS, adminGlobalRPS, cfg.TrustProxy)
+	mux.Handle("/admin/revoke", adminLimiter.Middleware(revocation.AdminRevokeHandler(localRev, cfg.AdminToken)))
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
@@ -225,17 +239,34 @@ func main() {
 		IdleTimeout:       120 * time.Second,
 	}
 
-	// Run ListenAndServe in a goroutine so main can listen for shutdown signals.
-	// ErrServerClosed means a graceful shutdown happened — not an error.
+	// TLS configuration. HTTPS is enabled only when both the cert and key files
+	// are configured; supplying just one is a misconfiguration and fails fast.
+	tlsEnabled := cfg.TLSCertFile != "" && cfg.TLSKeyFile != ""
+	if (cfg.TLSCertFile == "") != (cfg.TLSKeyFile == "") {
+		slog.Error("TLS misconfigured: set BOTH TLS_CERT_FILE and TLS_KEY_FILE, or neither")
+		os.Exit(1)
+	}
+	if !tlsEnabled {
+		slog.Warn("TLS is not configured: serving plain HTTP. Set TLS_CERT_FILE and TLS_KEY_FILE, or front the server with a TLS-terminating proxy. The admin bearer token must not traverse an untrusted network in cleartext.")
+	}
+
+	// Run ListenAndServe(TLS) in a goroutine so main can listen for shutdown
+	// signals. ErrServerClosed means a graceful shutdown happened — not an error.
 	serverErr := make(chan error, 1)
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		var err error
+		if tlsEnabled {
+			err = srv.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile)
+		} else {
+			err = srv.ListenAndServe()
+		}
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serverErr <- err
 			return
 		}
 		serverErr <- nil
 	}()
-	slog.Info("drs-verify listening", "addr", cfg.ListenAddr)
+	slog.Info("drs-verify listening", "addr", cfg.ListenAddr, "tls", tlsEnabled)
 
 	metricsSrv, err := metrics.StartServer(cfg.MetricsAddr)
 	if err != nil {

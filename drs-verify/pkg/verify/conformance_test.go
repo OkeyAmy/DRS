@@ -162,6 +162,9 @@ func TestConformanceFullChainBundle(t *testing.T) {
 	}
 
 	deps := testDeps(t)
+	// The conformance fixture's invocation targets this tool_server; match it so
+	// the (fail-closed) D4c binding check passes.
+	deps.ServerIdentity = "mcp://tools.example.com"
 	result := Chain(context.Background(), fixture.Bundle.chainBundle(), deps)
 
 	if result.Valid != fixture.ExpectedResult.Valid {

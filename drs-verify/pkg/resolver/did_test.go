@@ -640,3 +640,38 @@ func TestCircuitStateSurvivesForActiveDIDs(t *testing.T) {
 		t.Error("active DID's open circuit was lost after touching 100 other DIDs")
 	}
 }
+
+// F-032 / F-050: didWebDocumentURL must reject domains/paths that could smuggle
+// userinfo, an alternate host, or path-traversal into the constructed URL.
+func TestDidWebDocumentURLRejectsInjection(t *testing.T) {
+	cases := []struct {
+		name string
+		did  string
+	}{
+		{"userinfo via %40", "did:web:evil.com%40target.example.com"},
+		{"literal @ userinfo", "did:web:evil.com@target.example.com"},
+		{"path traversal segment", "did:web:example.com:..:..:etc:shadow"},
+		{"encoded traversal segment", "did:web:example.com:%2e%2e:admin"},
+		{"slash in domain", "did:web:example.com%2f..%2fadmin"},
+		{"backslash in domain", "did:web:example.com\\admin"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if url, err := didWebDocumentURL(tc.did); err == nil {
+				t.Errorf("expected rejection for %q, got url %q", tc.did, url)
+			}
+		})
+	}
+}
+
+// A well-formed did:web must still resolve to the expected URL.
+func TestDidWebDocumentURLAcceptsValid(t *testing.T) {
+	got, err := didWebDocumentURL("did:web:example.com:agents:alice")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	const want = "https://example.com/agents/alice/did.json"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

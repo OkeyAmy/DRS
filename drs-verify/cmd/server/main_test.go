@@ -148,8 +148,9 @@ func newTestVerifyHandler(t *testing.T) http.Handler {
 		t.Fatalf("store.NewMemoryStore: %v", err)
 	}
 	deps := verify.Deps{
-		Resolver: res,
-		Store:    memStore,
+		Resolver:       res,
+		Store:          memStore,
+		ServerIdentity: "mcp://tools/server", // matches the test fixtures' tool_server
 	}
 	ns := nonce.New(1000, time.Hour)
 	return verifyHandler(deps, ns, 1<<20)

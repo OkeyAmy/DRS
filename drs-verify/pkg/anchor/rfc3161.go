@@ -272,9 +272,16 @@ func VerifyTimestamp(token []byte, expectedHash []byte) (time.Time, error) {
 //  2. The signer certificate has the id-kp-timeStamping EKU
 //  3. The signer certificate was valid at the time the token was generated (RFC 3161 §2.3)
 //
-// trustedRoots is a pool of root CA certificates trusted for timestamp signing.
-// If trustedRoots is nil, the system roots are used.
+// trustedRoots is a pool of root CA certificates explicitly trusted for
+// timestamp signing. It MUST be non-nil: passing nil would fall through to the
+// OS system root store, letting any publicly-trusted certificate with the
+// timestamping EKU forge an accepted timestamp. Callers without a configured
+// TSA root pool must not call this function (timestamp verification fails
+// closed instead — see chain.go).
 func VerifyTimestampTrusted(token []byte, expectedHash []byte, trustedRoots *x509.CertPool) (time.Time, error) {
+	if trustedRoots == nil {
+		return time.Time{}, fmt.Errorf("rfc3161: no TSA trust anchor configured (set TSA_ROOT_CERT_PEM); refusing to fall back to system roots")
+	}
 	var resp timeStampResp
 	rest, err := asn1.Unmarshal(token, &resp)
 	if err != nil {
@@ -386,7 +393,13 @@ func extractIntermediateCerts(rawCerts asn1.RawValue, leaf *x509.Certificate) *x
 		if err != nil {
 			continue
 		}
-		if cert.SerialNumber.Cmp(leaf.SerialNumber) != 0 {
+		// Exclude only the leaf signer cert. Match on issuer DN AND serial number:
+		// RFC 5280 §4.1.2.2 makes serials unique only within a single CA, so a
+		// serial-only comparison could wrongly drop a required intermediate that
+		// happens to share the leaf's serial under a different issuer.
+		isLeaf := cert.SerialNumber.Cmp(leaf.SerialNumber) == 0 &&
+			bytes.Equal(cert.RawIssuer, leaf.RawIssuer)
+		if !isLeaf {
 			pool.AddCert(cert)
 		}
 	}

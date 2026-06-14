@@ -28,13 +28,15 @@ import (
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 // testDeps creates a Deps with a real resolver and no revocation check.
+// ServerIdentity matches the tool_server set by makeInvocation so the
+// (now fail-closed) D4c binding check passes for the happy-path fixtures.
 func testDeps(t *testing.T) Deps {
 	t.Helper()
 	res, err := resolver.New(100, time.Hour)
 	if err != nil {
 		t.Fatalf("resolver.New: %v", err)
 	}
-	return Deps{Resolver: res}
+	return Deps{Resolver: res, ServerIdentity: "mcp://tools/server"}
 }
 
 type ed25519StrictFixture struct {
@@ -403,6 +405,7 @@ func TestLocalRevocationBlocksChain(t *testing.T) {
 	deps := Deps{
 		Resolver:        res,
 		LocalRevocation: localRev,
+		ServerIdentity:  "mcp://tools/server",
 	}
 
 	result := Chain(context.Background(), bundle, deps)
