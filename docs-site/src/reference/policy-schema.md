@@ -7,7 +7,7 @@ The `policy` object defines capability constraints on a delegation. All fields a
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `allowed_tools` | string[] | Unrestricted | Allowlist of MCP tool names. If absent, all tools are permitted. |
-| `max_cost_usd` | number | Unlimited | Maximum USD cost per invocation. Checked against `args.estimated_cost_usd`. |
+| `max_cost_usd` | number | Unlimited | Maximum USD cost per invocation. Checked against the agent-declared `args.estimated_cost_usd` (see caveat below). |
 | `pii_access` | boolean | `false` | Whether access to personally identifiable information is permitted. |
 | `write_access` | boolean | `false` | Whether write operations are permitted. |
 | `max_calls` | integer | Unlimited | Maximum total invocations. Tracked by the agent runtime, not enforced by `verify_chain`. |
@@ -31,6 +31,29 @@ PASS if:
 ```
 
 Missing invocation fields fail closed when a policy constrains that dimension.
+
+### Caveat: `max_cost_usd` is a self-declared bound, not a metered one
+
+`verify_chain` compares `policy.max_cost_usd` against `args.estimated_cost_usd`
+— a value the **agent itself writes** into the invocation it signs. The
+verifier confirms the signed declaration does not exceed the policy; it does
+**not** measure actual cost.
+
+This makes `max_cost_usd` meaningful only when the cost is **known before the
+call** and the caller is the party being constrained — for example a financial
+transaction amount, or a fixed-fee API where the price is fixed in advance. In
+that setting a downstream tool server can cross-check `estimated_cost_usd`
+against the real transaction it is about to execute and reject a mismatch.
+
+It is **not** a reliable control for variable, after-the-fact costs such as LLM
+inference (token usage is unknown until the model responds). An agent can
+declare `estimated_cost_usd: 0.01` and still incur far more; the receipt only
+proves what was *claimed*, not what was *spent*. For LLM spend control, meter at
+the model gateway and treat `max_cost_usd` as an attestation of intent, not an
+enforced ceiling.
+
+Like `max_calls`, true spend enforcement lives in the runtime/gateway, not in
+receipt verification.
 
 ## Attenuation rules
 

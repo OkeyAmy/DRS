@@ -7,6 +7,8 @@ All configuration is via environment variables. No hard-coded URLs, ports, or ke
 | Variable | Default | Description |
 |---|---|---|
 | `LISTEN_ADDR` | `:8080` | HTTP listen address (e.g. `0.0.0.0:8080`, `:443`) |
+| `TLS_CERT_FILE` | — | Path to the PEM server certificate. Set **both** `TLS_CERT_FILE` and `TLS_KEY_FILE` to serve HTTPS directly. Setting only one fails fast at startup. When neither is set, the server listens on plain HTTP and should be fronted by a TLS-terminating proxy. |
+| `TLS_KEY_FILE` | — | Path to the PEM private key matching `TLS_CERT_FILE`. |
 | `DID_CACHE_SIZE` | `10000` | LRU DID resolver cache maximum entries. Hard cap — entries are evicted when full (~640 KB at 10 000 entries). |
 | `DID_CACHE_TTL_SECS` | `3600` | DID resolver cache entry TTL in seconds. |
 | `STATUS_LIST_BASE_URL` | — | W3C Bitstring Status List endpoint base URL. Required for remote revocation (Block F). |
@@ -14,11 +16,15 @@ All configuration is via environment variables. No hard-coded URLs, ports, or ke
 | `MAX_BODY_BYTES` | `1048576` | Maximum request body size in bytes for `/verify` (default 1 MiB). |
 | `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, or `error`. |
 | `LOG_FORMAT` | `text` | Log format: `text` or `json`. Use `json` for log aggregation. |
-| `SERVER_IDENTITY` | — | This verifier's DID or server identifier. When set, `/verify` rejects invocations whose `tool_server` does not match. Empty disables destination binding. |
+| `SERVER_IDENTITY` | — | This verifier's DID or server identifier. When set, `/verify` rejects invocations whose `tool_server` does not match (`TOOL_SERVER_MISMATCH`). **When unset, the verifier is fail-closed:** any invocation that names a `tool_server` is still rejected, because a bundle minted for server A must not verify on a server B that simply left this unset (cross-server replay). Leave unset only if no issuer ever sets `tool_server`. |
 | `DRS_ADMIN_TOKEN` | — | Bearer token required for `POST /admin/revoke`. **If not set, the endpoint responds 503.** No default — set explicitly to enable. |
 | `REVOCATION_STORE_PATH` | — | Optional file path for durable local `/admin/revoke` state. Empty uses in-memory local revocation only. |
 | `NONCE_STORE_BACKEND` | `memory` | Replay-protection backend: `memory` for single-process deployments, `redis` for restart-safe and multi-replica deployments. |
+| `NONCE_STORE_MAX_ENTRIES` | `100000` | Maximum number of invocation JTIs held in the replay-protection store. |
+| `NONCE_STORE_TTL_SECS` | `3600` | TTL in seconds for nonce store entries. Also bounds the invocation replay window: an invocation older than this is rejected as `INVOCATION_STALE`. Should match or exceed the maximum expected `exp` window. |
 | `REDIS_URL` | — | Required when `NONCE_STORE_BACKEND=redis`. Supports `redis://` and `rediss://` URLs. |
+| `CIRCUIT_BREAKER_THRESHOLD` | `5` | Consecutive `did:web` resolution failures before the circuit opens for that DID. |
+| `CIRCUIT_BREAKER_COOLDOWN_SECS` | `60` | Seconds to wait before allowing a probe request through an open `did:web` circuit. |
 | `TRUST_PROXY` | `false` | When `true`, rate limiting uses the rightmost `X-Forwarded-For` entry. Enable only behind a trusted reverse proxy. |
 | `RATE_LIMIT_PER_IP` | `100` | Sustained requests per second per client IP. |
 | `RATE_LIMIT_GLOBAL` | `1000` | Sustained requests per second across all clients. |
@@ -51,6 +57,12 @@ LISTEN_ADDR=:8080 \
   TSA_URL=https://freetsa.org/tsr \
   DRS_ADMIN_TOKEN=your-secret-token \
   STATUS_LIST_BASE_URL=https://status.example.com \
+  ./drs-verify
+
+# Direct HTTPS (no TLS-terminating proxy in front)
+LISTEN_ADDR=:443 \
+  TLS_CERT_FILE=/etc/drs/tls/server.crt \
+  TLS_KEY_FILE=/etc/drs/tls/server.key \
   ./drs-verify
 ```
 
