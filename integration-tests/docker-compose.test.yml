@@ -23,6 +23,11 @@ services:
       LISTEN_ADDR: ":8080"
       LOG_LEVEL: "info"
       LOG_FORMAT: "json"
+      # The verifier is fail-closed on destination binding: an invocation that
+      # names a tool_server is rejected with TOOL_SERVER_MISMATCH unless this
+      # identity matches it. The E2E bundles bind to did:key:z6MkTool, so the
+      # verifier must claim that identity for the happy paths to verify.
+      SERVER_IDENTITY: "did:key:z6MkTool"
       # Exercise the Redis-backed nonce store — this proves cross-replica
       # replay protection would work in production.
       NONCE_STORE_BACKEND: "redis"

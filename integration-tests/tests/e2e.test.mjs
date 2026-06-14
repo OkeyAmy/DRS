@@ -16,7 +16,7 @@ import {
   computeChainHash,
   serialiseBundle,
 } from "@okeyamy/drs-sdk";
-import { generateKey, didFromKey, now, postVerify, postVerifyWithBody } from "./util.mjs";
+import { generateKey, didFromKey, now, postVerify, postVerifyWithBody, sleep } from "./util.mjs";
 
 const VERIFY_URL = process.env.DRS_VERIFY_URL ?? "http://localhost:8080";
 // /metrics lives on a separate listener (METRICS_ADDR), mapped to host 19090 by
@@ -78,7 +78,7 @@ describe("happy path — fresh chain verifies", () => {
       cmd: "/mcp/tools/call",
       args: { tool: "echo", message: "hello", estimated_cost_usd: 0.01 },
       drChain: [computeChainHash(rootDR)],
-      toolServer: "did:key:z6MkExampleToolServer",
+      toolServer: "did:key:z6MkTool",
     });
 
     const bundle = buildBundle([rootDR], invocation);
@@ -491,6 +491,11 @@ describe("/admin/revoke — requires DRS_ADMIN_TOKEN", () => {
   });
 
   test("correct token returns 200 and records revocation", async () => {
+    // /admin/revoke has its own deliberately tight limiter (1 req/s per IP,
+    // burst 1). The wrong-token test above consumed this IP's token, so wait
+    // for the bucket to refill before the real request — otherwise we get 429.
+    await sleep(1100);
+
     const res = await fetch(`${VERIFY_URL}/admin/revoke`, {
       method: "POST",
       headers: {

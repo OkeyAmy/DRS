@@ -48,6 +48,11 @@ export function now() {
   return Math.floor(Date.now() / 1000);
 }
 
+/** Resolves after the given number of milliseconds. */
+export function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /** POST /verify and return the parsed JSON body (+ status). */
 export async function postVerify(url, bundle) {
   const res = await fetch(`${url}/verify`, {
