@@ -72,6 +72,13 @@ jobs:
     name: Publish @okeyamy/drs-sdk to npm
     needs: test
     runs-on: ubuntu-latest
+    # OIDC trusted publishing: no long-lived NPM_TOKEN. id-token lets npm mint
+    # a short-lived OIDC token that the npm registry trusts (configured at
+    # npmjs.com → package → Trusted Publisher). contents:read is all the
+    # checkout needs; the broad top-level scopes are not required here.
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v6
 
@@ -80,16 +87,21 @@ jobs:
         with:
           version: 9
 
-      - name: Setup Node (with npm registry)
+      # Trusted publishing requires Node >= 22.14.0. We use pnpm to install and
+      # build the workspace, then publish with the npm CLI (the only client npm
+      # documents for trusted publishing).
+      - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
           cache: 'pnpm'
-          # Single pnpm workspace: the lockfile lives at the repo root, not
-          # per-package. drs-sdk/pnpm-lock.yaml stopped existing after the
-          # workspace migration, which silently broke every tagged release.
           cache-dependency-path: pnpm-lock.yaml
+
+      # Trusted publishing requires npm CLI >= 11.5.1; Node 22 ships an older
+      # npm, so upgrade it explicitly.
+      - name: Upgrade npm to a trusted-publishing-capable version
+        run: npm install -g npm@latest
 
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
@@ -97,19 +109,18 @@ jobs:
       - name: Build
         run: pnpm --filter @okeyamy/drs-sdk build
 
-      - name: Publish (skip if version exists)
+      # npm publish auto-detects OIDC (no token) and, for a public repo + public
+      # package, automatically generates and attaches a provenance attestation.
+      # Idempotent: skip if this version is already on the registry.
+      - name: Publish to npm (OIDC trusted publishing)
+        working-directory: drs-sdk
         run: |
-          cd drs-sdk
-          OUTPUT=$(pnpm publish --access public --no-git-checks 2>&1) && echo "$OUTPUT" || {
-            if echo "$OUTPUT" | grep -qE "already exists|previously published"; then
-              echo "Version already on npm — skipping"
-            else
-              echo "$OUTPUT"
-              exit 1
-            fi
-          }
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "@okeyamy/drs-sdk@${VERSION}" version >/dev/null 2>&1; then
+            echo "@okeyamy/drs-sdk@${VERSION} already on npm — skipping"
+          else
+            npm publish --access public
+          fi
 
   publish-crate:
     name: Publish drs-core to crates.io
@@ -176,6 +187,41 @@ jobs:
             type=ref,event=tag
             type=raw,value=latest
 
+      # Build a local single-arch image FIRST so Trivy can gate on it before
+      # anything is pushed or signed. A vulnerable image must never become
+      # public or carry a signature. buildx --load is single-platform; OS and
+      # Go-stdlib CVEs are arch-independent, so amd64 is a faithful gate.
+      - name: Build image for scanning (amd64, local)
+        uses: docker/build-push-action@v7
+        with:
+          context: drs-verify
+          file: drs-verify/Dockerfile
+          load: true
+          tags: drs-verify:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Trivy gate. Runs BEFORE push and sign: if a fixed HIGH/CRITICAL CVE is
+      # present the release fails here and nothing is published.
+      - name: Trivy scan (gate before publish)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: drs-verify:scan
+          format: sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: 'true'
+
+      - name: Upload Trivy SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
+      # Only reached if Trivy passed. Push the real multi-arch image; layers
+      # are reused from the scan build via the GHA cache.
       - name: Build and push drs-verify image
         id: build
         uses: docker/build-push-action@v7
@@ -186,6 +232,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       # Keyless cosign signing. No key material needed — uses the GitHub
       # OIDC token to request a short-lived certificate from Sigstore.
@@ -201,26 +249,6 @@ jobs:
           IMAGE: ${{ env.IMAGE_LC }}
           DIGEST: ${{ steps.build.outputs.digest }}
         run: cosign sign --yes "$IMAGE@$DIGEST"
-
-      # Trivy scans the pushed image for known CVEs. We gate the release on
-      # HIGH/CRITICAL: if something slips through dependabot, the workflow
-      # fails loudly rather than silently shipping a known-vulnerable image.
-      - name: Trivy scan published image
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ env.IMAGE_LC }}@${{ steps.build.outputs.digest }}
-          format: sarif
-          output: trivy-image.sarif
-          severity: CRITICAL,HIGH
-          exit-code: '1'
-          ignore-unfixed: 'true'
-
-      - name: Upload Trivy SARIF to GitHub Security
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: trivy-image.sarif
-          category: trivy-image
 
       # CycloneDX SBOM for supply-chain attestation. Attached to the image
       # via cosign attest so downstream consumers can pull it.
