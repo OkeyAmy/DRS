@@ -157,6 +157,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # OCI references must be lowercase. github.repository_owner can be mixed
+      # case (OkeyAmy), so cosign/Trivy/SBOM steps that use the raw name fail
+      # with "could not parse reference". metadata-action lowercases its own
+      # output, but these steps don't — compute one lowercase ref for them.
+      - name: Compute lowercase image reference
+        run: echo "IMAGE_LC=${REGISTRY}/${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v6
@@ -188,7 +198,7 @@ jobs:
 
       - name: Sign image with cosign (keyless)
         env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          IMAGE: ${{ env.IMAGE_LC }}
           DIGEST: ${{ steps.build.outputs.digest }}
         run: cosign sign --yes "$IMAGE@$DIGEST"
 
@@ -198,7 +208,7 @@ jobs:
       - name: Trivy scan published image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          image-ref: ${{ env.IMAGE_LC }}@${{ steps.build.outputs.digest }}
           format: sarif
           output: trivy-image.sarif
           severity: CRITICAL,HIGH
@@ -217,13 +227,13 @@ jobs:
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@v0
         with:
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          image: ${{ env.IMAGE_LC }}@${{ steps.build.outputs.digest }}
           format: cyclonedx-json
           output-file: sbom.cdx.json
 
       - name: Attach SBOM to image via cosign attest
         env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          IMAGE: ${{ env.IMAGE_LC }}
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           cosign attest --yes \
