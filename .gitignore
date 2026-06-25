@@ -1,3 +1,6 @@
+# ── Marketing assets (untracked: Remotion explainer film, node_modules, renders) ─
+marketing/
+
 # ── Rust (drs-core) ───────────────────────────────────────────────────────────
 target/
 **/*.rs.bk
