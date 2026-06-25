@@ -57,13 +57,16 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-          cache-dependency-path: drs-sdk/pnpm-lock.yaml
+          # Single pnpm workspace: the lockfile lives at the repo root, not
+          # per-package. drs-sdk/pnpm-lock.yaml stopped existing after the
+          # workspace migration, which silently broke every tagged release.
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Install SDK deps
-        run: cd drs-sdk && pnpm install --frozen-lockfile
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
 
       - name: Test drs-sdk
-        run: cd drs-sdk && pnpm test
+        run: pnpm --filter @okeyamy/drs-sdk test
 
   publish-npm:
     name: Publish @okeyamy/drs-sdk to npm
@@ -83,13 +86,16 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
           cache: 'pnpm'
-          cache-dependency-path: drs-sdk/pnpm-lock.yaml
+          # Single pnpm workspace: the lockfile lives at the repo root, not
+          # per-package. drs-sdk/pnpm-lock.yaml stopped existing after the
+          # workspace migration, which silently broke every tagged release.
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Install deps
-        run: cd drs-sdk && pnpm install --frozen-lockfile
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: cd drs-sdk && pnpm build
+        run: pnpm --filter @okeyamy/drs-sdk build
 
       - name: Publish (skip if version exists)
         run: |
