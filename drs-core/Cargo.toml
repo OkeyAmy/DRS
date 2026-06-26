@@ -5,6 +5,11 @@ edition = "2021"
 description = "DRS cryptographic core — Ed25519, SHA-256, JCS, capability index"
 license = "Apache-2.0"
 rust-version = "1.75"
+readme = "README.md"
+repository = "https://github.com/OkeyAmy/DRS"
+homepage = "https://github.com/OkeyAmy/DRS"
+keywords = ["delegation", "ed25519", "jcs", "did", "agent"]
+categories = ["cryptography", "authentication", "wasm"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
