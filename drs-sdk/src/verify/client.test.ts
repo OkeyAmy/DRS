@@ -41,7 +41,7 @@ describe("VerifyClient", () => {
     vi.unstubAllGlobals();
   });
 
-  it("returns invalid result on 403", async () => {
+  it("throws VERIFY_SERVICE_ERROR on 403 (no middleware pass-through)", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 403,
@@ -50,14 +50,9 @@ describe("VerifyClient", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
-    const result = await client.verify({
-      bundle_version: "4.0",
-      receipts: ["r.p.s"],
-      invocation: "i.p.s",
-    });
-
-    expect(result.valid).toBe(false);
-    expect(result.error?.code).toBe("EXPIRED");
+    await expect(
+      client.verify({ bundle_version: "4.0", receipts: ["r.p.s"], invocation: "i.p.s" }),
+    ).rejects.toMatchObject({ code: "VERIFY_SERVICE_ERROR" });
     vi.unstubAllGlobals();
   });
 
@@ -84,6 +79,43 @@ describe("VerifyClient", () => {
     await expect(
       client.verify({ bundle_version: "4.0", receipts: ["r.p.s"], invocation: "i.p.s" }),
     ).rejects.toMatchObject({ code: "VERIFY_SERVICE_ERROR" });
+    vi.unstubAllGlobals();
+  });
+
+  it("throws REPLAY_DETECTED on 409", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        error: "REPLAY_DETECTED",
+        detail: "jti inv:abc already seen",
+        suggestion: "Generate a new invocation with a unique jti.",
+      }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
+    await expect(
+      client.verify({ bundle_version: "4.0", receipts: ["r.p.s"], invocation: "i.p.s" }),
+    ).rejects.toMatchObject({ code: "REPLAY_DETECTED" });
+    vi.unstubAllGlobals();
+  });
+
+  it("does not send the X-DRS-Bundle header", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ valid: true }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const client = new VerifyClient({ baseUrl: "http://localhost:8080" });
+    await client.verify({ bundle_version: "4.0", receipts: ["r.p.s"], invocation: "i.p.s" });
+
+    const headers = mockFetch.mock.calls[0]![1]!.headers as Record<string, string>;
+    expect(headers["X-DRS-Bundle"]).toBeUndefined();
+    // blindfold: contract — HTTP Content-Type must be application/json for JSON POST
+    expect(headers["Content-Type"]).toBe("application/json");
     vi.unstubAllGlobals();
   });
 

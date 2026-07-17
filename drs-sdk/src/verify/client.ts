@@ -1,12 +1,11 @@
 /**
  * HTTP client for the drs-verify service.
  *
- * Sends a ChainBundle to drs-verify and returns a VerificationResult.
+ * Sends a ChainBundle to drs-verify and returns a VerificationResult via JSON.
  * The base URL is configured via the DRS_VERIFY_URL environment variable
  * or the constructor parameter.
  */
 
-import { serialiseBundle } from "../sdk/bundle.js";
 import type { ChainBundle, VerificationResult } from "../sdk/types.js";
 import { DrsError } from "../sdk/types.js";
 
@@ -67,7 +66,6 @@ export class VerifyClient {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-DRS-Bundle": serialiseBundle(bundle),
         },
         body,
         signal: controller.signal,
@@ -82,7 +80,21 @@ export class VerifyClient {
       clearTimeout(timeout);
     }
 
-    if (!response.ok && response.status !== 403) {
+    if (response.status === 409) {
+      // Replay rejection is not a VerificationResult — surface it typed.
+      let detail = "";
+      try {
+        const body = (await response.json()) as Record<string, unknown>;
+        if (typeof body["detail"] === "string") detail = ` ${body["detail"]}`;
+      } catch {
+        // body unreadable — throw without detail
+      }
+      throw new DrsError(
+        "REPLAY_DETECTED",
+        `drs-verify rejected the invocation as a replay.${detail}`,
+      );
+    }
+    if (!response.ok) {
       throw new DrsError(
         "VERIFY_SERVICE_ERROR",
         `drs-verify returned unexpected status ${response.status}.`,
