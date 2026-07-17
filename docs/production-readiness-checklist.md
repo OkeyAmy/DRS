@@ -552,3 +552,9 @@ Primary references for this checklist:
 - `docs-site/src/how-to/operators/revocation.md`
 
 If any of these sources change materially, this checklist should be reviewed before the next release decision.
+
+- [ ] **Replay protection backend:** `NONCE_STORE_BACKEND=redis` (with
+      `REDIS_URL`) for ANY multi-replica or restart-durable deployment.
+      The in-memory backend loses all replay state on restart and is not
+      shared across replicas. The binary refuses `memory` + `TRUST_PROXY=true`
+      at boot.

@@ -59,6 +59,30 @@ Three-layer language stack chosen for correctness, performance, and deployabilit
 
 Rust compiles to native and can be built to WASM. Go compiles to a single static binary (`CGO_ENABLED=0`). The TypeScript SDK currently uses its native TypeScript issuance path with `@noble/ed25519`; its WASM loader is available for explicit integrations but the npm package does not bundle a standalone `@drs/wasm` artifact today.
 
+## What DRS proves — and what it does not
+
+DRS receipts are cryptographic evidence of **authorisation and claims**, not
+of runtime behaviour. Read this before designing your policy model:
+
+| Policy field | What the verifier proves |
+|---|---|
+| `max_cost_usd` | The invoker **claimed** `estimated_cost_usd` within the limit — it signed that claim. The verifier cannot know the actual cost. **The tool owner must validate real cost.** |
+| `pii_access`, `write_access` | The invoker **claimed** compliance. Enforcement of actual data access is the tool owner's responsibility. |
+| `allowed_tools`, `allowed_resources`, `allowed_data_classes` | The named tool/resource/class in the signed args is within the delegated set. The binding check (`body` ↔ `invocation.args`) additionally proves the executed request matches the signed args. |
+| `max_calls` | **Nothing — informational only.** The verifier is stateless; call counting belongs in your session layer, using the leaf policy returned in `VerificationContext`. |
+
+Two further operational notes:
+
+- `/verify` is unauthenticated by design in the current release. Anyone
+  holding a captured bundle can consume its replay nonce (JTI) at the
+  endpoint before the legitimate tool server does — a denial-of-service on
+  that one invocation, not an authorisation bypass. Rate limiting bounds it;
+  API-key authentication closes it in a future release.
+- Human-consent records (`drs_consent`) currently prove consent **existed**
+  (method, session, timestamp). The `policy_hash` field is checked for
+  presence, not yet bound to the policy content — the canonical preimage is
+  defined in DRS 4.1.
+
 ## Quick Start
 
 ### Run the verifier (zero config)

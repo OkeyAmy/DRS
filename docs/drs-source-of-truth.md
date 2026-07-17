@@ -220,3 +220,26 @@ for the gate to be enforced.
 - No protocol-affecting code change ships without a conformance vector covering it.
 - Cross-language conformance is a CI gate, not an afterthought.
 - Contributors working in one language can verify their changes against the shared fixtures without needing to build the other two languages locally.
+
+## /verify HTTP status contract (normative)
+
+| Status | Body | Meaning |
+|---|---|---|
+| 200 | `VerificationResult` JSON | Chain processed. `valid` is the verdict — a `valid: false` chain is still HTTP 200. |
+| 400 | `{"error": ...}` | Request body is not a decodable ChainBundle, or the invocation JTI cannot be decoded. |
+| 409 | `{"error":"REPLAY_DETECTED","detail":...,"suggestion":...}` | The invocation JTI was already consumed. Clients surface this as a typed replay error, not a verification result. |
+| 413 | text | Body exceeded `MAX_BODY_BYTES`. |
+| 429 | text | Rate limit exceeded (per-IP or global). |
+| 503 | `{"error":...}` | Replay protection unavailable (nonce store down / exhausted) — fail closed, retry later. |
+
+HTTP 403 is **never** returned by `/verify`. It belongs exclusively to the
+in-process Go middleware (`pkg/middleware`) enforcing mode on tool servers.
+
+## Claim-based policy fields (normative)
+
+`max_cost_usd`, `pii_access`, and `write_access` are **claim-based**: the
+verifier evaluates the invoker's own signed claims in `invocation.args`
+against the delegated policy. Truthfulness of those claims is enforced by
+the tool owner, not by DRS. `max_calls` is **informational**: the stateless
+verifier performs no call counting; integrators enforce it in their session
+layer from `VerificationContext.leaf_policy`.

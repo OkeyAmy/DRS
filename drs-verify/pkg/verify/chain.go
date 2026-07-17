@@ -596,6 +596,11 @@ func resolveIssuersParallel(
 		err error
 	}
 
+	// INVARIANT: results must be buffered to len(unique). The workers send
+	// exactly one result each and wg.Wait() runs BEFORE the drain loop below —
+	// with an unbuffered (or under-sized) channel every send would block and
+	// wg.Wait() would deadlock. If you refactor this, drain concurrently or
+	// keep the buffer sized to the number of sends.
 	results := make(chan resolveResult, len(unique))
 	sem := make(chan struct{}, blockCConcurrency)
 
