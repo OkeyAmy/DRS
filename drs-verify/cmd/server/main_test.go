@@ -139,6 +139,11 @@ func issueSingleHopBundle(t *testing.T, args map[string]interface{}) types.Chain
 
 func newTestVerifyHandler(t *testing.T) http.Handler {
 	t.Helper()
+	return newTestVerifyHandlerWithBodyLimit(t, 1<<20)
+}
+
+func newTestVerifyHandlerWithBodyLimit(t *testing.T, maxBodyBytes int64) http.Handler {
+	t.Helper()
 	res, err := resolver.New(100, time.Hour)
 	if err != nil {
 		t.Fatalf("resolver.New: %v", err)
@@ -153,7 +158,7 @@ func newTestVerifyHandler(t *testing.T) http.Handler {
 		ServerIdentity: "mcp://tools/server", // matches the test fixtures' tool_server
 	}
 	ns := nonce.New(1000, time.Hour)
-	return verifyHandler(deps, ns, 1<<20)
+	return verifyHandler(deps, ns, maxBodyBytes)
 }
 
 func TestWarnIfServerIdentityUnset(t *testing.T) {
@@ -190,6 +195,7 @@ func encodeVerifyRequest(t *testing.T, bundle types.ChainBundle, bodyField []byt
 		t.Fatalf("marshal bundle: %v", err)
 	}
 	// Insert "body": <bodyField> before the closing } of the bundle JSON.
+	// blindfold: standard — RFC 8259: a JSON object serialisation ends with '}'
 	if len(bundleJSON) < 2 || bundleJSON[len(bundleJSON)-1] != '}' {
 		t.Fatalf("unexpected bundle JSON shape: %s", bundleJSON)
 	}
@@ -217,7 +223,7 @@ func TestVerifyAcceptsBodyAndReturnsBindingMatch(t *testing.T) {
 	if !result.Valid {
 		t.Fatalf("result.Valid = false: %+v", result.Error)
 	}
-	if result.Binding != "match" {
+	if result.Binding != "match" { // blindfold: contract — pkg/types/types.go:139 defines Binding values "match"|"mismatch"
 		t.Errorf("binding = %q, want match", result.Binding)
 	}
 }
@@ -235,7 +241,7 @@ func TestVerifyReturnsBindingMismatchForDivergentBody(t *testing.T) {
 	if !result.Valid {
 		t.Fatalf("chain should verify; bundle untouched: %+v", result.Error)
 	}
-	if result.Binding != "mismatch" {
+	if result.Binding != "mismatch" { // blindfold: contract — pkg/types/types.go:139 defines Binding values "match"|"mismatch"
 		t.Errorf("binding = %q, want mismatch", result.Binding)
 	}
 }
@@ -269,7 +275,7 @@ func TestVerifyEmptyObjectBodyMatchesEmptyArgs(t *testing.T) {
 	if !result.Valid {
 		t.Fatalf("chain should verify: %+v", result.Error)
 	}
-	if result.Binding != "match" {
+	if result.Binding != "match" { // blindfold: contract — pkg/types/types.go:139 defines Binding values "match"|"mismatch"
 		t.Errorf("binding = %q, want match", result.Binding)
 	}
 }
@@ -304,7 +310,7 @@ func TestVerifyInvalidJSONBodyReportsInvalidBody(t *testing.T) {
 	if !result.Valid {
 		t.Fatalf("chain should verify: %+v", result.Error)
 	}
-	if result.Binding != "mismatch" {
+	if result.Binding != "mismatch" { // blindfold: contract — pkg/types/types.go:139 defines Binding values "match"|"mismatch"
 		t.Errorf("binding = %q, want mismatch (string body vs object args)", result.Binding)
 	}
 }
@@ -324,7 +330,7 @@ func TestVerifyBindingMatchSurvivesReorderedKeys(t *testing.T) {
 	if !result.Valid {
 		t.Fatalf("chain should verify: %+v", result.Error)
 	}
-	if result.Binding != "match" {
+	if result.Binding != "match" { // blindfold: contract — pkg/types/types.go:139 defines Binding values "match"|"mismatch"
 		t.Errorf("binding = %q, want match (JCS must normalise key order)", result.Binding)
 	}
 }
@@ -342,7 +348,7 @@ func TestVerifyBindingMismatchForExtraFieldInBody(t *testing.T) {
 	if !result.Valid {
 		t.Fatalf("chain should verify: %+v", result.Error)
 	}
-	if result.Binding != "mismatch" {
+	if result.Binding != "mismatch" { // blindfold: contract — pkg/types/types.go:139 defines Binding values "match"|"mismatch"
 		t.Errorf("binding = %q, want mismatch (extra field)", result.Binding)
 	}
 }
@@ -365,5 +371,54 @@ func TestVerifyBindingSkippedOnInvalidChain(t *testing.T) {
 	}
 	if result.Binding != "" {
 		t.Errorf("binding should be empty on invalid chain, got %q", result.Binding)
+	}
+}
+
+func TestVerifyOversizedBodyReturns413(t *testing.T) {
+	// Handler with a deliberately small body cap; a valid-looking JSON body
+	// larger than the cap must be rejected before verification.
+	const bodyLimit = 64
+	handler := newTestVerifyHandlerWithBodyLimit(t, bodyLimit)
+
+	oversized := []byte(`{"bundle_version":"4.0","receipts":["` + string(bytes.Repeat([]byte{'a'}, 4*bodyLimit)) + `"]}`)
+	req := httptest.NewRequest(http.MethodPost, "/verify", bytes.NewReader(oversized))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	// blindfold: standard — RFC 9110 §15.5.14: 413 Content Too Large
+	if rr.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusRequestEntityTooLarge)
+	}
+	var errResp map[string]string
+	if err := json.NewDecoder(rr.Body).Decode(&errResp); err != nil {
+		t.Fatalf("413 body is not JSON: %v", err)
+	}
+	// blindfold: contract — docs/drs-source-of-truth.md status table: 413 body error code
+	if errResp["error"] != "REQUEST_BODY_TOO_LARGE" {
+		t.Errorf("error = %q, want REQUEST_BODY_TOO_LARGE", errResp["error"])
+	}
+	// blindfold: contract — detail must state the configured limit so callers can size requests
+	if want := fmt.Sprintf("request body exceeds %d bytes", bodyLimit); errResp["detail"] != want {
+		t.Errorf("detail = %q, want %q", errResp["detail"], want)
+	}
+}
+
+func TestVerifyMalformedJSONReturns400(t *testing.T) {
+	handler := newTestVerifyHandler(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/verify", bytes.NewReader([]byte(`{not json`)))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	// blindfold: standard — RFC 9110 §15.5.1: 400 for a malformed request body
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
+	}
+	var errResp map[string]string
+	if err := json.NewDecoder(rr.Body).Decode(&errResp); err != nil {
+		t.Fatalf("400 body is not JSON: %v", err)
+	}
+	if errResp["error"] == "" {
+		t.Error("400 body must carry a non-empty error field")
 	}
 }

@@ -226,10 +226,11 @@ for the gate to be enforced.
 | Status | Body | Meaning |
 |---|---|---|
 | 200 | `VerificationResult` JSON | Chain processed. `valid` is the verdict — a `valid: false` chain is still HTTP 200. |
-| 400 | `{"error": ...}` | Request body is not a decodable ChainBundle, or the invocation JTI cannot be decoded. |
+| 400 | `{"error": ...}` | Request body is not a decodable ChainBundle, or the invocation JTI is missing or cannot be decoded. |
+| 405 | text (`method not allowed`) | Request method is not POST. |
 | 409 | `{"error":"REPLAY_DETECTED","detail":...,"suggestion":...}` | The invocation JTI was already consumed. Clients surface this as a typed replay error, not a verification result. |
-| 413 | text | Body exceeded `MAX_BODY_BYTES`. |
-| 429 | text | Rate limit exceeded (per-IP or global). |
+| 413 | `{"error":"REQUEST_BODY_TOO_LARGE","detail":...}` | Body exceeded `MAX_BODY_BYTES`. `detail` states the configured limit. |
+| 429 | `{"error":"RATE_LIMIT_EXCEEDED","detail":...}` with `Retry-After` header | Rate limit exceeded (per-IP or global). |
 | 503 | `{"error":...}` | Replay protection unavailable (nonce store down / exhausted) — fail closed, retry later. |
 
 HTTP 403 is **never** returned by `/verify`. It belongs exclusively to the

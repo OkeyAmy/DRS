@@ -13,6 +13,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -359,6 +360,17 @@ func verifyHandler(deps verify.Deps, nonceStore nonce.Checker, maxBodyBytes int6
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			metrics.Verifications.WithLabelValues("error").Inc()
 			w.Header().Set("Content-Type", "application/json")
+			var maxErr *http.MaxBytesError
+			if errors.As(err, &maxErr) {
+				w.WriteHeader(http.StatusRequestEntityTooLarge)
+				if encErr := json.NewEncoder(w).Encode(map[string]string{
+					"error":  "REQUEST_BODY_TOO_LARGE",
+					"detail": fmt.Sprintf("request body exceeds %d bytes", maxBodyBytes),
+				}); encErr != nil {
+					slog.Warn("encode error response failed", "error", encErr)
+				}
+				return
+			}
 			w.WriteHeader(http.StatusBadRequest)
 			if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
 				slog.Warn("encode error response failed", "error", encErr)
