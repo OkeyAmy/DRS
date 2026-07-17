@@ -8,7 +8,10 @@ fn sha256_empty_string_test_vector() {
     // NIST test vector: SHA-256("") = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
     let digest = hash_bytes(b"");
     let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
-    assert_eq!(hex, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    assert_eq!(
+        hex,
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
 }
 
 #[test]
@@ -16,13 +19,19 @@ fn sha256_abc_test_vector() {
     // NIST test vector: SHA-256("abc") = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
     let digest = hash_bytes(b"abc");
     let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
-    assert_eq!(hex, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    assert_eq!(
+        hex,
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
 }
 
 #[test]
 fn hash_jwt_string_has_sha256_prefix() {
     let result = hash_jwt_string("some.jwt.token");
-    assert!(result.starts_with("sha256:"), "hash must start with 'sha256:' prefix");
+    assert!(
+        result.starts_with("sha256:"),
+        "hash must start with 'sha256:' prefix"
+    );
 }
 
 #[test]

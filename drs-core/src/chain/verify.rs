@@ -166,7 +166,10 @@ pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
     if !invocation.jti.starts_with("inv:") {
         return VerificationResult::invalid(
             "INVALID_JTI",
-            format!("invocation.jti '{}' must start with 'inv:'.", invocation.jti),
+            format!(
+                "invocation.jti '{}' must start with 'inv:'.",
+                invocation.jti
+            ),
             "Invocation receipt JTIs must use the 'inv:' prefix per DRS 4.0 §5.",
         );
     }
@@ -458,7 +461,10 @@ pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
         if now < receipt.nbf {
             return VerificationResult::invalid(
                 "NOT_YET_VALID",
-                format!("receipt[{i}] is not valid until {} (now: {now}).", receipt.nbf),
+                format!(
+                    "receipt[{i}] is not valid until {} (now: {now}).",
+                    receipt.nbf
+                ),
                 "The delegation receipt is not yet active — check the nbf timestamp.",
             );
         }
@@ -601,7 +607,10 @@ mod tests {
 
     #[test]
     fn cmd_subpath_child_is_narrower() {
-        assert!(cmd_is_subpath("/mcp/tools/call", "/mcp/tools/call/web_search"));
+        assert!(cmd_is_subpath(
+            "/mcp/tools/call",
+            "/mcp/tools/call/web_search"
+        ));
     }
 
     #[test]

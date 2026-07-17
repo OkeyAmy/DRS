@@ -52,7 +52,11 @@ mod tests {
         let payload = json!({"iss": "did:key:z123", "exp": 9999999999i64});
         let jwt = build_jwt(&payload, &signing_key).unwrap();
         let parts: Vec<&str> = jwt.split('.').collect();
-        assert_eq!(parts.len(), 3, "JWT must have exactly three dot-separated parts");
+        assert_eq!(
+            parts.len(),
+            3,
+            "JWT must have exactly three dot-separated parts"
+        );
     }
 
     #[test]

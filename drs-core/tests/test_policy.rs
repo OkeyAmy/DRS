@@ -75,7 +75,13 @@ fn write_access_allowed_when_false_requested() {
 
 #[test]
 fn tool_in_allowlist_passes() {
-    let p = policy(None, None, None, Some(vec!["web_search", "file_read"]), None);
+    let p = policy(
+        None,
+        None,
+        None,
+        Some(vec!["web_search", "file_read"]),
+        None,
+    );
     assert!(evaluate_policy(&p, &json!({"tool": "web_search"})).is_ok());
     assert!(evaluate_policy(&p, &json!({"tool": "file_read"})).is_ok());
 }
@@ -103,7 +109,13 @@ fn tool_absent_fails_closed() {
 
 #[test]
 fn identical_policies_pass_attenuation() {
-    let p = policy(Some(10.0), Some(false), Some(false), Some(vec!["web_search"]), Some(100));
+    let p = policy(
+        Some(10.0),
+        Some(false),
+        Some(false),
+        Some(vec!["web_search"]),
+        Some(100),
+    );
     assert!(check_policy_attenuation(&p, &p).is_ok());
 }
 
@@ -138,13 +150,25 @@ fn child_granting_write_when_parent_denies_fails() {
 #[test]
 fn child_adding_tool_not_in_parent_fails() {
     let parent = policy(None, None, None, Some(vec!["web_search"]), None);
-    let child = policy(None, None, None, Some(vec!["web_search", "delete_db"]), None);
+    let child = policy(
+        None,
+        None,
+        None,
+        Some(vec!["web_search", "delete_db"]),
+        None,
+    );
     assert!(check_policy_attenuation(&parent, &child).is_err());
 }
 
 #[test]
 fn child_with_subset_of_parent_tools_passes() {
-    let parent = policy(None, None, None, Some(vec!["web_search", "file_read", "summarise"]), None);
+    let parent = policy(
+        None,
+        None,
+        None,
+        Some(vec!["web_search", "file_read", "summarise"]),
+        None,
+    );
     let child = policy(None, None, None, Some(vec!["web_search"]), None);
     assert!(check_policy_attenuation(&parent, &child).is_ok());
 }
@@ -208,8 +232,12 @@ fn large_tool_list_escalation_fails_attenuation() {
 
 #[test]
 fn large_resource_list_subset_passes_attenuation() {
-    let parent_res: Vec<String> = (0..500).map(|i| format!("https://example.com/res/{i}")).collect();
-    let child_res: Vec<String> = (0..250).map(|i| format!("https://example.com/res/{i}")).collect();
+    let parent_res: Vec<String> = (0..500)
+        .map(|i| format!("https://example.com/res/{i}"))
+        .collect();
+    let child_res: Vec<String> = (0..250)
+        .map(|i| format!("https://example.com/res/{i}"))
+        .collect();
     let parent = policy_full(None, Some(parent_res), None);
     let child = policy_full(None, Some(child_res), None);
     assert!(check_policy_attenuation(&parent, &child).is_ok());
@@ -217,8 +245,12 @@ fn large_resource_list_subset_passes_attenuation() {
 
 #[test]
 fn large_resource_list_escalation_fails_attenuation() {
-    let parent_res: Vec<String> = (0..500).map(|i| format!("https://example.com/res/{i}")).collect();
-    let mut child_res: Vec<String> = (0..500).map(|i| format!("https://example.com/res/{i}")).collect();
+    let parent_res: Vec<String> = (0..500)
+        .map(|i| format!("https://example.com/res/{i}"))
+        .collect();
+    let mut child_res: Vec<String> = (0..500)
+        .map(|i| format!("https://example.com/res/{i}"))
+        .collect();
     child_res.push("https://example.com/res/escalated".to_string());
     let parent = policy_full(None, Some(parent_res), None);
     let child = policy_full(None, Some(child_res), None);

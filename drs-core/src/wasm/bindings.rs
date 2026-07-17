@@ -47,6 +47,5 @@ pub fn wasm_compute_chain_hash(jwt: &str) -> String {
 pub fn wasm_jcs_canonicalise(json: &str) -> Result<Vec<u8>, JsValue> {
     let value: serde_json::Value = serde_json::from_str(json)
         .map_err(|e| JsValue::from_str(&format!("JSON parse error: {e}")))?;
-    jcs_canonical_bytes(&value)
-        .map_err(|e| JsValue::from_str(&e.to_string()))
+    jcs_canonical_bytes(&value).map_err(|e| JsValue::from_str(&e.to_string()))
 }

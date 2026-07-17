@@ -38,14 +38,21 @@ impl CapabilityIndex {
                 let ns = resource[..resource.len() - 1].to_string(); // strip trailing '*'
                 prefix.push((ns, tools.to_vec()));
             } else {
-                exact.entry(resource.clone()).or_default().extend(tools.iter().cloned());
+                exact
+                    .entry(resource.clone())
+                    .or_default()
+                    .extend(tools.iter().cloned());
             }
         }
 
         // Longest-match first: a more specific prefix wins over a shorter one
         prefix.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
 
-        CapabilityIndex { exact, prefix, universal }
+        CapabilityIndex {
+            exact,
+            prefix,
+            universal,
+        }
     }
 
     /// Returns `true` if `(resource, tool)` is covered by this index.
@@ -80,9 +87,7 @@ impl CapabilityIndex {
 
 fn tool_covered(child: &str, parent_tools: &[String]) -> bool {
     parent_tools.iter().any(|p| {
-        p == "*"
-            || p == child
-            || (p.ends_with("/*") && child.starts_with(&p[..p.len() - 1]))
+        p == "*" || p == child || (p.ends_with("/*") && child.starts_with(&p[..p.len() - 1]))
     })
 }
 
