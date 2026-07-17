@@ -7,10 +7,17 @@
 Cryptographic core for the **Delegation Receipt Standard (DRS)** — a JWT-based delegation
 receipt system for agentic accountability.
 
-This crate is the single source of truth for DRS's security-critical primitives. It
-compiles to both a native library and WebAssembly, so the TypeScript issuance SDK and the
-Go verification service share **one** canonicalization and chain-hashing implementation —
-chains cannot diverge across languages.
+> **Status: non-normative reference implementation.** The normative DRS
+> verifier is [`drs-verify`](../drs-verify) (Go); all production verification
+> goes through its HTTP `/verify` endpoint. This crate records the DRS
+> algorithms (RFC 8785 JCS, SHA-256 chain hashing, Ed25519 verification,
+> Blocks A–E) as reviewable Rust and is **feature-frozen** — it receives
+> bug fixes only.
+>
+> Known, intentional gaps vs the normative verifier: no `tool_server`
+> binding, no invocation `iat` freshness check, no replay protection, no
+> revocation (Block F), `did:key` only. Do not use this crate's
+> `verify_chain` as your production verifier.
 
 - **Ed25519** signatures (`ed25519-dalek` 2.x, strict verification)
 - **SHA-256** chain linkage (`prev_dr_hash` / `dr_chain`)

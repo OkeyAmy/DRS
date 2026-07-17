@@ -1,6 +1,6 @@
 [package]
 name = "drs-core"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "DRS cryptographic core — Ed25519, SHA-256, JCS, capability index"
 license = "Apache-2.0"
