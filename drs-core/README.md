@@ -25,8 +25,9 @@ receipt system for agentic accountability.
 - **`did:key`** identity (multicodec `ed25519-pub`)
 - Capability attenuation checks and a bounded delegation chain (`MAX_CHAIN_DEPTH = 16`)
 
-> Zero GC, stack-allocated byte arrays, no panics in library code — built for the
-> sub-5ms verification path where a V8 GC pause is unacceptable.
+> Zero GC, stack-allocated byte arrays, no panics in library code — properties of
+> the frozen algorithm reference, not a production-path promise. Production
+> verification runs in `drs-verify`.
 
 ## Install
 
@@ -70,7 +71,7 @@ if !result.valid {
 
 | Item | Purpose |
 |---|---|
-| `verify_chain(&ChainBundle) -> VerificationResult` | full chain verification (the hot path) |
+| `verify_chain(&ChainBundle) -> VerificationResult` | reference implementation of Blocks A–E (non-normative) |
 | `build_jwt(...)` | encode a DRS receipt as a signed JWT |
 | `crypto::generate_keypair()` / `sign()` / `verify_strict()` | Ed25519 primitives |
 | `did::encode_did_key()` / `resolve_did_key()` | `did:key` ⇄ raw public key |
@@ -93,16 +94,18 @@ if !result.valid {
 wasm-pack build --target web --features wasm
 ```
 
-The same source produces the native `.so`/`.rlib` and the WASM artifact consumed by
-`@okeyamy/drs-sdk`.
+The same source produces the native `.so`/`.rlib` and a WASM artifact. Note that
+`@okeyamy/drs-sdk` does **not** consume this artifact — production verification goes
+through `drs-verify`'s HTTP `/verify` endpoint. The WASM build is an explicit
+integration path, not a shipped dependency.
 
 ## How it fits together
 
 | Layer | Component | Role |
 |---|---|---|
-| Crypto core | **drs-core** (this crate) | JCS, SHA-256 chain hash, Ed25519, capability index |
-| Issuance | [`@okeyamy/drs-sdk`](https://www.npmjs.com/package/@okeyamy/drs-sdk) (TS/WASM) | mint receipts, assemble bundles |
-| Verification | [`drs-verify`](https://github.com/OkeyAmy/DRS/tree/main/drs-verify) (Go) | the `/verify` service + MCP/A2A middleware |
+| Algorithm reference | **drs-core** (this crate) | non-normative record of JCS, SHA-256 chain hash, Ed25519, capability index |
+| Issuance | [`@okeyamy/drs-sdk`](https://www.npmjs.com/package/@okeyamy/drs-sdk) (TypeScript) | mint receipts, assemble bundles |
+| Verification | [`drs-verify`](https://github.com/OkeyAmy/DRS/tree/main/drs-verify) (Go) | the normative `/verify` service + MCP/A2A middleware |
 
 ## Security notes
 
