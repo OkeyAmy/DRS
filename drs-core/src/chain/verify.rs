@@ -1,3 +1,4 @@
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use ed25519_dalek::VerifyingKey;
@@ -579,21 +580,36 @@ fn cmd_is_subpath(root_cmd: &str, cmd: &str) -> bool {
     false
 }
 
-/// Returns the current Unix time in seconds, or an error if the system clock is
-/// unavailable or before the epoch.
+/// Returns the current Unix time in seconds, or an error if the clock is
+/// unavailable or out of range.
 ///
 /// Fail-closed: callers must treat the error as a verification failure rather
 /// than substituting a sentinel. Returning 0 on error (the previous behaviour)
 /// made every receipt with a positive `exp` pass the expiry check — a temporal
-/// bypass on any clock anomaly (notably on WASM hosts with no clock). The cast
-/// uses `i64::try_from` so a clock past year 2262 fails closed instead of
-/// silently wrapping to a negative timestamp.
+/// bypass on any clock anomaly. The cast uses `i64::try_from` so a clock past
+/// year 2262 fails closed instead of silently wrapping to a negative timestamp.
+#[cfg(not(target_arch = "wasm32"))]
 fn unix_now() -> Result<i64, crate::error::DrsError> {
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| crate::error::DrsError::ClockError)?
         .as_secs();
     i64::try_from(secs).map_err(|_| crate::error::DrsError::ClockError)
+}
+
+/// wasm32 variant: `SystemTime::now()` PANICS on wasm32-unknown-unknown
+/// ("time not implemented on this platform"), which trapped `verify_chain`
+/// on every bundle reaching Block E — unreachable by the fail-closed
+/// `ClockError` path, because the panic fired before `duration_since`.
+/// `js_sys::Date::now()` returns milliseconds since the Unix epoch as f64
+/// from the host JS environment; non-finite or negative values fail closed.
+#[cfg(target_arch = "wasm32")]
+fn unix_now() -> Result<i64, crate::error::DrsError> {
+    let millis = js_sys::Date::now();
+    if !millis.is_finite() || millis < 0.0 {
+        return Err(crate::error::DrsError::ClockError);
+    }
+    Ok((millis / 1000.0) as i64)
 }
 
 #[cfg(test)]
