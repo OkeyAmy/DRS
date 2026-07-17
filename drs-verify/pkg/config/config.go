@@ -70,7 +70,7 @@ type Config struct {
 	NonceStoreMaxEntries int
 
 	// NonceStoreTTLSecs is the TTL in seconds for nonce store entries.
-	// Should match or exceed the maximum expected exp window. Default: 3600 (1 hour).
+	// Should match or exceed the maximum expected exp window. Default: 900 (15 min).
 	NonceStoreTTLSecs int64
 
 	// TSARootCertPEM is the PEM-encoded root CA certificate(s) trusted for
@@ -173,7 +173,7 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("NONCE_STORE_MAX_ENTRIES: %w", err)
 	}
 
-	nonceTTL, err := getEnvInt64("NONCE_STORE_TTL_SECS", 3600)
+	nonceTTL, err := getEnvInt64("NONCE_STORE_TTL_SECS", 900)
 	if err != nil {
 		return Config{}, fmt.Errorf("NONCE_STORE_TTL_SECS: %w", err)
 	}
@@ -210,6 +210,17 @@ func Load() (Config, error) {
 	}
 	if nonceBackend != "memory" && nonceBackend != "redis" {
 		return Config{}, fmt.Errorf("NONCE_STORE_BACKEND: unknown backend %q (want memory or redis)", nonceBackend)
+	}
+
+	// TRUST_PROXY=true means this verifier sits behind a reverse proxy — a
+	// real deployment, likely multi-replica. In-memory replay state is lost
+	// on restart and is not shared across replicas, silently reopening the
+	// replay window. Fail fast at boot instead of degrading silently.
+	if trustProxy && nonceBackend == "memory" {
+		return Config{}, fmt.Errorf(
+			"NONCE_STORE_BACKEND=memory is not allowed with TRUST_PROXY=true: " +
+				"in-memory replay protection is lost on restart and not replica-shared; " +
+				"set NONCE_STORE_BACKEND=redis and REDIS_URL")
 	}
 
 	return Config{
