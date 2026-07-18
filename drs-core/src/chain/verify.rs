@@ -603,6 +603,11 @@ fn unix_now() -> Result<i64, crate::error::DrsError> {
 /// `ClockError` path, because the panic fired before `duration_since`.
 /// `js_sys::Date::now()` returns milliseconds since the Unix epoch as f64
 /// from the host JS environment; non-finite or negative values fail closed.
+///
+/// Constraint: this path requires a JavaScript host (browser or Node via
+/// wasm-bindgen glue). On non-JS wasm runtimes (WASI, wasmtime) the
+/// `Date.now` import does not exist and instantiation fails. drs-core's
+/// supported wasm target is `wasm32-unknown-unknown` + wasm-bindgen only.
 #[cfg(target_arch = "wasm32")]
 fn unix_now() -> Result<i64, crate::error::DrsError> {
     let millis = js_sys::Date::now();
