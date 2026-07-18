@@ -1,7 +1,9 @@
 # Build stage — compile a static binary with CGO disabled.
-# Go 1.25.11 is required to pick up stdlib CVE fixes (crypto/tls, net/http,
-# encoding/asn1, etc.) flagged by govulncheck on older toolchains.
-FROM golang:1.25.11-alpine AS builder
+# Go 1.25.12 is required to pick up stdlib CVE fixes (crypto/tls ECH leak
+# GO-2026-5856, net/http, encoding/asn1, etc.) flagged by govulncheck on
+# older toolchains. Must match the `go` directive in go.mod — alpine images
+# run GOTOOLCHAIN=local and cannot auto-download a newer toolchain.
+FROM golang:1.25.12-alpine AS builder
 
 WORKDIR /build
 
