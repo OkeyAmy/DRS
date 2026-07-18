@@ -2,9 +2,9 @@
 
 ## Before You Start
 
-Read the architecture documents in `docs/` before touching the crypto or verification layer. The v1 and v2 documents explain what was tried and why it was scrapped. Reading them will save you from proposing something that has already been invalidated.
+Read the architecture pages on the documentation site before touching the crypto or verification layer — start with the [architecture deep dive](https://okeyamy.github.io/DRS/how-to/contributors/architecture-deep-dive.html) and [false positives](https://okeyamy.github.io/DRS/how-to/contributors/false-positives.html) (what was tried in earlier designs and why it was scrapped). Reading them will save you from proposing something that has already been invalidated.
 
-The verification algorithm is documented in `docs/Drs_language&algorithms.md`. If you are changing anything in `drs-verify/pkg/verify/` or `drs-core/src/`, start there.
+The verification algorithm is documented in the [verification algorithm](https://okeyamy.github.io/DRS/explanation/verification-algorithm.html) page. If you are changing anything in `drs-verify/pkg/verify/` or `drs-core/src/`, start there.
 
 ---
 

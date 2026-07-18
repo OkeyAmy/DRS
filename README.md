@@ -270,7 +270,6 @@ drs-verify/         Go  — verification server, middleware, caches
   pkg/policy/       Capability policy evaluation and attenuation
   pkg/store/        Tiered receipt storage (memory, filesystem, Tier3)
 drs-sdk/            TypeScript — SDK, HTTP verify client, CLI
-docs/               Architecture documents and technical audit
 docs-site/          mdBook source → okeyamy.github.io/DRS
 examples/           DRS wired into real agentic systems (contributions welcome)
 ```

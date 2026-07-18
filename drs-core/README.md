@@ -8,7 +8,7 @@ Cryptographic core for the **Delegation Receipt Standard (DRS)** — a JWT-based
 receipt system for agentic accountability.
 
 > **Status: non-normative reference implementation.** The normative DRS
-> verifier is [`drs-verify`](../drs-verify) (Go); all production verification
+> verifier is [`drs-verify`](https://github.com/OkeyAmy/DRS/tree/main/drs-verify) (Go); all production verification
 > goes through its HTTP `/verify` endpoint. This crate records the DRS
 > algorithms (RFC 8785 JCS, SHA-256 chain hashing, Ed25519 verification,
 > Blocks A–E) as reviewable Rust and is **feature-frozen** — it receives
