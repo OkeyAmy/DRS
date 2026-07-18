@@ -48,7 +48,7 @@ jobs:
           push: false
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
 
@@ -139,7 +139,7 @@ jobs:
       # ── shared: Node / pnpm setup and E2E run ────────────────────────────
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
 
