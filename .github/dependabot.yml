@@ -1,17 +1,31 @@
 version: 2
 
+# ── Update policy ────────────────────────────────────────────────────────────
+# Only major-version bumps are surfaced as PRs. Patch and minor version updates
+# are ignored across every ecosystem via the wildcard ignore rule below.
+# Note: this does NOT suppress Dependabot *security* updates — those still open
+# regardless of update-type, which is the behaviour we want.
+
 updates:
   # ── GitHub Actions ────────────────────────────────────────────────────────────
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          ["version-update:semver-patch", "version-update:semver-minor"]
 
   # ── Rust (drs-core) ──────────────────────────────────────────────────────────
   - package-ecosystem: "cargo"
     directory: "/drs-core"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          ["version-update:semver-patch", "version-update:semver-minor"]
 
   # ── TypeScript SDK (drs-sdk) ─────────────────────────────────────────────────
   - package-ecosystem: "npm"
@@ -23,6 +37,9 @@ updates:
       # bumped past what vitest allows without upgrading vitest itself first.
       - dependency-name: "vite"
       - dependency-name: "esbuild"
+      - dependency-name: "*"
+        update-types:
+          ["version-update:semver-patch", "version-update:semver-minor"]
 
   # ── MCP client ───────────────────────────────────────────────────────────────
   - package-ecosystem: "npm"
@@ -32,6 +49,9 @@ updates:
     ignore:
       - dependency-name: "vite"
       - dependency-name: "esbuild"
+      - dependency-name: "*"
+        update-types:
+          ["version-update:semver-patch", "version-update:semver-minor"]
 
   # ── MCP server ───────────────────────────────────────────────────────────────
   - package-ecosystem: "npm"
@@ -41,15 +61,26 @@ updates:
     ignore:
       - dependency-name: "vite"
       - dependency-name: "esbuild"
+      - dependency-name: "*"
+        update-types:
+          ["version-update:semver-patch", "version-update:semver-minor"]
 
   # ── Integration tests ────────────────────────────────────────────────────────
   - package-ecosystem: "npm"
     directory: "/integration-tests"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          ["version-update:semver-patch", "version-update:semver-minor"]
 
   # ── Expense agent example ────────────────────────────────────────────────────
   - package-ecosystem: "npm"
     directory: "/examples/drs-expense-agent"
     schedule:
       interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          ["version-update:semver-patch", "version-update:semver-minor"]
