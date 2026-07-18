@@ -53,7 +53,7 @@
 - Consumes: `drs_core::{chain::verify::verify_chain, chain::hash::compute_chain_hash, did::key::encode_did_key, jwt::encode::build_jwt, types::ChainBundle}` — all existing public API.
 - Produces: the failing test that Task 2 makes pass. Test name: `full_chain_verifies_on_wasm`.
 
-- [ ] **Step 1: Add wasm32 target dependencies to Cargo.toml**
+- [x] **Step 1: Add wasm32 target dependencies to Cargo.toml**
 
 Append after the `[dev-dependencies]` section of `drs-core/Cargo.toml`:
 
@@ -68,7 +68,7 @@ getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen-test = "0.3"
 ```
 
-- [ ] **Step 2: Write the failing wasm test**
+- [x] **Step 2: Write the failing wasm test**
 
 Create `drs-core/tests/wasm_chain.rs`:
 
@@ -217,7 +217,7 @@ fn tampered_receipt_fails_on_wasm() {
 }
 ```
 
-- [ ] **Step 3: Run the wasm test to verify it fails (the panic)**
+- [x] **Step 3: Run the wasm test to verify it fails (the panic)**
 
 ```bash
 cd drs-core && wasm-pack test --node -- --features wasm
@@ -227,7 +227,7 @@ Expected: FAIL — `full_chain_verifies_on_wasm` traps with `RuntimeError: unrea
 
 If `wasm-pack` is not installed: `cargo install wasm-pack` first. If the build itself fails on `getrandom`, the Step 1 target dependency is missing — re-check Cargo.toml.
 
-- [ ] **Step 4: Verify native tests still pass**
+- [x] **Step 4: Verify native tests still pass**
 
 ```bash
 cd drs-core && cargo test
@@ -235,7 +235,7 @@ cd drs-core && cargo test
 
 Expected: PASS (all existing tests unaffected).
 
-- [ ] **Step 5: Stage + confirm commit with Okey**
+- [x] **Step 5: Stage + confirm commit with Okey**
 
 ```bash
 git add drs-core/Cargo.toml drs-core/tests/wasm_chain.rs
@@ -253,7 +253,7 @@ git add drs-core/Cargo.toml drs-core/tests/wasm_chain.rs
 - Consumes: `js_sys::Date::now()` (added in Task 1's Cargo change).
 - Produces: `fn unix_now() -> Result<i64, DrsError>` — same signature, now safe on wasm32. Task 1's test passes.
 
-- [ ] **Step 1: Gate the std::time import**
+- [x] **Step 1: Gate the std::time import**
 
 In `drs-core/src/chain/verify.rs`, replace:
 
@@ -268,7 +268,7 @@ with:
 use std::time::{SystemTime, UNIX_EPOCH};
 ```
 
-- [ ] **Step 2: Split unix_now() by target**
+- [x] **Step 2: Split unix_now() by target**
 
 Replace the existing `unix_now` function with:
 
@@ -306,7 +306,7 @@ fn unix_now() -> Result<i64, crate::error::DrsError> {
 }
 ```
 
-- [ ] **Step 3: Run the wasm test to verify it passes**
+- [x] **Step 3: Run the wasm test to verify it passes**
 
 ```bash
 cd drs-core && wasm-pack test --node -- --features wasm
@@ -314,7 +314,7 @@ cd drs-core && wasm-pack test --node -- --features wasm
 
 Expected: PASS — both `full_chain_verifies_on_wasm` and `tampered_receipt_fails_on_wasm`.
 
-- [ ] **Step 4: Run native tests + fmt**
+- [x] **Step 4: Run native tests + fmt**
 
 ```bash
 cd drs-core && cargo test && cargo fmt --check
@@ -322,7 +322,7 @@ cd drs-core && cargo test && cargo fmt --check
 
 Expected: PASS, no fmt diffs (run `cargo fmt` if needed).
 
-- [ ] **Step 5: Stage + confirm commit with Okey**
+- [x] **Step 5: Stage + confirm commit with Okey**
 
 ```bash
 git add drs-core/src/chain/verify.rs
@@ -341,11 +341,11 @@ git add drs-core/src/chain/verify.rs
 - Consumes: nothing.
 - Produces: drs-core 0.1.2, frozen. No later task touches drs-core.
 
-- [ ] **Step 1: Bump version**
+- [x] **Step 1: Bump version**
 
 In `drs-core/Cargo.toml`: `version = "0.1.1"` → `version = "0.1.2"`.
 
-- [ ] **Step 2: Replace the misleading intro claim**
+- [x] **Step 2: Replace the misleading intro claim**
 
 In `drs-core/README.md`, replace the paragraph beginning "This crate is the single source of truth…" with:
 
@@ -363,7 +363,7 @@ In `drs-core/README.md`, replace the paragraph beginning "This crate is the sing
 > `verify_chain` as your production verifier.
 ```
 
-- [ ] **Step 3: Build + test**
+- [x] **Step 3: Build + test**
 
 ```bash
 cd drs-core && cargo test && cargo package --allow-dirty --no-verify --list > /dev/null && echo package-ok
@@ -371,7 +371,7 @@ cd drs-core && cargo test && cargo package --allow-dirty --no-verify --list > /d
 
 Expected: tests PASS, `package-ok` printed (README/Cargo metadata valid).
 
-- [ ] **Step 4: Stage + confirm commit with Okey**
+- [x] **Step 4: Stage + confirm commit with Okey**
 
 ```bash
 git add drs-core/Cargo.toml drs-core/README.md
@@ -392,7 +392,7 @@ git add drs-core/Cargo.toml drs-core/README.md
 - Consumes: existing `DrsError` from `../sdk/types.js`.
 - Produces: `VerifyClient.verify()` — same signature; new behaviour: no `X-DRS-Bundle` header; HTTP 409 throws `DrsError` with code `"REPLAY_DETECTED"`; any other non-OK status throws `VERIFY_SERVICE_ERROR` (the 403 pass-through is gone — `/verify` never returns 403; that status belongs to the in-process Go middleware only).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `drs-sdk/src/verify/client.test.ts`:
 
@@ -455,7 +455,7 @@ it("does not send the X-DRS-Bundle header", async () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 pnpm --filter @okeyamy/drs-sdk test -- src/verify/client.test.ts
@@ -463,7 +463,7 @@ pnpm --filter @okeyamy/drs-sdk test -- src/verify/client.test.ts
 
 Expected: the three new/changed tests FAIL (403 currently passes through; 409 currently throws VERIFY_SERVICE_ERROR; header currently present).
 
-- [ ] **Step 3: Implement the client changes**
+- [x] **Step 3: Implement the client changes**
 
 In `drs-sdk/src/verify/client.ts`:
 
@@ -515,7 +515,7 @@ if (!response.ok) {
 
 (d) Update the class JSDoc: remove the sentence about the `X-DRS-Bundle` header if present in `bundle.ts` doc references — in `client.ts` only; `bundle.ts` (`serialiseBundle`) itself is untouched, it remains the transport encoding for the MCP `_meta` path.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 pnpm --filter @okeyamy/drs-sdk test
@@ -523,7 +523,7 @@ pnpm --filter @okeyamy/drs-sdk test
 
 Expected: PASS — full SDK suite (116+ tests), including the three new/changed ones.
 
-- [ ] **Step 5: Stage + confirm commit with Okey**
+- [x] **Step 5: Stage + confirm commit with Okey**
 
 ```bash
 git add drs-sdk/src/verify/client.ts drs-sdk/src/verify/client.test.ts
@@ -543,7 +543,7 @@ git add drs-sdk/src/verify/client.ts drs-sdk/src/verify/client.test.ts
 - Consumes: nothing.
 - Produces: `initWasm`/`getWasmModule`/`isWasmReady` no longer exported from the package root. `loader.ts` module remains for direct-path imports, marked deprecated. `loader.test.ts` keeps passing (it imports the module directly).
 
-- [ ] **Step 1: Remove the public export**
+- [x] **Step 1: Remove the public export**
 
 In `drs-sdk/src/index.ts`, delete these lines:
 
@@ -552,7 +552,7 @@ In `drs-sdk/src/index.ts`, delete these lines:
 export { initWasm, getWasmModule, isWasmReady } from "./wasm/loader.js";
 ```
 
-- [ ] **Step 2: Add the deprecation header to loader.ts**
+- [x] **Step 2: Add the deprecation header to loader.ts**
 
 At the top of `drs-sdk/src/wasm/loader.ts`, above the existing doc comment, add:
 
@@ -565,7 +565,7 @@ At the top of `drs-sdk/src/wasm/loader.ts`, above the existing doc comment, add:
  */
 ```
 
-- [ ] **Step 3: Update the SDK README**
+- [x] **Step 3: Update the SDK README**
 
 In `drs-sdk/README.md`, find the section that mentions WASM/local verification (search for "wasm" case-insensitively). Replace its content with, or if absent add under the verification section:
 
@@ -578,7 +578,7 @@ in-process/WASM verification path; the `src/wasm` loader is an unpublished
 experiment and is not exported from the package root.
 ```
 
-- [ ] **Step 4: Verify nothing else consumed the export, then build + test**
+- [x] **Step 4: Verify nothing else consumed the export, then build + test**
 
 ```bash
 grep -rn "from \"@okeyamy/drs-sdk\"" --include='*.ts' packages/ examples/ | grep -i wasm
@@ -587,7 +587,7 @@ pnpm --filter @okeyamy/drs-sdk build && pnpm --filter @okeyamy/drs-sdk test
 
 Expected: grep finds nothing; build and full test suite PASS.
 
-- [ ] **Step 5: Stage + confirm commit with Okey**
+- [x] **Step 5: Stage + confirm commit with Okey**
 
 ```bash
 git add drs-sdk/src/index.ts drs-sdk/src/wasm/loader.ts drs-sdk/README.md
@@ -606,7 +606,7 @@ git add drs-sdk/src/index.ts drs-sdk/src/wasm/loader.ts drs-sdk/README.md
 - Consumes: nothing new.
 - Produces: `config.Load()` — default `NonceStoreTTLSecs` becomes **900** (matches `.env.example` and docker-compose); returns an error when `NONCE_STORE_BACKEND=memory` (explicit or defaulted) and `TRUST_PROXY=true`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `drs-verify/pkg/config/config_test.go` (match the file's existing test style — `t.Setenv` for env isolation):
 
@@ -644,7 +644,7 @@ func TestRedisNonceWithTrustProxyIsAccepted(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 ```bash
 cd drs-verify && go test ./pkg/config/
@@ -652,7 +652,7 @@ cd drs-verify && go test ./pkg/config/
 
 Expected: FAIL — `TestNonceTTLDefaultIs900` (got 3600) and `TestMemoryNonceWithTrustProxyIsRejected` (no error returned).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `drs-verify/pkg/config/config.go`:
 
@@ -681,7 +681,7 @@ and update the struct field comment: `// Should match or exceed the maximum expe
 
 Note: `trustProxy` is read at ~line 191, before this block — no reordering needed.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```bash
 cd drs-verify && go test ./... && gofmt -l pkg/ cmd/
@@ -689,7 +689,7 @@ cd drs-verify && go test ./... && gofmt -l pkg/ cmd/
 
 Expected: all packages PASS; `gofmt -l` prints nothing. If any other test asserted the old 3600 default, fix it to 900 (search: `grep -rn 3600 pkg/ cmd/`).
 
-- [ ] **Step 5: Stage + confirm commit with Okey**
+- [x] **Step 5: Stage + confirm commit with Okey**
 
 ```bash
 git add drs-verify/pkg/config/config.go drs-verify/pkg/config/config_test.go
@@ -708,7 +708,7 @@ git add drs-verify/pkg/config/config.go drs-verify/pkg/config/config_test.go
 - Consumes: env var names from `config.go` (Task 6 unchanged names).
 - Produces: every variable `config.go` reads is passed by compose and documented in `.env.example` (except `LISTEN_ADDR`, fixed to `:8080` in-container by design — documented as such).
 
-- [ ] **Step 1: Add missing pass-throughs to docker-compose.yml**
+- [x] **Step 1: Add missing pass-throughs to docker-compose.yml**
 
 In the `environment:` block of `docker-compose.yml`, after the `SERVER_IDENTITY` entry, add:
 
@@ -726,7 +726,7 @@ In the `environment:` block of `docker-compose.yml`, after the `SERVER_IDENTITY`
       TSA_ROOT_CERT_PEM: "${TSA_ROOT_CERT_PEM:-}"
 ```
 
-- [ ] **Step 2: Document the same vars in .env.example**
+- [x] **Step 2: Document the same vars in .env.example**
 
 Append to `.env.example` before the `-- Metrics --` section:
 
@@ -756,7 +756,7 @@ TSA_ROOT_CERT_PEM=
 
 Also update the existing `NONCE_STORE_TTL_SECS=900` comment to note it now matches the binary default (Task 6), and add one line near the top: `# LISTEN_ADDR is fixed to :8080 inside the container; change the host port via DRS_VERIFY_PORT.`
 
-- [ ] **Step 3: Validate compose config**
+- [x] **Step 3: Validate compose config**
 
 ```bash
 docker compose config -q && echo compose-ok
@@ -764,7 +764,7 @@ docker compose config -q && echo compose-ok
 
 Expected: `compose-ok` (no YAML/interpolation errors).
 
-- [ ] **Step 4: Cross-check nothing is missing**
+- [x] **Step 4: Cross-check nothing is missing**
 
 ```bash
 grep -oE 'os\.Getenv\("[A-Z_]+"\)|getEnv[A-Za-z0-9]*\("[A-Z_]+"' drs-verify/pkg/config/config.go | grep -oE '"[A-Z_]+"' | sort -u
@@ -772,7 +772,7 @@ grep -oE 'os\.Getenv\("[A-Z_]+"\)|getEnv[A-Za-z0-9]*\("[A-Z_]+"' drs-verify/pkg/
 
 Expected: every printed var appears in both `docker-compose.yml` and `.env.example`, except `LISTEN_ADDR` (documented exception).
 
-- [ ] **Step 5: Stage + confirm commit with Okey**
+- [x] **Step 5: Stage + confirm commit with Okey**
 
 ```bash
 git add docker-compose.yml .env.example
@@ -793,7 +793,7 @@ git add docker-compose.yml .env.example
 - Consumes: nothing.
 - Produces: documentation only — no behaviour change. `go test ./...` must stay green (comment-only Go change).
 
-- [ ] **Step 1: Add the honesty section to the root README**
+- [x] **Step 1: Add the honesty section to the root README**
 
 Insert after the feature/overview section of `README.md` (before installation/quickstart):
 
@@ -823,7 +823,7 @@ Two further operational notes:
   defined in DRS 4.1.
 ```
 
-- [ ] **Step 2: Append the /verify status contract to docs/drs-source-of-truth.md**
+- [x] **Step 2: Append the /verify status contract to docs/drs-source-of-truth.md**
 
 Append at the end of the file:
 
@@ -852,7 +852,7 @@ verifier performs no call counting; integrators enforce it in their session
 layer from `VerificationContext.leaf_policy`.
 ```
 
-- [ ] **Step 3: Append the Redis mandate to docs/production-readiness-checklist.md**
+- [x] **Step 3: Append the Redis mandate to docs/production-readiness-checklist.md**
 
 Append:
 
@@ -864,7 +864,7 @@ Append:
       at boot.
 ```
 
-- [ ] **Step 4: Add the buffered-channel comment in chain.go**
+- [x] **Step 4: Add the buffered-channel comment in chain.go**
 
 In `drs-verify/pkg/verify/chain.go`, inside `resolveIssuersParallel`, directly above `results := make(chan resolveResult, len(unique))`, add:
 
@@ -876,7 +876,7 @@ In `drs-verify/pkg/verify/chain.go`, inside `resolveIssuersParallel`, directly a
 	// keep the buffer sized to the number of sends.
 ```
 
-- [ ] **Step 5: Verify Go still compiles and tests pass**
+- [x] **Step 5: Verify Go still compiles and tests pass**
 
 ```bash
 cd drs-verify && go test ./... && gofmt -l pkg/
@@ -884,7 +884,7 @@ cd drs-verify && go test ./... && gofmt -l pkg/
 
 Expected: PASS, no fmt output.
 
-- [ ] **Step 6: Stage + confirm commit with Okey**
+- [x] **Step 6: Stage + confirm commit with Okey**
 
 ```bash
 git add README.md docs/drs-source-of-truth.md docs/production-readiness-checklist.md drs-verify/pkg/verify/chain.go
@@ -895,10 +895,10 @@ git add README.md docs/drs-source-of-truth.md docs/production-readiness-checklis
 
 ## Completion checklist
 
-- [ ] `cd drs-core && cargo test` — green
-- [ ] `cd drs-core && wasm-pack test --node -- --features wasm` — green (2 tests)
-- [ ] `pnpm --filter @okeyamy/drs-sdk build && pnpm --filter @okeyamy/drs-sdk test` — green
-- [ ] `cd drs-verify && go test ./...` — green
-- [ ] `docker compose config -q` — clean
-- [ ] No wire-format change anywhere (`drs_v` still `"4.0"`, no receipt field edits)
-- [ ] All commits confirmed by Okey before executing
+- [x] `cd drs-core && cargo test` — green
+- [x] `cd drs-core && wasm-pack test --node -- --features wasm` — green (2 tests)
+- [x] `pnpm --filter @okeyamy/drs-sdk build && pnpm --filter @okeyamy/drs-sdk test` — green
+- [x] `cd drs-verify && go test ./...` — green
+- [x] `docker compose config -q` — clean
+- [x] No wire-format change anywhere (`drs_v` still `"4.0"`, no receipt field edits)
+- [x] All commits confirmed by Okey before executing
