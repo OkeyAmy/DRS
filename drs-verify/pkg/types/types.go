@@ -13,12 +13,12 @@ import "encoding/json"
 // Integrators who need call-count enforcement must implement it in their own
 // session layer and use max_calls as the authoritative limit to enforce.
 type Policy struct {
-	MaxCostUSD       *float64 `json:"max_cost_usd,omitempty"`
-	PIIAccess        *bool    `json:"pii_access,omitempty"`
-	WriteAccess      *bool    `json:"write_access,omitempty"`
-	MaxCalls         *uint64  `json:"max_calls,omitempty"`
-	AllowedTools     []string `json:"allowed_tools,omitempty"`
-	AllowedResources []string `json:"allowed_resources,omitempty"`
+	MaxCostUSD         *float64 `json:"max_cost_usd,omitempty"`
+	PIIAccess          *bool    `json:"pii_access,omitempty"`
+	WriteAccess        *bool    `json:"write_access,omitempty"`
+	MaxCalls           *uint64  `json:"max_calls,omitempty"`
+	AllowedTools       []string `json:"allowed_tools,omitempty"`
+	AllowedResources   []string `json:"allowed_resources,omitempty"`
 	AllowedDataClasses []string `json:"allowed_data_classes,omitempty"`
 }
 

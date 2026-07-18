@@ -261,9 +261,9 @@ func TestAdminRevokeHandler_HashedCompareRejectsMismatchedLengths(t *testing.T) 
 	h := AdminRevokeHandler(s, "correct-token")
 
 	cases := []string{
-		"",                             // empty
-		"x",                            // 1 char
-		"Bearer c",                     // prefix match of expected
+		"",         // empty
+		"x",        // 1 char
+		"Bearer c", // prefix match of expected
 		"Bearer " + "extremely-long-wrong-token-" + "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 	}
 	for _, auth := range cases {

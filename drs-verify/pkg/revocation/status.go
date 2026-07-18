@@ -1,13 +1,13 @@
 // Package revocation implements the W3C Bitstring Status List cache.
 //
 // Concurrency design:
-// - sync.RWMutex guards the cached bitstring: many readers, one writer
-// - initMu serialises retryable first-fetch attempts (replaces sync.Once,
-//   which permanently consumed the first-fetch slot on failure and produced
-//   a fail-open path when the endpoint was briefly down at boot)
-// - refreshMu serialises TTL-triggered refreshes to prevent cache stampedes
-// - hasSnapshot tracks whether a valid snapshot has ever been successfully
-//   fetched. IsRevoked fails closed when no snapshot exists and refresh fails.
+//   - sync.RWMutex guards the cached bitstring: many readers, one writer
+//   - initMu serialises retryable first-fetch attempts (replaces sync.Once,
+//     which permanently consumed the first-fetch slot on failure and produced
+//     a fail-open path when the endpoint was briefly down at boot)
+//   - refreshMu serialises TTL-triggered refreshes to prevent cache stampedes
+//   - hasSnapshot tracks whether a valid snapshot has ever been successfully
+//     fetched. IsRevoked fails closed when no snapshot exists and refresh fails.
 //
 // Block F of the verification algorithm is implemented here.
 package revocation
