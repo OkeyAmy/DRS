@@ -202,9 +202,31 @@ Kubernetes and Docker health probes.
 - **Constant-time comparisons** — multicodec prefix checks and bearer token validation use `crypto/subtle`
 - **RFC 8785 JCS canonicalization** — no shallow `JSON.stringify` key sort; conformance vectors guard cross-language canonicalization behavior
 - **LRU-bounded DID resolver cache** — hard cap at 10,000 entries (~640 KB)
-- **W3C Bitstring Status List revocation** — `sync.Once` concurrency guard prevents thundering herd on cache miss
-- **Request body capped** at 1 MiB by default (`MAX_BODY_BYTES`)
+- **W3C Bitstring Status List revocation** — mutex + re-check concurrency guard prevents thundering herd on cache miss (`sync.Once` is deliberately avoided: a failed fetch must be retryable)
+- **Request body capped** at 64 KiB — hard-coded, not configurable, so a deployment cannot accidentally widen it
 - **DID resolver** supports `did:key` (self-authenticating, no network I/O) and `did:web` (HTTPS + TLS)
+
+## Performance
+
+Measured against the published artifacts (`ghcr.io/okeyamy/drs-verify` v0.1.1,
+`@okeyamy/drs-sdk` 0.1.1 from npm) with 15 simulated developers, each with
+their own keypair, delegation chain, and client IP. Full methodology and the
+replicable harness live in [`bench/`](bench/) (see
+[`bench/RESULTS.md`](bench/RESULTS.md)); numbers below are from a 4-core/8-thread
+laptop — treat them as relative, not absolute.
+
+| Measurement | Result |
+|---|---|
+| Verification floor latency (depth-1 chain) | ~2.8 ms avg |
+| Verification at the depth cap (16 receipts) | ~8.6 ms avg |
+| Steady multi-tenant load (300 rps, depth 4) | p95 5.4 ms, ~1 core, 0 errors |
+| Single-instance saturation (depth 4) | ~800 rps at 5 cores |
+| Replay storm (10 % replayed JTIs at 300 rps) | all replays 409, latency unchanged |
+| Redis nonce backend vs in-memory | +0.4 ms avg — the full cost of multi-replica replay safety |
+| SDK issuance (per Node process) | ~217 bundles/s (depth 1) → ~114 (depth 16) |
+
+Past ~800 rps a single instance queues; scale horizontally — the Redis nonce
+store already makes replicas replay-safe.
 
 ## Configuration
 
