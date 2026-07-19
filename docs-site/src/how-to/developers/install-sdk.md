@@ -62,27 +62,15 @@ import {
   checkPolicyAttenuation,
   translatePolicy,
   VerifyClient,
-  initWasm,
-  getWasmModule,
-  isWasmReady,
 } from "@okeyamy/drs-sdk";
 ```
 
 ## Browser / WASM notes
 
-The SDK includes a WASM loader, but browser/WASM verification is still an
-explicit integration path:
-
-- `VerifyClient` talks to a running `drs-verify` HTTP service
-- `initWasm()` / `getWasmModule()` are available if you wire in a WASM build
-- there is no published standalone `@drs/wasm` package in this repo today
-
-## Building the WASM package yourself
-
-If you are developing locally and want to experiment with the WASM build:
-
-```bash
-cd drs-core
-wasm-pack build --target web --features wasm
-# Output: drs-core/pkg/
-```
+As of SDK 0.2.0 the package no longer exports a WASM loader
+(`initWasm` / `getWasmModule` / `isWasmReady` were removed from the entry
+point — no standalone WASM artifact was ever published, so the loader could
+never succeed). All verification goes through `VerifyClient` against a
+running `drs-verify` HTTP service. The deprecated loader module remains in
+the source tree as an integration path if a WASM artifact is released in
+the future.

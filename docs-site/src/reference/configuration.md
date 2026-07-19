@@ -19,13 +19,13 @@ All configuration is via environment variables. No hard-coded URLs, ports, or ke
 | `SERVER_IDENTITY` | — | This verifier's DID or server identifier. When set, `/verify` rejects invocations whose `tool_server` does not match (`TOOL_SERVER_MISMATCH`). **When unset, the verifier is fail-closed:** any invocation that names a `tool_server` is still rejected, because a bundle minted for server A must not verify on a server B that simply left this unset (cross-server replay). Leave unset only if no issuer ever sets `tool_server`. |
 | `DRS_ADMIN_TOKEN` | — | Bearer token required for `POST /admin/revoke`. **If not set, the endpoint responds 503.** No default — set explicitly to enable. |
 | `REVOCATION_STORE_PATH` | — | Optional file path for durable local `/admin/revoke` state. Empty uses in-memory local revocation only. |
-| `NONCE_STORE_BACKEND` | `memory` | Replay-protection backend: `memory` for single-process deployments, `redis` for restart-safe and multi-replica deployments. |
+| `NONCE_STORE_BACKEND` | `memory` | Replay-protection backend: `memory` for single-process deployments, `redis` for restart-safe and multi-replica deployments. **`memory` is refused at boot when `TRUST_PROXY=true`** — a proxied deployment is presumed multi-instance, and a per-process store cannot deduplicate JTIs across instances. |
 | `NONCE_STORE_MAX_ENTRIES` | `100000` | Maximum number of invocation JTIs held in the replay-protection store. |
-| `NONCE_STORE_TTL_SECS` | `3600` | TTL in seconds for nonce store entries. Also bounds the invocation replay window: an invocation older than this is rejected as `INVOCATION_STALE`. Should match or exceed the maximum expected `exp` window. |
+| `NONCE_STORE_TTL_SECS` | `900` | TTL in seconds for nonce store entries. Also bounds the invocation replay window: an invocation older than this is rejected as `INVOCATION_STALE`. Raise it only if legitimate invocation latency can exceed 15 minutes. |
 | `REDIS_URL` | — | Required when `NONCE_STORE_BACKEND=redis`. Supports `redis://` and `rediss://` URLs. |
 | `CIRCUIT_BREAKER_THRESHOLD` | `5` | Consecutive `did:web` resolution failures before the circuit opens for that DID. |
 | `CIRCUIT_BREAKER_COOLDOWN_SECS` | `60` | Seconds to wait before allowing a probe request through an open `did:web` circuit. |
-| `TRUST_PROXY` | `false` | When `true`, rate limiting uses the rightmost `X-Forwarded-For` entry. Enable only behind a trusted reverse proxy. |
+| `TRUST_PROXY` | `false` | When `true`, rate limiting uses the rightmost `X-Forwarded-For` entry. Enable only behind a trusted reverse proxy. Requires `NONCE_STORE_BACKEND=redis` — the server refuses to boot with the memory nonce store. |
 | `RATE_LIMIT_PER_IP` | `100` | Sustained requests per second per client IP. |
 | `RATE_LIMIT_GLOBAL` | `1000` | Sustained requests per second across all clients. |
 | `STORE_DIR` | — | Base directory for the filesystem store. Empty = Tier 0 in-memory (dev/test). Set for Tier 1 or Tier 3. |

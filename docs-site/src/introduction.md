@@ -47,9 +47,9 @@ automation.
 
 | Component | Language | Install | Role |
 |---|---|---|---|
-| `drs-core` | Rust | `cargo add drs-core` | Crypto primitives, JCS canonicalisation, chain verification, WASM build |
-| `drs-verify` | Go | `docker pull ghcr.io/okeyamy/drs-verify` | Verification HTTP server, Go middleware, DID resolver, status list cache |
-| `drs-sdk` | TypeScript | `pnpm add @okeyamy/drs-sdk` | Issuance path, CLI, React Native / Node / browser, optional WASM loader |
+| `drs-core` | Rust | `cargo add drs-core` | Non-normative reference: crypto primitives, JCS canonicalisation, chain hashing (feature-frozen) |
+| `drs-verify` | Go | `docker pull ghcr.io/okeyamy/drs-verify` | **Normative verifier**: verification HTTP server, Go middleware, DID resolver, status list cache |
+| `drs-sdk` | TypeScript | `pnpm add @okeyamy/drs-sdk` | Issuance path, CLI, React Native / Node / browser, HTTP verify client |
 
 > This is a research project. The architecture, data model, and algorithms are documented throughout this site. The implementation is the reference implementation of the DRS 4.0 specification.
 >

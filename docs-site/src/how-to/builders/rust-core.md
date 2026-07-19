@@ -1,12 +1,18 @@
 # Use drs-core directly (Rust)
 
+> **Status: non-normative reference implementation.** `drs-core` is
+> feature-frozen and receives bug fixes only. The normative DRS verifier is
+> `drs-verify` (Go) — all production verification goes through its HTTP
+> `/verify` endpoint. `drs-core` implements Blocks A–E only: it performs no
+> revocation checking, no replay protection, and no `tool_server` binding,
+> so a chain it accepts may still be revoked or replayed.
+
 Most builders never touch `drs-core` — you issue receipts with the TypeScript
 SDK and verify them with the `drs-verify` service. Use this guide only if you
 are:
 
-- building a **Rust** agent, tool server, or CLI and want the primitives
-  in-process (no HTTP hop), or
-- compiling DRS logic to **WebAssembly** for the browser / React Native, or
+- building a **Rust** tool that needs the DRS primitives (canonicalisation,
+  chain hashing, issuance) in-process, or
 - writing **conformance tooling** that must match the canonical encoder
   byte-for-byte.
 
@@ -167,24 +173,25 @@ assert!(!index.covers("mcp://other/x", "web_search"));
 
 ## Build for WebAssembly
 
-The same crate targets WASM via `wasm-pack`:
+The crate still compiles to `wasm32-unknown-unknown` (a JS host is required
+for the clock) and its WASM tests run in CI:
 
 ```bash
 cd drs-core
 wasm-pack build --target web
 ```
 
-The `wasm` module exposes the verification and canonicalisation entry points to
-JavaScript. The TypeScript SDK ships an optional WASM loader
-(`initWasm`, `getWasmModule`) that consumes this artifact when you want the
-Rust core's speed in a JS runtime.
+No standalone WASM artifact is published, and as of SDK 0.2.0 the TypeScript
+SDK no longer exports a loader for one. Treat the WASM target as a build
+capability of the frozen reference crate, not a production verification path.
 
 ## When to reach for `drs-verify` instead
 
 | You need | Use |
 |---|---|
+| Production verification of any kind | `drs-verify` (normative) |
 | `did:web` resolution | `drs-verify` (network I/O) |
 | Revocation / status-list checks | `drs-verify` (network I/O) |
 | Replay protection (nonce store) | `drs-verify` |
 | A drop-in HTTP verification service | `drs-verify` |
-| In-process primitives, offline verify, WASM | `drs-core` (this page) |
+| In-process primitives, conformance tooling | `drs-core` (this page) |

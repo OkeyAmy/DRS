@@ -66,7 +66,7 @@ bumps may contain breaking changes (always listed under **Breaking**).
   drs-verify; all production verification goes through its HTTP `/verify`
   endpoint.
 
-## v0.1.1 — 2026-06-27
+## v0.1.1 — 2026-06-26
 
 - Supply-chain hardening: npm publish hygiene, cosign image signing,
   npm OIDC trusted publishing, Trivy scan ordering.

@@ -27,7 +27,8 @@ work are now implemented.
 ## Phase 3 — Ecosystem integration
 
 - richer MCP/A2A integration guidance and examples built around reusable middleware
-- browser-focused verification flows using the WASM build
+- browser-side verification (WASM) — **parked**: `drs-verify` is the sole
+  normative verifier; a browser path would ship as its own package if revived
 - stronger TypeScript packages for pure JSON-RPC MCP transport
 - Ethereum anchoring as explicit **Tier 5** opt-in
 - richer policy language extensions
