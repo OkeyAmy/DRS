@@ -222,6 +222,7 @@ laptop — treat them as relative, not absolute.
 | Steady multi-tenant load (300 rps, depth 4) | p95 5.4 ms, ~1 core, 0 errors |
 | Single-instance saturation (depth 4) | ~800 rps at 5 cores |
 | Replay storm (10 % replayed JTIs at 300 rps) | all replays 409, latency unchanged |
+| Full topology (agent → org tool server → verifier → tool, 300 rps) | ~5.5 ms median per tool call — the enforcement hop costs ~2.3 ms over direct `/verify` |
 | Redis nonce backend vs in-memory | +0.4 ms avg — the full cost of multi-replica replay safety |
 | SDK issuance (per Node process) | ~217 bundles/s (depth 1) → ~114 (depth 16) |
 
