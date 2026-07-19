@@ -100,14 +100,14 @@ as success on its own — read `result.valid`.
 - `checkPolicyAttenuation(parent, child)` — confirm a child policy only narrows the parent.
 - `translatePolicy(...)` — map a policy across representations.
 
-### Verification client
+### Verification
+SDK verification is an HTTP client (`VerifyClient`) against a running
+[drs-verify](../drs-verify) service — full stop. There is no supported
+in-process/WASM verification path; the `src/wasm` loader is an unpublished
+experiment and is not exported from the package root.
+
 - `new VerifyClient({ baseUrl, timeoutMs? })`
 - `client.verify(bundle, { includeTimestamps?, body? })` → `VerificationResult`
-
-### WASM (optional)
-- `initWasm()`, `getWasmModule()`, `isWasmReady()` — load the `drs-core` Rust crypto core
-  for canonicalization/signing parity with the verifier. Falls back to `@noble/ed25519`
-  when not initialised.
 
 ### Operator config
 - `validateOperatorConfig`, `parseOperatorConfig` — machine-to-machine standing-delegation

@@ -156,7 +156,7 @@ func TestFilesystemStorePathTraversal(t *testing.T) {
 	malicious := []string{
 		"sha256:../../../../etc/passwd",
 		"sha256:../evil",
-		"sha256:abc",             // too short — not 64 hex chars
+		"sha256:abc",                        // too short — not 64 hex chars
 		"sha256:" + strings.Repeat("a", 63), // 63 chars — one short
 		"sha256:" + strings.Repeat("G", 64), // uppercase — not hex
 		"sha256:" + strings.Repeat("a", 65), // too long

@@ -12,7 +12,10 @@ pub fn hash_bytes(input: &[u8]) -> [u8; 32] {
 /// This is the format used in `prev_dr_hash` and `dr_chain` fields.
 pub fn hash_jwt_string(jwt: &str) -> String {
     let digest = hash_bytes(jwt.as_bytes());
-    let hex = digest.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    let hex = digest
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>();
     format!("sha256:{hex}")
 }
 
@@ -25,7 +28,10 @@ mod tests {
         // SHA-256("") = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
         let result = hash_bytes(b"");
         let hex: String = result.iter().map(|b| format!("{b:02x}")).collect();
-        assert_eq!(hex, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        assert_eq!(
+            hex,
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
     }
 
     #[test]
@@ -33,7 +39,10 @@ mod tests {
         // SHA-256("abc") = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
         let result = hash_bytes(b"abc");
         let hex: String = result.iter().map(|b| format!("{b:02x}")).collect();
-        assert_eq!(hex, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        assert_eq!(
+            hex,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
     }
 
     #[test]

@@ -1,10 +1,13 @@
 // Package health provides /healthz and /readyz HTTP endpoints.
 //
 // /healthz — returns 200 OK always. Used by load balancers to confirm the
-//            process is alive.
+//
+//	process is alive.
+//
 // /readyz  — returns 200 OK if the status list cache has been successfully
-//            fetched at least once; 503 otherwise. Used by orchestrators
-//            to gate traffic until the service is warm.
+//
+//	fetched at least once; 503 otherwise. Used by orchestrators
+//	to gate traffic until the service is warm.
 package health
 
 import (

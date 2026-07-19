@@ -1,3 +1,4 @@
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use ed25519_dalek::VerifyingKey;
@@ -166,7 +167,10 @@ pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
     if !invocation.jti.starts_with("inv:") {
         return VerificationResult::invalid(
             "INVALID_JTI",
-            format!("invocation.jti '{}' must start with 'inv:'.", invocation.jti),
+            format!(
+                "invocation.jti '{}' must start with 'inv:'.",
+                invocation.jti
+            ),
             "Invocation receipt JTIs must use the 'inv:' prefix per DRS 4.0 §5.",
         );
     }
@@ -458,7 +462,10 @@ pub fn verify_chain(bundle: &ChainBundle) -> VerificationResult {
         if now < receipt.nbf {
             return VerificationResult::invalid(
                 "NOT_YET_VALID",
-                format!("receipt[{i}] is not valid until {} (now: {now}).", receipt.nbf),
+                format!(
+                    "receipt[{i}] is not valid until {} (now: {now}).",
+                    receipt.nbf
+                ),
                 "The delegation receipt is not yet active — check the nbf timestamp.",
             );
         }
@@ -573,21 +580,41 @@ fn cmd_is_subpath(root_cmd: &str, cmd: &str) -> bool {
     false
 }
 
-/// Returns the current Unix time in seconds, or an error if the system clock is
-/// unavailable or before the epoch.
+/// Returns the current Unix time in seconds, or an error if the clock is
+/// unavailable or out of range.
 ///
 /// Fail-closed: callers must treat the error as a verification failure rather
 /// than substituting a sentinel. Returning 0 on error (the previous behaviour)
 /// made every receipt with a positive `exp` pass the expiry check — a temporal
-/// bypass on any clock anomaly (notably on WASM hosts with no clock). The cast
-/// uses `i64::try_from` so a clock past year 2262 fails closed instead of
-/// silently wrapping to a negative timestamp.
+/// bypass on any clock anomaly. The cast uses `i64::try_from` so a clock past
+/// year 2262 fails closed instead of silently wrapping to a negative timestamp.
+#[cfg(not(target_arch = "wasm32"))]
 fn unix_now() -> Result<i64, crate::error::DrsError> {
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| crate::error::DrsError::ClockError)?
         .as_secs();
     i64::try_from(secs).map_err(|_| crate::error::DrsError::ClockError)
+}
+
+/// wasm32 variant: `SystemTime::now()` PANICS on wasm32-unknown-unknown
+/// ("time not implemented on this platform"), which trapped `verify_chain`
+/// on every bundle reaching Block E — unreachable by the fail-closed
+/// `ClockError` path, because the panic fired before `duration_since`.
+/// `js_sys::Date::now()` returns milliseconds since the Unix epoch as f64
+/// from the host JS environment; non-finite or negative values fail closed.
+///
+/// Constraint: this path requires a JavaScript host (browser or Node via
+/// wasm-bindgen glue). On non-JS wasm runtimes (WASI, wasmtime) the
+/// `Date.now` import does not exist and instantiation fails. drs-core's
+/// supported wasm target is `wasm32-unknown-unknown` + wasm-bindgen only.
+#[cfg(target_arch = "wasm32")]
+fn unix_now() -> Result<i64, crate::error::DrsError> {
+    let millis = js_sys::Date::now();
+    if !millis.is_finite() || millis < 0.0 {
+        return Err(crate::error::DrsError::ClockError);
+    }
+    Ok((millis / 1000.0) as i64)
 }
 
 #[cfg(test)]
@@ -601,7 +628,10 @@ mod tests {
 
     #[test]
     fn cmd_subpath_child_is_narrower() {
-        assert!(cmd_is_subpath("/mcp/tools/call", "/mcp/tools/call/web_search"));
+        assert!(cmd_is_subpath(
+            "/mcp/tools/call",
+            "/mcp/tools/call/web_search"
+        ));
     }
 
     #[test]

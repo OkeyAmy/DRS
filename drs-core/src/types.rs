@@ -142,7 +142,11 @@ pub struct VerificationResult {
 
 impl VerificationResult {
     pub fn valid(context: VerificationContext) -> Self {
-        Self { valid: true, context: Some(context), error: None }
+        Self {
+            valid: true,
+            context: Some(context),
+            error: None,
+        }
     }
 
     pub fn invalid(code: &str, message: impl Into<String>, suggestion: impl Into<String>) -> Self {

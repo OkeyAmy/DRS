@@ -11,26 +11,27 @@ different primary roles; the Go verifier does not call Rust at runtime.
 │  issuance, bundle assembly, CLI               │
 │  optional HTTP verification client            │
 └───────────────────┬──────────────────────────┘
-                    │  optional WASM for browser/runtime use
                     │  HTTP to drs-verify
 ┌───────────────────▼──────────────────────────┐
-│  Go verifier  (drs-verify)                    │
+│  Go verifier  (drs-verify)  — NORMATIVE       │
 │  verification server, middleware, revocation  │
 │  resolver cache, health/readiness, storage    │
 └───────────────────┬──────────────────────────┘
                     │  shared protocol contract
                     │  conformance vectors
 ┌───────────────────▼──────────────────────────┐
-│  Rust core  (drs-core)                        │
+│  Rust core  (drs-core)  — non-normative       │
 │  crypto primitives, JCS, chain hash, policy   │
-│  reference implementation for ambiguous cases │
+│  frozen reference implementation              │
 └──────────────────────────────────────────────┘
 ```
 
 ## Why Rust for the core
 
 Rust is the lowest-level implementation and the internal reference when a
-conformance vector is ambiguous. It provides:
+conformance vector is ambiguous. It is **feature-frozen**: `drs-verify` is
+the sole normative verifier, and `drs-core` records the algorithms as
+reviewable Rust (bug fixes only). It provides:
 
 - `ed25519-dalek 2.x` for strict cryptographic operations
 - `serde-json-canonicalizer` for RFC 8785 JCS
@@ -66,8 +67,8 @@ Issuance is developer-facing and low-frequency. TypeScript provides:
 - the CLI used for local development and testing
 
 The SDK also includes `VerifyClient`, which sends bundles to a running
-`drs-verify` instance over HTTP. Local WASM verification exists as a separate,
-explicit capability; it is not an automatic fallback inside `VerifyClient`.
+`drs-verify` instance over HTTP. This is the only verification path the SDK
+exposes — as of SDK 0.2.0 there is no WASM loader in the package entry point.
 
 ## JCS canonicalisation
 
@@ -91,11 +92,16 @@ Rust and TypeScript outputs are checked against shared conformance vectors.
 
 ## WASM build
 
+`drs-core` still compiles to `wasm32-unknown-unknown` (a JS host is required
+for the clock), and its WASM test suite runs in CI:
+
 ```bash
 cd drs-core
 wasm-pack build --target web --features wasm
 # Output: drs-core/pkg/
 ```
 
-The browser/WASM path is explicit: callers initialize it themselves via the
-loader in `drs-sdk/src/wasm/loader.ts`.
+No standalone WASM artifact is published, and the SDK no longer exports a
+loader for one. Browser-side verification is a parked integration path — if
+it is revived, it will ship as its own package. Production verification is
+`drs-verify` over HTTP, full stop.

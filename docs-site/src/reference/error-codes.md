@@ -93,9 +93,20 @@ returns **HTTP 200**, even on failure.
 
 ## Response shape
 
-`POST /verify` always returns **HTTP 200**. Determine the outcome from the
-`valid` field, not the status code. (HTTP 403 is returned only by the MCP/A2A
-middleware routes, which gate a request — not by `/verify` itself.)
+A bundle that reaches verification always returns **HTTP 200**. Determine the
+outcome from the `valid` field, not the status code. (HTTP 403 is returned only
+by the MCP/A2A middleware routes, which gate a request — not by `/verify` itself.)
+
+Requests rejected *before* verification return a non-200 status with a JSON
+`error` field:
+
+| HTTP | `error` | When |
+|---|---|---|
+| 400 | (varies) | Malformed JSON, missing fields, or missing invocation `jti` |
+| 409 | `REPLAY_DETECTED` | The invocation `jti` has already been consumed |
+| 413 | `REQUEST_BODY_TOO_LARGE` | Request body exceeds the 64 KiB cap |
+| 429 | `RATE_LIMIT_EXCEEDED` | Per-IP or global rate limit hit |
+| 503 | `NONCE_STORE_EXHAUSTED` | Replay-protection store at capacity — retry shortly |
 
 A failed verification:
 

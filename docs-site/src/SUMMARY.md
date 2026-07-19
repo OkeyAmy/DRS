@@ -35,7 +35,7 @@
 - [MCP server integration (Node)](./how-to/builders/mcp-node.md)
 - [A2A agent integration (Node)](./how-to/builders/a2a-node.md)
 - [Non-MCP Node backend integration](./how-to/builders/node-backend.md)
-- [Use drs-core directly (Rust / WASM)](./how-to/builders/rust-core.md)
+- [Use drs-core directly (Rust)](./how-to/builders/rust-core.md)
 
 ## For Developers
 - [Install the SDK](./how-to/developers/install-sdk.md)

@@ -48,9 +48,6 @@ export { checkPolicyAttenuation, translatePolicy } from "./sdk/policy.js";
 export { VerifyClient } from "./verify/client.js";
 export type { VerifyClientOptions } from "./verify/client.js";
 
-// WASM loader
-export { initWasm, getWasmModule, isWasmReady } from "./wasm/loader.js";
-
 // Operator config (machine-to-machine trust model)
 export { validateOperatorConfig, parseOperatorConfig } from "./sdk/operator.js";
 export type { OperatorConfig, RenewalRules, Escalation, DrsRootType } from "./sdk/operator.js";

@@ -21,6 +21,7 @@ func TestMetricsAddrReadsEnvVar(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
 	}
+	// blindfold: example — round-trips the value set via t.Setenv above
 	if cfg.MetricsAddr != ":9090" {
 		t.Errorf("MetricsAddr: got %q, want %q", cfg.MetricsAddr, ":9090")
 	}
@@ -32,8 +33,62 @@ func TestMetricsAddrLoopbackAddr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
 	}
+	// blindfold: example — round-trips the value set via t.Setenv above
 	if cfg.MetricsAddr != "127.0.0.1:9090" {
 		t.Errorf("MetricsAddr: got %q, want %q", cfg.MetricsAddr, "127.0.0.1:9090")
 	}
 }
 
+func TestNonceTTLDefaultIs900(t *testing.T) {
+	// No env set: default must match the documented quickstart default (900),
+	// not the previous binary-only 3600. One default across binary, compose,
+	// and .env.example — spec §4.4.
+	t.Setenv("NONCE_STORE_TTL_SECS", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	// blindfold: spec — P1 spec §4.4: NONCE_STORE_TTL_SECS default is 900 across binary, compose, and .env.example
+	if cfg.NonceStoreTTLSecs != 900 {
+		t.Fatalf("NonceStoreTTLSecs default = %d, want 900", cfg.NonceStoreTTLSecs)
+	}
+}
+
+func TestMemoryNonceWithTrustProxyIsRejected(t *testing.T) {
+	// TRUST_PROXY=true implies a real multi-hop deployment; in-memory replay
+	// state that vanishes on restart is not acceptable there — spec §4.5.
+	t.Setenv("TRUST_PROXY", "true")
+	t.Setenv("NONCE_STORE_BACKEND", "memory")
+	_, err := Load()
+	if err == nil {
+		t.Fatal("Load must reject NONCE_STORE_BACKEND=memory with TRUST_PROXY=true")
+	}
+	// blindfold: contract — exact boot-guard message emitted by Load() per P1 spec §4.5; operators grep for it
+	want := "NONCE_STORE_BACKEND=memory is not allowed with TRUST_PROXY=true: " +
+		"in-memory replay protection is lost on restart and not replica-shared; " +
+		"set NONCE_STORE_BACKEND=redis and REDIS_URL"
+	if got := err.Error(); got != want {
+		t.Fatalf("guard error = %q, want %q", got, want)
+	}
+}
+
+func TestRedisNonceWithTrustProxyIsAccepted(t *testing.T) {
+	t.Setenv("TRUST_PROXY", "true")
+	t.Setenv("NONCE_STORE_BACKEND", "redis")
+	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load must accept redis backend with TRUST_PROXY=true: %v", err)
+	}
+	// blindfold: example — round-trips the backend set via t.Setenv above
+	if cfg.NonceStoreBackend != "redis" {
+		t.Fatalf("NonceStoreBackend = %q, want %q", cfg.NonceStoreBackend, "redis")
+	}
+	if !cfg.TrustProxy {
+		t.Fatal("TrustProxy = false, want true")
+	}
+	// blindfold: example — round-trips the URL set via t.Setenv above
+	if cfg.RedisURL != "redis://localhost:6379/0" {
+		t.Fatalf("RedisURL = %q, want the value set in env", cfg.RedisURL)
+	}
+}

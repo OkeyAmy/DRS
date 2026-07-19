@@ -172,7 +172,15 @@ fn valid_single_receipt_chain_passes() {
     let ts_did = encode_did_key(&ts_vk.to_bytes());
 
     let policy = json!({"max_cost_usd": 5.0, "allowed_tools": ["web_search"]});
-    let dr = make_root_dr(&root_sk, &root_did, &agent_did, "/mcp/tools/call", policy, now_ts() - 10, future_ts());
+    let dr = make_root_dr(
+        &root_sk,
+        &root_did,
+        &agent_did,
+        "/mcp/tools/call",
+        policy,
+        now_ts() - 10,
+        future_ts(),
+    );
 
     let chain = vec![compute_chain_hash(&dr)];
     let inv = make_invocation(
@@ -192,7 +200,11 @@ fn valid_single_receipt_chain_passes() {
     };
 
     let result = verify_chain(&bundle);
-    assert!(result.valid, "expected valid, got error: {:?}", result.error);
+    assert!(
+        result.valid,
+        "expected valid, got error: {:?}",
+        result.error
+    );
     let ctx = result.context.unwrap();
     assert_eq!(ctx.chain_depth, 1);
     assert_eq!(ctx.root_principal, root_did);
@@ -213,8 +225,25 @@ fn valid_two_receipt_chain_passes() {
     let root_policy = json!({"max_cost_usd": 10.0, "allowed_tools": ["web_search"]});
     let sub_policy = json!({"max_cost_usd": 2.0, "allowed_tools": ["web_search"]}); // narrower
 
-    let dr1 = make_root_dr(&root_sk, &root_did, &agent_did, "/mcp/tools/call", root_policy, now_ts() - 10, future_ts());
-    let dr2 = make_sub_dr(&agent_sk, &agent_did, &tool_did, "/mcp/tools/call", sub_policy, now_ts() - 10, future_ts(), &dr1);
+    let dr1 = make_root_dr(
+        &root_sk,
+        &root_did,
+        &agent_did,
+        "/mcp/tools/call",
+        root_policy,
+        now_ts() - 10,
+        future_ts(),
+    );
+    let dr2 = make_sub_dr(
+        &agent_sk,
+        &agent_did,
+        &tool_did,
+        "/mcp/tools/call",
+        sub_policy,
+        now_ts() - 10,
+        future_ts(),
+        &dr1,
+    );
 
     let chain = vec![compute_chain_hash(&dr1), compute_chain_hash(&dr2)];
     let inv = make_invocation(
@@ -234,7 +263,11 @@ fn valid_two_receipt_chain_passes() {
     };
 
     let result = verify_chain(&bundle);
-    assert!(result.valid, "expected valid, got error: {:?}", result.error);
+    assert!(
+        result.valid,
+        "expected valid, got error: {:?}",
+        result.error
+    );
     assert_eq!(result.context.unwrap().chain_depth, 2);
 }
 
@@ -256,7 +289,15 @@ fn missing_invocation_returns_error() {
     let (_, agent_vk) = generate_keypair().unwrap();
     let root_did = encode_did_key(&root_vk.to_bytes());
     let agent_did = encode_did_key(&agent_vk.to_bytes());
-    let dr = make_root_dr(&root_sk, &root_did, &agent_did, "/mcp/tools/call", json!({}), now_ts() - 10, future_ts());
+    let dr = make_root_dr(
+        &root_sk,
+        &root_did,
+        &agent_did,
+        "/mcp/tools/call",
+        json!({}),
+        now_ts() - 10,
+        future_ts(),
+    );
 
     let bundle = ChainBundle {
         bundle_version: "4.0".into(),
@@ -292,9 +333,21 @@ fn wrong_drs_version_returns_error() {
     });
     let dr = build_jwt(&payload, &root_sk).unwrap();
     let chain = vec![compute_chain_hash(&dr)];
-    let inv = make_invocation(&agent_sk, &agent_did, &root_did, "/mcp/tools/call", json!({}), chain, &ts_did);
+    let inv = make_invocation(
+        &agent_sk,
+        &agent_did,
+        &root_did,
+        "/mcp/tools/call",
+        json!({}),
+        chain,
+        &ts_did,
+    );
 
-    let bundle = ChainBundle { bundle_version: "4.0".into(), receipts: vec![dr], invocation: inv };
+    let bundle = ChainBundle {
+        bundle_version: "4.0".into(),
+        receipts: vec![dr],
+        invocation: inv,
+    };
     let result = verify_chain(&bundle);
     assert!(!result.valid);
     assert_eq!(result.error.unwrap().code, "VERSION_MISMATCH");
@@ -321,9 +374,21 @@ fn missing_consent_on_human_root_returns_error() {
     });
     let dr = build_jwt(&payload, &root_sk).unwrap();
     let chain = vec![compute_chain_hash(&dr)];
-    let inv = make_invocation(&agent_sk, &agent_did, &root_did, "/mcp/tools/call", json!({}), chain, &ts_did);
+    let inv = make_invocation(
+        &agent_sk,
+        &agent_did,
+        &root_did,
+        "/mcp/tools/call",
+        json!({}),
+        chain,
+        &ts_did,
+    );
 
-    let bundle = ChainBundle { bundle_version: "4.0".into(), receipts: vec![dr], invocation: inv };
+    let bundle = ChainBundle {
+        bundle_version: "4.0".into(),
+        receipts: vec![dr],
+        invocation: inv,
+    };
     let result = verify_chain(&bundle);
     assert!(!result.valid);
     assert_eq!(result.error.unwrap().code, "MISSING_CONSENT");
@@ -341,7 +406,15 @@ fn chain_break_returns_error() {
     let tool_did = encode_did_key(&tool_vk.to_bytes());
     let ts_did = encode_did_key(&ts_vk.to_bytes());
 
-    let dr1 = make_root_dr(&root_sk, &root_did, &agent_did, "/mcp/tools/call", json!({}), now_ts() - 10, future_ts());
+    let dr1 = make_root_dr(
+        &root_sk,
+        &root_did,
+        &agent_did,
+        "/mcp/tools/call",
+        json!({}),
+        now_ts() - 10,
+        future_ts(),
+    );
 
     // dr2 references the WRONG prev_dr_hash
     let wrong_hash = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
@@ -356,9 +429,21 @@ fn chain_break_returns_error() {
     let dr2 = build_jwt(&payload, &agent_sk).unwrap();
 
     let chain = vec![compute_chain_hash(&dr1), compute_chain_hash(&dr2)];
-    let inv = make_invocation(&tool_sk, &tool_did, &root_did, "/mcp/tools/call", json!({}), chain, &ts_did);
+    let inv = make_invocation(
+        &tool_sk,
+        &tool_did,
+        &root_did,
+        "/mcp/tools/call",
+        json!({}),
+        chain,
+        &ts_did,
+    );
 
-    let bundle = ChainBundle { bundle_version: "4.0".into(), receipts: vec![dr1, dr2], invocation: inv };
+    let bundle = ChainBundle {
+        bundle_version: "4.0".into(),
+        receipts: vec![dr1, dr2],
+        invocation: inv,
+    };
     let result = verify_chain(&bundle);
     assert!(!result.valid);
     assert_eq!(result.error.unwrap().code, "CHAIN_BREAK");
@@ -375,11 +460,31 @@ fn expired_receipt_returns_error() {
     let ts_did = encode_did_key(&ts_vk.to_bytes());
 
     // exp is in the past
-    let dr = make_root_dr(&root_sk, &root_did, &agent_did, "/mcp/tools/call", json!({}), past_ts(), past_ts() + 1);
+    let dr = make_root_dr(
+        &root_sk,
+        &root_did,
+        &agent_did,
+        "/mcp/tools/call",
+        json!({}),
+        past_ts(),
+        past_ts() + 1,
+    );
     let chain = vec![compute_chain_hash(&dr)];
-    let inv = make_invocation(&agent_sk, &agent_did, &root_did, "/mcp/tools/call", json!({}), chain, &ts_did);
+    let inv = make_invocation(
+        &agent_sk,
+        &agent_did,
+        &root_did,
+        "/mcp/tools/call",
+        json!({}),
+        chain,
+        &ts_did,
+    );
 
-    let bundle = ChainBundle { bundle_version: "4.0".into(), receipts: vec![dr], invocation: inv };
+    let bundle = ChainBundle {
+        bundle_version: "4.0".into(),
+        receipts: vec![dr],
+        invocation: inv,
+    };
     let result = verify_chain(&bundle);
     assert!(!result.valid);
     assert_eq!(result.error.unwrap().code, "EXPIRED");
@@ -395,7 +500,15 @@ fn forged_signature_is_rejected() {
     let agent_did = encode_did_key(&agent_vk.to_bytes());
     let ts_did = encode_did_key(&ts_vk.to_bytes());
 
-    let dr = make_root_dr(&root_sk, &root_did, &agent_did, "/mcp/tools/call", json!({}), now_ts() - 10, future_ts());
+    let dr = make_root_dr(
+        &root_sk,
+        &root_did,
+        &agent_did,
+        "/mcp/tools/call",
+        json!({}),
+        now_ts() - 10,
+        future_ts(),
+    );
 
     // Flip one character in the signature (last component)
     let parts: Vec<&str> = dr.splitn(3, '.').collect();
@@ -405,9 +518,21 @@ fn forged_signature_is_rejected() {
     let tampered_dr = format!("{}.{}.{}", parts[0], parts[1], bad_sig);
 
     let chain = vec![compute_chain_hash(&tampered_dr)];
-    let inv = make_invocation(&agent_sk, &agent_did, &root_did, "/mcp/tools/call", json!({}), chain, &ts_did);
+    let inv = make_invocation(
+        &agent_sk,
+        &agent_did,
+        &root_did,
+        "/mcp/tools/call",
+        json!({}),
+        chain,
+        &ts_did,
+    );
 
-    let bundle = ChainBundle { bundle_version: "4.0".into(), receipts: vec![tampered_dr], invocation: inv };
+    let bundle = ChainBundle {
+        bundle_version: "4.0".into(),
+        receipts: vec![tampered_dr],
+        invocation: inv,
+    };
     let result = verify_chain(&bundle);
     assert!(!result.valid);
     assert_eq!(result.error.unwrap().code, "INVALID_SIGNATURE");
@@ -428,13 +553,42 @@ fn policy_escalation_is_rejected() {
     let root_policy = json!({"max_cost_usd": 5.0});
     let child_policy = json!({"max_cost_usd": 100.0}); // escalation: raises cost limit
 
-    let dr1 = make_root_dr(&root_sk, &root_did, &agent_did, "/mcp/tools/call", root_policy, now_ts() - 10, future_ts());
-    let dr2 = make_sub_dr(&agent_sk, &agent_did, &tool_did, "/mcp/tools/call", child_policy, now_ts() - 10, future_ts(), &dr1);
+    let dr1 = make_root_dr(
+        &root_sk,
+        &root_did,
+        &agent_did,
+        "/mcp/tools/call",
+        root_policy,
+        now_ts() - 10,
+        future_ts(),
+    );
+    let dr2 = make_sub_dr(
+        &agent_sk,
+        &agent_did,
+        &tool_did,
+        "/mcp/tools/call",
+        child_policy,
+        now_ts() - 10,
+        future_ts(),
+        &dr1,
+    );
 
     let chain = vec![compute_chain_hash(&dr1), compute_chain_hash(&dr2)];
-    let inv = make_invocation(&tool_sk, &tool_did, &root_did, "/mcp/tools/call", json!({"estimated_cost_usd": 50.0}), chain, &ts_did);
+    let inv = make_invocation(
+        &tool_sk,
+        &tool_did,
+        &root_did,
+        "/mcp/tools/call",
+        json!({"estimated_cost_usd": 50.0}),
+        chain,
+        &ts_did,
+    );
 
-    let bundle = ChainBundle { bundle_version: "4.0".into(), receipts: vec![dr1, dr2], invocation: inv };
+    let bundle = ChainBundle {
+        bundle_version: "4.0".into(),
+        receipts: vec![dr1, dr2],
+        invocation: inv,
+    };
     let result = verify_chain(&bundle);
     assert!(!result.valid);
     assert_eq!(result.error.unwrap().code, "POLICY_ESCALATION");
@@ -451,18 +605,33 @@ fn policy_violation_at_invocation_is_rejected() {
     let ts_did = encode_did_key(&ts_vk.to_bytes());
 
     let policy = json!({"max_cost_usd": 1.0});
-    let dr = make_root_dr(&root_sk, &root_did, &agent_did, "/mcp/tools/call", policy, now_ts() - 10, future_ts());
+    let dr = make_root_dr(
+        &root_sk,
+        &root_did,
+        &agent_did,
+        "/mcp/tools/call",
+        policy,
+        now_ts() - 10,
+        future_ts(),
+    );
     let chain = vec![compute_chain_hash(&dr)];
 
     // Invocation exceeds the cost limit — uses correct field name "estimated_cost_usd"
     let inv = make_invocation(
-        &agent_sk, &agent_did, &root_did, "/mcp/tools/call",
+        &agent_sk,
+        &agent_did,
+        &root_did,
+        "/mcp/tools/call",
         json!({"estimated_cost_usd": 99.0}), // exceeds max_cost_usd: 1.0
         chain,
         &ts_did,
     );
 
-    let bundle = ChainBundle { bundle_version: "4.0".into(), receipts: vec![dr], invocation: inv };
+    let bundle = ChainBundle {
+        bundle_version: "4.0".into(),
+        receipts: vec![dr],
+        invocation: inv,
+    };
     let result = verify_chain(&bundle);
     assert!(!result.valid);
     assert_eq!(result.error.unwrap().code, "POLICY_VIOLATION");
@@ -479,19 +648,37 @@ fn sub_path_cmd_is_accepted() {
     let ts_did = encode_did_key(&ts_vk.to_bytes());
 
     // Root delegates "/mcp/tools/call", invocation uses sub-path "/mcp/tools/call/web_search"
-    let dr = make_root_dr(&root_sk, &root_did, &agent_did, "/mcp/tools/call", json!({}), now_ts() - 10, future_ts());
+    let dr = make_root_dr(
+        &root_sk,
+        &root_did,
+        &agent_did,
+        "/mcp/tools/call",
+        json!({}),
+        now_ts() - 10,
+        future_ts(),
+    );
     let chain = vec![compute_chain_hash(&dr)];
     let inv = make_invocation(
-        &agent_sk, &agent_did, &root_did,
+        &agent_sk,
+        &agent_did,
+        &root_did,
         "/mcp/tools/call/web_search", // sub-path of delegated cmd
         json!({}),
         chain,
         &ts_did,
     );
 
-    let bundle = ChainBundle { bundle_version: "4.0".into(), receipts: vec![dr], invocation: inv };
+    let bundle = ChainBundle {
+        bundle_version: "4.0".into(),
+        receipts: vec![dr],
+        invocation: inv,
+    };
     let result = verify_chain(&bundle);
-    assert!(result.valid, "sub-path cmd should be valid, got: {:?}", result.error);
+    assert!(
+        result.valid,
+        "sub-path cmd should be valid, got: {:?}",
+        result.error
+    );
 }
 
 /// A bundle with 17 receipts must be rejected with CHAIN_TOO_DEEP before any
@@ -510,7 +697,8 @@ fn chain_depth_over_limit_is_rejected() {
     let err = result.error.expect("expected an error");
     assert_eq!(
         err.code, "CHAIN_TOO_DEEP",
-        "expected CHAIN_TOO_DEEP, got '{}'", err.code
+        "expected CHAIN_TOO_DEEP, got '{}'",
+        err.code
     );
 }
 

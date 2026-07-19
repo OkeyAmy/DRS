@@ -23,7 +23,10 @@ fn round_trip_for_all_ones_key() {
 fn did_key_starts_with_correct_prefix() {
     let key = [42u8; 32];
     let did = encode_did_key(&key);
-    assert!(did.starts_with("did:key:z"), "DID must start with 'did:key:z'");
+    assert!(
+        did.starts_with("did:key:z"),
+        "DID must start with 'did:key:z'"
+    );
 }
 
 #[test]
@@ -39,7 +42,10 @@ fn did_key_with_wrong_multicodec_is_rejected() {
     bytes.extend_from_slice(&[0u8; 32]);
     let encoded = bs58::encode(&bytes).into_string();
     let did = format!("did:key:z{encoded}");
-    assert!(matches!(resolve_did_key(&did).unwrap_err(), DrsError::DidUnsupportedKeyType));
+    assert!(matches!(
+        resolve_did_key(&did).unwrap_err(),
+        DrsError::DidUnsupportedKeyType
+    ));
 }
 
 #[test]
@@ -48,5 +54,8 @@ fn truncated_did_key_returns_length_error() {
     let short = vec![0xedu8, 0x01u8, 0x00u8, 0x01u8, 0x02u8];
     let encoded = bs58::encode(&short).into_string();
     let did = format!("did:key:z{encoded}");
-    assert!(matches!(resolve_did_key(&did).unwrap_err(), DrsError::DidInvalidLength(_)));
+    assert!(matches!(
+        resolve_did_key(&did).unwrap_err(),
+        DrsError::DidInvalidLength(_)
+    ));
 }

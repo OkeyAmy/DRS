@@ -77,11 +77,7 @@ fn conformance_jcs_vectors() {
         let result_str = std::str::from_utf8(&result).unwrap_or_else(|e| {
             panic!("[{}] non-UTF-8 output: {}", vec.id, e);
         });
-        assert_eq!(
-            result_str, vec.expected,
-            "[{}] JCS output mismatch",
-            vec.id
-        );
+        assert_eq!(result_str, vec.expected, "[{}] JCS output mismatch", vec.id);
     }
 }
 
@@ -95,11 +91,7 @@ fn conformance_chain_hash_vectors() {
 
     for vec in &fixture.vectors {
         let result = compute_chain_hash(&vec.input);
-        assert_eq!(
-            result, vec.expected,
-            "[{}] chain hash mismatch",
-            vec.id
-        );
+        assert_eq!(result, vec.expected, "[{}] chain hash mismatch", vec.id);
     }
 }
 
@@ -135,13 +127,18 @@ fn conformance_policy_attenuation_fail() {
         assert!(
             result.is_err(),
             "[{}] expected failure for keyword '{}' but attenuation passed",
-            vec.id, vec.expected_keyword
+            vec.id,
+            vec.expected_keyword
         );
         let err_msg = format!("{}", result.unwrap_err());
         assert!(
-            err_msg.to_lowercase().contains(&vec.expected_keyword.to_lowercase()),
+            err_msg
+                .to_lowercase()
+                .contains(&vec.expected_keyword.to_lowercase()),
             "[{}] error message {:?} does not contain expected keyword {:?}",
-            vec.id, err_msg, vec.expected_keyword
+            vec.id,
+            err_msg,
+            vec.expected_keyword
         );
     }
 }

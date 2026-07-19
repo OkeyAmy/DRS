@@ -84,7 +84,7 @@ type timeStampResp struct {
 
 type pkiStatusInfo struct {
 	Status       int
-	StatusString asn1.RawValue `asn1:"optional"`
+	StatusString asn1.RawValue  `asn1:"optional"`
 	FailInfo     asn1.BitString `asn1:"optional"`
 }
 
@@ -116,7 +116,7 @@ type signerInfo struct {
 	Version            int
 	SID                asn1.RawValue
 	DigestAlgorithm    pkix.AlgorithmIdentifier
-	SignedAttrs         asn1.RawValue `asn1:"optional,tag:0"`
+	SignedAttrs        asn1.RawValue `asn1:"optional,tag:0"`
 	SignatureAlgorithm pkix.AlgorithmIdentifier
 	Signature          []byte
 	UnsignedAttrs      asn1.RawValue `asn1:"optional,tag:1"`

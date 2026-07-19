@@ -72,8 +72,7 @@ fn tool_wildcard_in_parent_covers_any_tool() {
 
 #[test]
 fn multiple_exact_tools_one_must_match() {
-    let idx =
-        CapabilityIndex::build(&s(&["mcp://res"]), &s(&["read", "list"]));
+    let idx = CapabilityIndex::build(&s(&["mcp://res"]), &s(&["read", "list"]));
     assert!(idx.covers("mcp://res", "read"));
     assert!(idx.covers("mcp://res", "list"));
     assert!(!idx.covers("mcp://res", "delete"));

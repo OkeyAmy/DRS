@@ -38,6 +38,18 @@ services:
       # Server identity (unsets invocation.tool_server binding when empty)
       SERVER_IDENTITY: "${SERVER_IDENTITY:-}"
 
+      # TLS (optional): paths INSIDE the container. Mount the cert/key via
+      # volumes if set; leave blank to serve plain HTTP behind a TLS proxy.
+      TLS_CERT_FILE: "${TLS_CERT_FILE:-}"
+      TLS_KEY_FILE: "${TLS_KEY_FILE:-}"
+
+      # DID resolver cache
+      DID_CACHE_SIZE: "${DID_CACHE_SIZE:-10000}"
+      DID_CACHE_TTL_SECS: "${DID_CACHE_TTL_SECS:-3600}"
+
+      # RFC 3161 trust root (PEM string). Empty uses system roots.
+      TSA_ROOT_CERT_PEM: "${TSA_ROOT_CERT_PEM:-}"
+
       # Body size cap (bytes)
       MAX_BODY_BYTES: "${MAX_BODY_BYTES:-1048576}"
 

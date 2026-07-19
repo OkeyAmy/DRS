@@ -23,7 +23,7 @@ What are you building?
 │    → Point @okeyamy/drs-sdk VerifyClient at a running drs-verify /verify endpoint
 │    → OR run your own drs-verify instance for replay
 │
-└─ Rust binary / WASM polyfill
+└─ Rust tooling / conformance work (non-normative — not a production verifier)
      → Install drs-core from crates.io
 ```
 
@@ -108,18 +108,20 @@ const client = new VerifyClient({ baseUrl: "https://drs-verify.internal" });
 const result = await client.verify(bundle);
 ```
 
-### Role: Rust/WASM builder
+### Role: Rust tooling builder
 
-Most builders do not need to call `drs-core` directly. If you're building a
-Rust binary or experimenting with the WASM target, use the crate:
+Most builders do not need to call `drs-core` directly — it is a
+non-normative, feature-frozen reference implementation, not a production
+verifier. If you're building Rust tooling that needs the DRS primitives
+(canonicalisation, chain hashing, issuance) in-process, use the crate:
 
 ```toml
 [dependencies]
 drs-core = "0.1"
 ```
 
-See [Use drs-core directly (Rust / WASM)](./rust-core.md) for the in-process
-primitives, offline verification, and WASM build.
+See [Use drs-core directly (Rust)](./rust-core.md) for the in-process
+primitives and their limits.
 
 ## Combining them
 

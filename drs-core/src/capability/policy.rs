@@ -81,15 +81,12 @@ pub fn evaluate_policy(policy: &Policy, args: &serde_json::Value) -> Result<(), 
     // Absent key = unknown tool = capability denied.
     if let Some(allowed) = &policy.allowed_tools {
         if !allowed.iter().any(|t| t == "*") {
-            let tool = args
-                .get("tool")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| {
-                    DrsError::PolicyViolation(format!(
-                        "tool is required by this delegation policy. Allowed: [{}].",
-                        allowed.join(", ")
-                    ))
-                })?;
+            let tool = args.get("tool").and_then(|v| v.as_str()).ok_or_else(|| {
+                DrsError::PolicyViolation(format!(
+                    "tool is required by this delegation policy. Allowed: [{}].",
+                    allowed.join(", ")
+                ))
+            })?;
             if !allowed.iter().any(|t| t == tool) {
                 return Err(DrsError::PolicyViolation(format!(
                     "Tool not permitted. Allowed: [{}]. Requested: {tool}.",
@@ -219,7 +216,8 @@ pub fn check_policy_attenuation(parent: &Policy, child: &Policy) -> Result<(), D
     if let Some(false) = parent.write_access {
         if let Some(true) = child.write_access {
             return Err(DrsError::PolicyViolation(
-                "Child relaxes restriction on write_access. Parent: false. Child: true.".to_string(),
+                "Child relaxes restriction on write_access. Parent: false. Child: true."
+                    .to_string(),
             ));
         }
     }
@@ -452,8 +450,12 @@ mod tests {
         // Normal URI inside allowed prefix — passes
         assert!(evaluate_policy(&p, &json!({"resource_uri": "mcp://tools/web_search"})).is_ok());
         // Path traversal via ../ — blocked after normalization
-        assert!(evaluate_policy(&p, &json!({"resource_uri": "mcp://tools/../admin/delete"})).is_err());
-        assert!(evaluate_policy(&p, &json!({"resource_uri": "mcp://tools/../../etc/passwd"})).is_err());
+        assert!(
+            evaluate_policy(&p, &json!({"resource_uri": "mcp://tools/../admin/delete"})).is_err()
+        );
+        assert!(
+            evaluate_policy(&p, &json!({"resource_uri": "mcp://tools/../../etc/passwd"})).is_err()
+        );
     }
 
     #[test]
@@ -474,7 +476,12 @@ mod tests {
 
     #[test]
     fn same_policy_passes_attenuation() {
-        let p = policy_with(Some(10.0), Some(false), Some(false), Some(vec!["web_search"]));
+        let p = policy_with(
+            Some(10.0),
+            Some(false),
+            Some(false),
+            Some(vec!["web_search"]),
+        );
         assert!(check_policy_attenuation(&p, &p).is_ok());
     }
 
@@ -509,13 +516,23 @@ mod tests {
     #[test]
     fn tool_escalation_fails() {
         let parent = policy_with(None, None, None, Some(vec!["web_search"]));
-        let child = policy_with(None, None, None, Some(vec!["web_search", "delete_database"]));
+        let child = policy_with(
+            None,
+            None,
+            None,
+            Some(vec!["web_search", "delete_database"]),
+        );
         assert!(check_policy_attenuation(&parent, &child).is_err());
     }
 
     #[test]
     fn subset_of_tools_passes() {
-        let parent = policy_with(None, None, None, Some(vec!["web_search", "file_read", "summarise"]));
+        let parent = policy_with(
+            None,
+            None,
+            None,
+            Some(vec!["web_search", "file_read", "summarise"]),
+        );
         let child = policy_with(None, None, None, Some(vec!["web_search"]));
         assert!(check_policy_attenuation(&parent, &child).is_ok());
     }

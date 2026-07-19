@@ -849,7 +849,7 @@ func buildExpiredCertTimestampResp(t *testing.T, hashForImprint []byte) (token [
 			EContent:     asn1.RawValue{FullBytes: eContentWrapper},
 		},
 		Certificates: asn1.RawValue{FullBytes: certTaggedDER},
-		SignerInfos:   []tvSignerInfo{si},
+		SignerInfos:  []tvSignerInfo{si},
 	}
 	sdDER, err := asn1.Marshal(sd)
 	if err != nil {
@@ -1018,7 +1018,7 @@ func TestVerifyTimestamp_SerialOnlyCollision(t *testing.T) {
 			EContent:     asn1.RawValue{FullBytes: eContentWrapper},
 		},
 		Certificates: asn1.RawValue{FullBytes: certTaggedDER},
-		SignerInfos:   []tvSignerInfo{si},
+		SignerInfos:  []tvSignerInfo{si},
 	}
 	sdDER, err := asn1.Marshal(sd)
 	if err != nil {

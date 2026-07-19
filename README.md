@@ -54,10 +54,34 @@ Three-layer language stack chosen for correctness, performance, and deployabilit
 |---|---|---|
 | `drs-core` | Rust | Ed25519 crypto, SHA-256 chain computation, RFC 8785 JCS canonicalization, capability index |
 | `drs-verify` | Go | HTTP verification service, LRU caches, revocation, RFC 3161 anchor |
-| `drs-sdk` | TypeScript | Developer-facing SDK, issuance path, bundle helpers, CLI, optional WASM loader |
+| `drs-sdk` | TypeScript | Developer-facing SDK, issuance path, bundle helpers, CLI, HTTP verify client |
 | `@drs/mcp-server` | TypeScript | Workspace Node HTTP/MCP enforcement middleware that calls `drs-verify` before app handlers execute |
 
-Rust compiles to native and can be built to WASM. Go compiles to a single static binary (`CGO_ENABLED=0`). The TypeScript SDK currently uses its native TypeScript issuance path with `@noble/ed25519`; its WASM loader is available for explicit integrations but the npm package does not bundle a standalone `@drs/wasm` artifact today.
+Rust compiles to native and can be built to WASM. Go compiles to a single static binary (`CGO_ENABLED=0`). The TypeScript SDK issues receipts natively with `@noble/ed25519` and verifies exclusively through the HTTP `VerifyClient` against a running `drs-verify` service — there is no supported in-process/WASM verification path. `drs-core` remains the non-normative, frozen algorithm reference.
+
+## What DRS proves — and what it does not
+
+DRS receipts are cryptographic evidence of **authorisation and claims**, not
+of runtime behaviour. Read this before designing your policy model:
+
+| Policy field | What the verifier proves |
+|---|---|
+| `max_cost_usd` | The invoker **claimed** `estimated_cost_usd` within the limit — it signed that claim. The verifier cannot know the actual cost. **The tool owner must validate real cost.** |
+| `pii_access`, `write_access` | The invoker **claimed** compliance. Enforcement of actual data access is the tool owner's responsibility. |
+| `allowed_tools`, `allowed_resources`, `allowed_data_classes` | The named tool/resource/class in the signed args is within the delegated set. The binding check (`body` ↔ `invocation.args`) additionally proves the executed request matches the signed args. |
+| `max_calls` | **Nothing — informational only.** The verifier is stateless; call counting belongs in your session layer, using the leaf policy returned in `VerificationContext`. |
+
+Two further operational notes:
+
+- `/verify` is unauthenticated by design in the current release. Anyone
+  holding a captured bundle can consume its replay nonce (JTI) at the
+  endpoint before the legitimate tool server does — a denial-of-service on
+  that one invocation, not an authorisation bypass. Rate limiting bounds it;
+  API-key authentication closes it in a future release.
+- Human-consent records (`drs_consent`) currently prove consent **existed**
+  (method, session, timestamp). The `policy_hash` field is checked for
+  presence, not yet bound to the policy content — the canonical preimage is
+  defined in DRS 4.1.
 
 ## Quick Start
 
@@ -245,8 +269,7 @@ drs-verify/         Go  — verification server, middleware, caches
   pkg/anchor/       RFC 3161 trusted timestamp client and verifier
   pkg/policy/       Capability policy evaluation and attenuation
   pkg/store/        Tiered receipt storage (memory, filesystem, Tier3)
-drs-sdk/            TypeScript — SDK, optional WASM loader, CLI
-docs/               Architecture documents and technical audit
+drs-sdk/            TypeScript — SDK, HTTP verify client, CLI
 docs-site/          mdBook source → okeyamy.github.io/DRS
 examples/           DRS wired into real agentic systems (contributions welcome)
 ```

@@ -21,7 +21,10 @@ mod tests {
     #[test]
     fn compute_chain_hash_has_correct_format() {
         let hash = compute_chain_hash("header.payload.sig");
-        assert!(hash.starts_with("sha256:"), "hash must start with 'sha256:'");
+        assert!(
+            hash.starts_with("sha256:"),
+            "hash must start with 'sha256:'"
+        );
         assert_eq!(hash.len(), 7 + 64, "must be sha256: + 64 hex chars");
     }
 
