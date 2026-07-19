@@ -211,9 +211,11 @@ Kubernetes and Docker health probes.
 Measured against the published artifacts (`ghcr.io/okeyamy/drs-verify` v0.1.1,
 `@okeyamy/drs-sdk` 0.1.1 from npm) with 15 simulated developers, each with
 their own keypair, delegation chain, and client IP. Full methodology and the
-replicable harness live in [`bench/`](bench/) (see
-[`bench/RESULTS.md`](bench/RESULTS.md)); numbers below are from a 4-core/8-thread
-laptop — treat them as relative, not absolute.
+replicable harness live in the standalone
+[**drs-bench**](https://github.com/OkeyAmy/drs-bench) repository (see its
+[RESULTS.md](https://github.com/OkeyAmy/drs-bench/blob/main/RESULTS.md));
+numbers below are from a 4-core/8-thread laptop — treat them as relative,
+not absolute.
 
 | Measurement | Result |
 |---|---|
