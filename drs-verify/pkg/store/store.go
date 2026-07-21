@@ -20,6 +20,11 @@ var ErrNotFound = errors.New("store: DR not found")
 // never receive the tampered value.
 var ErrIntegrity = errors.New("store: stored value fails content-hash integrity check")
 
+// ErrQueueFull is returned by AsyncStore.Put when the write queue is saturated.
+// It is a loud, observable signal that durable writes are not keeping up — a
+// potential evidence gap — not a silent drop.
+var ErrQueueFull = errors.New("store: async write queue full")
+
 // Store is the interface that all DR storage tiers implement.
 // The key is always a SHA-256 chain hash in "sha256:{hex}" format.
 // The value is the raw JWT string of the delegation receipt.
