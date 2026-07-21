@@ -15,6 +15,11 @@ import "errors"
 // ErrNotFound is returned when a DR hash has no corresponding entry.
 var ErrNotFound = errors.New("store: DR not found")
 
+// ErrIntegrity is returned when a stored value's content hash does not match
+// its key — evidence of tampering or corruption. Fail-closed: the caller must
+// never receive the tampered value.
+var ErrIntegrity = errors.New("store: stored value fails content-hash integrity check")
+
 // Store is the interface that all DR storage tiers implement.
 // The key is always a SHA-256 chain hash in "sha256:{hex}" format.
 // The value is the raw JWT string of the delegation receipt.
