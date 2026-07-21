@@ -5,16 +5,13 @@
 // an outside developer gets when they `pnpm add @okeyamy/drs-sdk` and
 // `docker run ghcr.io/okeyamy/drs-verify`.
 
-import { test, describe, before } from "node:test";
+import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { createDrsHttpMiddleware } from "@drs/mcp-server";
 import {
   buildBundle,
-  createInvocationBundle,
   issueRootDelegation,
   issueInvocation,
   computeChainHash,
-  serialiseBundle,
 } from "@okeyamy/drs-sdk";
 import { generateKey, didFromKey, now, postVerify, postVerifyWithBody, sleep } from "./util.mjs";
 
@@ -267,86 +264,6 @@ describe("/verify body binding — JCS equality against invocation.args", () => 
       undefined,
       "binding field must be absent when no body was sent",
     );
-  });
-});
-
-describe("Node middleware golden path", () => {
-  test("valid request executes; tampered body is blocked before handler", async () => {
-    const operatorKey = generateKey();
-    const agentKey = generateKey();
-    const operatorDid = didFromKey(operatorKey);
-    const agentDid = didFromKey(agentKey);
-
-    const iat = now();
-    const rootReceipt = await issueRootDelegation({
-      signingKey: operatorKey,
-      issuerDid: operatorDid,
-      subjectDid: operatorDid,
-      audienceDid: agentDid,
-      cmd: "/mcp/tools/call",
-      policy: { max_cost_usd: 1.0, allowed_tools: ["approve_payment"] },
-      nbf: iat,
-      exp: iat + 3600,
-    });
-
-    const signedBody = {
-      tool: "approve_payment",
-      transaction_id: "T1",
-      estimated_cost_usd: 0.01,
-    };
-    const bundle = await createInvocationBundle({
-      rootReceipt,
-      signingKey: agentKey,
-      issuerDid: agentDid,
-      subjectDid: operatorDid,
-      toolServer: "did:key:z6MkTool",
-      tool: "approve_payment",
-      args: { transaction_id: "T1", estimated_cost_usd: 0.01 },
-    });
-    const middleware = createDrsHttpMiddleware({ verifyUrl: `${VERIFY_URL}/verify` });
-
-    let executed = 0;
-    const valid = await middleware(
-      {
-        headers: { "x-drs-bundle": serialiseBundle(bundle) },
-        body: signedBody,
-      },
-      () => {
-        executed += 1;
-      },
-    );
-
-    assert.equal(valid.ok, true, JSON.stringify(valid));
-    assert.equal(executed, 1, "handler should run after verified request");
-
-    const tamperedBundle = await createInvocationBundle({
-      rootReceipt,
-      signingKey: agentKey,
-      issuerDid: agentDid,
-      subjectDid: operatorDid,
-      toolServer: "did:key:z6MkTool",
-      tool: "approve_payment",
-      args: { transaction_id: "T1", estimated_cost_usd: 0.01 },
-    });
-
-    const tampered = await middleware(
-      {
-        headers: { "x-drs-bundle": serialiseBundle(tamperedBundle) },
-        body: {
-          tool: "approve_payment",
-          transaction_id: "T2",
-          estimated_cost_usd: 0.01,
-        },
-      },
-      () => {
-        executed += 1;
-      },
-    );
-
-    assert.equal(tampered.ok, false, "tampered body must be rejected");
-    assert.equal(tampered.status, 403);
-    assert.equal(tampered.error.code, "BINDING_MISMATCH");
-    assert.equal(executed, 1, "handler must not run for tampered body");
   });
 });
 

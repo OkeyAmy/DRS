@@ -10,9 +10,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/drs-protocol/drs-verify/pkg/nonce"
-	"github.com/drs-protocol/drs-verify/pkg/types"
-	"github.com/drs-protocol/drs-verify/pkg/verify"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/nonce"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/verify"
 )
 
 // contextKey is an unexported type for context keys in this package.

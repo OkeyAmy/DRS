@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/drs-protocol/drs-verify/pkg/nonce"
-	"github.com/drs-protocol/drs-verify/pkg/verify"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/nonce"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/verify"
 )
 
 // A2AMiddleware extracts the X-DRS-Bundle header from A2A agent-to-agent calls,

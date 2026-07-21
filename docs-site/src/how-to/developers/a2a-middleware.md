@@ -33,9 +33,9 @@ import (
     "net/http"
     "time"
 
-    "github.com/drs-protocol/drs-verify/pkg/middleware"
-    "github.com/drs-protocol/drs-verify/pkg/resolver"
-    "github.com/drs-protocol/drs-verify/pkg/verify"
+    "github.com/OkeyAmy/DRS/drs-verify/pkg/middleware"
+    "github.com/OkeyAmy/DRS/drs-verify/pkg/resolver"
+    "github.com/OkeyAmy/DRS/drs-verify/pkg/verify"
 )
 
 func main() {

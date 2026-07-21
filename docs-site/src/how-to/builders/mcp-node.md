@@ -24,18 +24,27 @@ Agent (React Native, web, Node, etc.)
 └────────────────────────────┘       └───────────────────────┘
 ```
 
-## Install the enforcement middleware
+## Write the enforcement gate
 
-The secure default path is the reusable HTTP middleware in the workspace
-`@drs/mcp-server` package. It extracts `X-DRS-Bundle`, sends the decoded bundle
-plus the actual request body to `drs-verify`, rejects invalid chains, rejects
-body-binding mismatches, and only then lets your handler run.
+Enforcement is **not a package** — it is a small fail-closed gate you own and
+copy into your project. It reads `X-DRS-Bundle`, sends the decoded bundle plus
+the actual request body to `drs-verify`, and lets your handler run only when the
+chain verifies **and** the body matches the signed `invocation.args`.
 
-```bash
-# On your MCP server
-# Once published: pnpm add @drs/mcp-server
-# Today: vendor packages/drs-mcp-server from this repository or use a workspace dependency.
-```
+`drs-verify` is the only verifier. The gate never makes a trust decision itself
+— it forwards to `/verify` and enforces the reject-code contract below. Keeping
+it as a handful of lines you own means there is no second implementation to drift
+from the verifier, and no extra dependency to secure.
+
+### Reject-code contract
+
+| Condition | HTTP status the gate returns |
+|---|---|
+| No `X-DRS-Bundle` header | `401` |
+| Header is not base64url JSON | `400` |
+| `/verify` pre-check rejected (replay `409`, rate limit `429`, store full `503`) | pass the verifier's status through |
+| `valid: false` **or** `binding !== "match"` | `403` |
+| `/verify` unreachable | `503` |
 
 ## Docker Compose for local dev
 
@@ -66,33 +75,59 @@ services:
     image: redis:7-alpine
 ```
 
-## Middleware for your MCP server
+## The gate
 
-Express / Fastify / raw `http.Server` — the pattern is the same.
+Zero dependencies — Node 20+ has `fetch`, `Buffer`, and base64url built in.
+Copy this into your project. Express / Fastify / raw `http.Server` all use the
+same core.
 
 ```ts
-// drs-middleware.ts
-import { createDrsHttpMiddleware } from "@drs/mcp-server";
-
+// drs-gate.ts
 const VERIFY_URL = process.env.DRS_VERIFY_URL ?? "http://localhost:8080";
 
-const drs = createDrsHttpMiddleware({ verifyUrl: VERIFY_URL });
-
-export async function drsVerify(req, res, next) {
-  const result = await drs(
-    {
-      headers: req.headers,
-      body: req.body,
-    },
-    (verifiedReq) => {
-      req.drs = verifiedReq.drs;
-      next();
-    },
-  );
-
-  if (!result.ok) {
-    return res.status(result.status).json({ drs_error: result.error });
+// Framework-agnostic Express-style middleware. Fails closed at every step.
+export async function drsGate(req, res, next) {
+  const header = req.headers["x-drs-bundle"];
+  if (!header) {
+    return res.status(401).json({ error: "missing X-DRS-Bundle header" });
   }
+
+  let bundle;
+  try {
+    bundle = JSON.parse(Buffer.from(header, "base64url").toString("utf8"));
+  } catch {
+    return res.status(400).json({ error: "malformed X-DRS-Bundle header" });
+  }
+
+  let verdict;
+  try {
+    const r = await fetch(`${VERIFY_URL}/verify`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      // Send the exact parsed body so drs-verify can bind it to invocation.args.
+      body: JSON.stringify({ ...bundle, body: req.body }),
+    });
+    // Pass through pre-verification rejections (409 replay, 429, 503).
+    if (r.status !== 200) {
+      return res.status(r.status).json(await r.json());
+    }
+    verdict = await r.json();
+  } catch (err) {
+    return res
+      .status(503)
+      .json({ error: "verifier unavailable", detail: String(err) });
+  }
+
+  // Fail closed: execute only on a valid chain AND a body bound to signed args.
+  if (verdict.valid !== true || verdict.binding !== "match") {
+    return res.status(403).json({
+      error: "DRS_VERIFICATION_FAILED",
+      detail: verdict.error ?? { binding: verdict.binding },
+    });
+  }
+
+  req.drs = verdict.context; // root_principal, leaf_policy, chain_depth, …
+  next();
 }
 ```
 
@@ -100,12 +135,12 @@ export async function drsVerify(req, res, next) {
 
 ```ts
 import express from "express";
-import { drsVerify } from "./drs-middleware.js";
+import { drsGate } from "./drs-gate.js";
 
 const app = express();
 app.use(express.json());
 
-app.post("/tools/call", drsVerify, async (req, res) => {
+app.post("/tools/call", drsGate, async (req, res) => {
   // req.drs is set — it contains RootPrincipal, LeafPolicy, etc.
   const { tool, ...args } = req.body;
 
@@ -127,7 +162,7 @@ app.listen(3000);
 
 ```ts
 import Fastify from "fastify";
-import { drsVerify } from "./drs-middleware.js";
+import { drsGate } from "./drs-gate.js";
 
 const app = Fastify();
 
@@ -135,12 +170,12 @@ app.post(
   "/tools/call",
   {
     preHandler: async (req, reply) => {
-      // Adapt the Express-shaped middleware to Fastify.
+      // Adapt the Express-shaped gate to Fastify.
       const next = () => {};
       const expressRes = {
         status: (n: number) => ({ json: (x: unknown) => reply.code(n).send(x) }),
       };
-      await drsVerify(req as any, expressRes as any, next);
+      await drsGate(req as any, expressRes as any, next);
     },
   },
   async (req) => {
@@ -163,9 +198,22 @@ app.listen({ port: 3000 });
 
 ## Request-binding behavior
 
-`createDrsHttpMiddleware` passes the actual parsed request body to `/verify`.
-The verifier compares that body with the signed `invocation.args` using JCS. If
-they differ, the middleware rejects the request before your handler runs.
+The gate passes the actual parsed request body to `/verify`. The verifier
+compares that body with the signed `invocation.args` using JCS. If they differ,
+the gate rejects the request with `403` before your handler runs — this is what
+stops an agent from signing "refund $10" and sending a body for "$10,000".
+
+### Transport shapes
+
+DRS carries the bundle over HTTP as an `X-DRS-Bundle` header (**Shape 1**), which
+is what the gate above enforces and what the normative Go middleware enforces.
+There is also a transport convention for pure JSON-RPC MCP where the same
+base64url bundle rides in `_meta["X-DRS-Bundle"]` on `tools/call` (**Shape 2**);
+the encoding is identical, so one serialised bundle string works on either. If
+your server speaks raw JSON-RPC rather than HTTP, read the bundle from
+`params._meta["X-DRS-Bundle"]` and use `params.arguments` as the binding body —
+the same fail-closed `valid && binding === "match"` check applies. DRS ships no
+bundled Node middleware for either shape; enforcement is the small gate you own.
 
 ## Related
 

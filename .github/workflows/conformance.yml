@@ -83,54 +83,6 @@ jobs:
         working-directory: drs-sdk
         run: npx vitest run
 
-  typescript-mcp-client:
-    name: TypeScript (drs-mcp-client)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9
-
-      - name: Install dependencies
-        working-directory: packages/drs-mcp-client
-        run: pnpm install
-
-      - name: Run tests
-        working-directory: packages/drs-mcp-client
-        run: npx vitest run
-
-  typescript-mcp-server:
-    name: TypeScript (drs-mcp-server)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9
-
-      - name: Install dependencies
-        working-directory: packages/drs-mcp-server
-        run: pnpm install
-
-      - name: Run tests
-        working-directory: packages/drs-mcp-server
-        run: npx vitest run
-
   fixture-integrity:
     name: Fixture integrity check
     runs-on: ubuntu-latest

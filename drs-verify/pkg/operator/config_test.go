@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/drs-protocol/drs-verify/pkg/operator"
-	"github.com/drs-protocol/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/operator"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
 )
 
 func validConfig() operator.OperatorConfig {

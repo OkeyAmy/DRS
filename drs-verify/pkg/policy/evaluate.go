@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/drs-protocol/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
 )
 
 // Evaluate checks whether args from an invocation satisfy policy.

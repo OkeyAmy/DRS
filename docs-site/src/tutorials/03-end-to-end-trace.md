@@ -4,7 +4,7 @@ This tutorial traces one complete tool call through the full DRS lifecycle — f
 
 ## The scenario
 
-- **Amara (End User):** grants a research agent permission to use `web_search`, spend up to £50
+- **Sarah (End User):** grants a research agent permission to use `web_search`, spend up to £50
 - **Research Agent:** delegates to a sub-agent with tighter constraints (£5, `web_search` only)
 - **Sub-Agent:** calls `web_search` on the tool server
 - **Tool Server:** runs `verify_chain` before executing
@@ -12,9 +12,9 @@ This tutorial traces one complete tool call through the full DRS lifecycle — f
 
 ---
 
-## Step 1: Amara grants authority
+## Step 1: Sarah grants authority
 
-Amara sees a consent UI on the developer's application:
+Sarah sees a consent UI on the developer's application:
 
 ```
 Research Agent wants permission to:
@@ -25,7 +25,7 @@ Research Agent wants permission to:
 This permission lasts 30 days.  [Allow] [Deny]
 ```
 
-Amara clicks **Allow**. The SDK issues the root DR:
+Sarah clicks **Allow**. The SDK issues the root DR:
 
 ```
 Root DR JWT payload (keys sorted by JCS):
@@ -35,7 +35,7 @@ Root DR JWT payload (keys sorted by JCS):
   "drs_consent": {
     "locale": "en-GB",
     "method": "explicit-ui-click",
-    "policy_hash": "sha256:a1b2c3...",   ← SHA-256 of the text Amara saw
+    "policy_hash": "sha256:a1b2c3...",   ← SHA-256 of the text Sarah saw
     "session_id": "sess:abc-123",
     "timestamp": "2026-03-28T10:30:00Z"
   },
@@ -44,16 +44,16 @@ Root DR JWT payload (keys sorted by JCS):
   "drs_v": "4.0",
   "exp": 1748437800,
   "iat": 1743000000,
-  "iss": "did:key:z6MkAmara...",
+  "iss": "did:key:z6MkSarah...",
   "jti": "dr:8f3a2b1c-4d5e-4abc-8b9c-0d1e2f3a4b5c",
   "nbf": 1743000000,
   "policy": { "allowed_tools": ["web_search"], "max_cost_usd": 50 },
   "prev_dr_hash": null,
-  "sub": "did:key:z6MkAmara..."
+  "sub": "did:key:z6MkSarah..."
 }
 ```
 
-The JWT is signed with Amara's Ed25519 private key.
+The JWT is signed with Sarah's Ed25519 private key.
 
 ---
 
@@ -72,14 +72,14 @@ Sub-DR JWT payload:
   "cmd": "/mcp/tools/call",
   "drs_type": "delegation-receipt",
   "drs_v": "4.0",
-  "exp": 1743003600,          ← 1 hour (shorter than Amara's 30 days)
+  "exp": 1743003600,          ← 1 hour (shorter than Sarah's 30 days)
   "iat": 1743000010,
   "iss": "did:key:z6MkAgent1...",
   "jti": "dr:1a2b3c4d-5e6f-4xyz-9abc-def012345678",
   "nbf": 1743000000,
   "policy": { "allowed_tools": ["web_search"], "max_cost_usd": 5 },
   "prev_dr_hash": "sha256:abc123...",   ← SHA-256 of rootDR JWT bytes
-  "sub": "did:key:z6MkAmara..."         ← unchanged
+  "sub": "did:key:z6MkSarah..."         ← unchanged
 }
 ```
 
@@ -107,7 +107,7 @@ Invocation Receipt JWT payload:
   "iat": 1743000300,
   "iss": "did:key:z6MkAgent2...",
   "jti": "inv:7h5c4d3e-2a3b-4c5d-6e7f-8a9b0c1d2e3f",
-  "sub": "did:key:z6MkAmara...",
+  "sub": "did:key:z6MkSarah...",
   "tool_server": "did:key:z6MkToolServer..."
 }
 ```
@@ -134,7 +134,7 @@ Block A: receipts=[rootDR, subDR], invocation present                → PASS �
 Block B: rootDR.aud == subDR.iss (z6MkAgent1)                        → PASS ✓
          subDR.prev_dr_hash == sha256(rootDR)                         → PASS ✓
          inv.dr_chain matches [sha256(rootDR), sha256(subDR)]         → PASS ✓
-Block C: Ed25519 verify rootDR (Amara's key)                         → PASS ✓
+Block C: Ed25519 verify rootDR (Sarah's key)                         → PASS ✓
          Ed25519 verify subDR (Agent1's key)                          → PASS ✓
          Ed25519 verify invocation (Agent2's key)                     → PASS ✓
 Block D: web_search ∈ allowed_tools at both DR levels                → PASS ✓
@@ -157,7 +157,7 @@ The tool server runs `web_search` and emits:
 ```json
 {
   "event": "drs:tool-call",
-  "root_principal": "did:key:z6MkAmara...",
+  "root_principal": "did:key:z6MkSarah...",
   "chain_depth": 2,
   "command": "/mcp/tools/call",
   "tool": "web_search",
@@ -167,7 +167,7 @@ The tool server runs `web_search` and emits:
 }
 ```
 
-Amara's activity feed updates: *"Research agent used web_search — £0.02 of £50.00 budget used."*
+Sarah's activity feed updates: *"Research agent used web_search — £0.02 of £50.00 budget used."*
 
 ---
 

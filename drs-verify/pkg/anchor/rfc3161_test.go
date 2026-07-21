@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/drs-protocol/drs-verify/pkg/anchor"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/anchor"
 )
 
 // fakeToken is a small DER-like byte slice used as a mock TSA response.

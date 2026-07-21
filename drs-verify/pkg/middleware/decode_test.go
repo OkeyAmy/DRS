@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/nonce"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/nonce"
 )
 
 func TestDecodeInvocationJTI_Valid(t *testing.T) {

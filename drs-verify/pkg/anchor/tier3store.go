@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/drs-protocol/drs-verify/pkg/store"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/store"
 )
 
 // Tier3Store wraps a store.Store and anchors each stored JWT with an RFC 3161

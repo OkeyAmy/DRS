@@ -31,16 +31,14 @@ Agent B is structurally the same as an MCP tool server — both verify an
 inbound bundle before executing. If you've already set up the
 [MCP integration](./mcp-node.md) the code here is almost identical.
 
-## Install
-
-```bash
-# Once published: pnpm add @drs/mcp-server
-# Today: vendor packages/drs-mcp-server from this repository or use a workspace dependency.
-```
+## The gate
 
 The actual cryptographic verification happens in the `drs-verify` container.
-The workspace Node package gives your receiver a secure enforcement point that
-rejects invalid chains and body-binding mismatches before task execution.
+Agent B's receiver just needs a small fail-closed gate — the **same gate** as
+the [MCP integration](./mcp-node.md#the-gate); it reads `X-DRS-Bundle`, forwards
+the bundle plus the request body to `/verify`, and executes only on
+`valid: true` **and** `binding: "match"`. It is a handful of lines you own, not
+a package. The reject-code contract is in the MCP guide.
 
 ## Compose with Redis for shared replay protection
 
@@ -69,36 +67,22 @@ services:
     image: redis:7-alpine
 ```
 
-## A2A middleware
+## The A2A gate
+
+It is the same fail-closed gate as the MCP guide — copy
+[`drs-gate.ts`](./mcp-node.md#the-gate) and re-export it under an A2A name if you
+like. Zero dependencies:
 
 ```ts
-// a2a-middleware.ts
-import { createDrsHttpMiddleware } from "@drs/mcp-server";
-
-const VERIFY_URL = process.env.DRS_VERIFY_URL ?? "http://localhost:8080";
-const drs = createDrsHttpMiddleware({ verifyUrl: VERIFY_URL });
-
-export async function drsA2A(req, res, next) {
-  const result = await drs(
-    {
-      headers: req.headers,
-      body: req.body,
-    },
-    (verifiedReq) => {
-      req.drs = verifiedReq.drs;
-      next();
-    },
-  );
-
-  if (!result.ok) return res.status(result.status).json({ drs_error: result.error });
-}
+// a2a-gate.ts
+export { drsGate as drsA2A } from "./drs-gate.js";
 ```
 
 ## Task handler
 
 ```ts
 import express from "express";
-import { drsA2A } from "./a2a-middleware.js";
+import { drsA2A } from "./a2a-gate.js";
 
 const app = express();
 app.use(express.json({ limit: "65kb" })); // drs-verify binding middleware enforces 64 KiB

@@ -7,17 +7,23 @@ DRS is a cryptographic delegation receipt protocol implemented in this repositor
 **Documentation → [okeyamy.github.io/DRS](https://okeyamy.github.io/DRS/)**
 
 **Plugging DRS into your product? You do not need to fork this repo.**
-DRS ships as published core artifacts plus workspace helper packages you install
-or vendor according to your deployment shape:
+DRS ships as three published artifacts you install according to your deployment
+shape:
 
 - `@okeyamy/drs-sdk` — `pnpm add @okeyamy/drs-sdk` (issue receipts and bundles)
 - `ghcr.io/okeyamy/drs-verify` — `docker pull` (verifier trust engine)
-- `drs-core` — `cargo add drs-core` (Rust crypto / WASM core)
-- `@drs/mcp-server` — workspace Node app enforcement middleware; use from this
-  monorepo until it is included in the release workflow
+- `drs-core` — `cargo add drs-core` (Rust crypto / WASM core, non-normative)
 
-Product shape: use the SDK to issue, use middleware or a future gateway to
-enforce, and use the verifier service as the trust engine. `drs-verify` answers
+Enforcement on a Node tool server is not a package — it is a small fail-closed
+gate you own: read the `X-DRS-Bundle` header, `POST` the bundle plus the parsed
+request body to `drs-verify`'s `/verify`, and execute only on `valid: true`
+**and** `binding: "match"`. The reject-code contract and a copy-paste gate live
+in the Node tool-server guide. Go tool servers import the reusable Go middleware
+(`go get github.com/OkeyAmy/DRS/drs-verify`).
+
+Product shape: use the SDK to issue, own a small fail-closed gate (or the Go
+middleware) to enforce, and use the verifier service as the trust engine.
+`drs-verify` answers
 whether a bundle is trusted; your app middleware decides whether the protected
 handler may execute.
 
@@ -55,7 +61,6 @@ Three-layer language stack chosen for correctness, performance, and deployabilit
 | `drs-core` | Rust | Ed25519 crypto, SHA-256 chain computation, RFC 8785 JCS canonicalization, capability index |
 | `drs-verify` | Go | HTTP verification service, LRU caches, revocation, RFC 3161 anchor |
 | `drs-sdk` | TypeScript | Developer-facing SDK, issuance path, bundle helpers, CLI, HTTP verify client |
-| `@drs/mcp-server` | TypeScript | Workspace Node HTTP/MCP enforcement middleware that calls `drs-verify` before app handlers execute |
 
 Rust compiles to native and can be built to WASM. Go compiles to a single static binary (`CGO_ENABLED=0`). The TypeScript SDK issues receipts natively with `@noble/ed25519` and verifies exclusively through the HTTP `VerifyClient` against a running `drs-verify` service — there is no supported in-process/WASM verification path. `drs-core` remains the non-normative, frozen algorithm reference.
 
@@ -151,9 +156,9 @@ const drsHeader = serialiseBundle(bundle)
 
 Protected Node apps should receive that header as `X-DRS-Bundle`, pass the
 exact parsed request body to `/verify`, and execute only when verification is
-valid and `binding === "match"`. Use the workspace `@drs/mcp-server` HTTP
-middleware for that pattern, or copy the same fail-closed checks into your own
-framework adapter.
+valid and `binding === "match"`. This gate is a small piece of code you own —
+copy the fail-closed checks into your framework adapter. The Node tool-server
+guide has a zero-dependency reference gate and the full reject-code contract.
 
 ## HTTP API
 
@@ -176,11 +181,13 @@ Accepts a `ChainBundle` JSON body. Runs all six verification blocks. Returns `Ve
 ### MCP, A2A, and Node app middleware
 
 `drs-verify` exposes `POST /verify`; it is not a transparent MCP/A2A proxy. For
-Node tool servers, use the workspace `@drs/mcp-server` HTTP middleware to extract the `X-DRS-Bundle` header,
-send the bundle plus the parsed request body to `/verify`, reject invalid chains
-or body-binding mismatches, and call your handler with `VerificationContext`
-attached. For Go tool servers, import the reusable Go middleware and mount it
-inside your own server.
+Node tool servers, write a small fail-closed gate that extracts the
+`X-DRS-Bundle` header, sends the bundle plus the parsed request body to
+`/verify`, rejects invalid chains or body-binding mismatches, and calls your
+handler with `VerificationContext` attached — see the Node tool-server guide for
+a copy-paste reference. For Go tool servers, import the reusable Go middleware
+(`go get github.com/OkeyAmy/DRS/drs-verify`) and mount it inside your own
+server.
 
 ```go
 mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nonceStore, "enforced", yourHandler))

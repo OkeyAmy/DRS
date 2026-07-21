@@ -14,7 +14,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/drs-protocol/drs-verify/pkg/revocation"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/revocation"
 )
 
 // Handler returns an http.ServeMux with /healthz and /readyz registered.

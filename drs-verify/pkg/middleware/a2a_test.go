@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/nonce"
-	"github.com/drs-protocol/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/nonce"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
 )
 
 func TestA2AMiddlewareRejects401WhenNoBundleHeader(t *testing.T) {
