@@ -41,6 +41,21 @@ type queuedWrite struct{ hash, value string }
 // Get is read-after-write consistent: values not yet flushed are served from
 // the in-flight buffer, then from the inner store. Reads and Deletes are
 // synchronous (a Delete also drops any in-flight copy).
+//
+// Known residuals (production behaviour is correct; documented constraints):
+//
+// Residual 1 — Transient read miss on same-key queue-full rejection.
+// A Put rejected by queue-full or after Close removes only its own pending
+// entry via CompareAndDelete. When another in-flight Put holds an identical
+// value under the same key, this briefly clears the shared read-after-write
+// entry, so Get may miss the value until the queued write flushes.
+// Self-healing; because keys are content-addressed, a read never returns
+// wrong bytes.
+//
+// Residual 2 — Delete is undone by a queued write for the same key.
+// A Delete followed by an already-queued write for the same key is undone
+// when that write flushes. Safe for content-addressed storage (identical
+// bytes); do not rely on Delete for evidence expiry/GC on an AsyncStore.
 type AsyncStore struct {
 	inner   Store
 	cfg     AsyncConfig

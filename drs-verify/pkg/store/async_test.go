@@ -163,28 +163,66 @@ func TestAsyncStore_ConcurrentPutClose_NoPanic(t *testing.T) {
 }
 
 func TestAsyncStore_SameKeyConcurrent_NoSilentLoss(t *testing.T) {
+	// This test exercises the queue-full path explicitly. A slow inner backend
+	// (putDelay=20ms) combined with a tiny queue (size 2) and a single worker
+	// means the overwhelming majority of the 50 concurrent Puts will hit the
+	// default: branch (ErrQueueFull + CompareAndDelete + OnDrop). A store with
+	// a silent-loss bug would pass the old version of this test because the
+	// queue-full branch was never reached.
 	inner := newRecordingStore()
-	a := NewAsyncStore(inner, AsyncConfig{QueueSize: 256, Workers: 4})
+	inner.putDelay = 20 * time.Millisecond // stall the single worker so the queue fills
+	var dropped atomic.Int64
+	a := NewAsyncStore(inner, AsyncConfig{
+		QueueSize: 2,
+		Workers:   1,
+		OnDrop:    func(string) { dropped.Add(1) },
+	})
 
-	const n = 200
+	const n = 50
+	var nilCount, queueFull atomic.Int64
 	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// A queue-full ErrQueueFull is tolerable here; a silent loss is not.
-			_ = a.Put("sha256:key", "v")
+			err := a.Put("sha256:key", "v")
+			switch {
+			case err == nil:
+				nilCount.Add(1)
+			case errors.Is(err, ErrQueueFull):
+				queueFull.Add(1)
+			default:
+				t.Errorf("Put returned unexpected error: %v", err)
+			}
 		}()
 	}
 	wg.Wait()
 
+	// (a) Queue-full path must have been hit: if queueFull==0 the test failed
+	// to discriminate and the pre-fix buggy code would also pass.
+	if queueFull.Load() == 0 {
+		t.Fatalf("queue-full path was never reached (queueFull=0); the test did not discriminate — raise Workers or putDelay")
+	}
+	// (b) OnDrop fires for every rejection — loud, never silent.
+	// blindfold: dropped must equal queueFull; each rejected Put calls OnDrop exactly once
+	if dropped.Load() != queueFull.Load() {
+		t.Fatalf("OnDrop count mismatch: dropped=%d queueFull=%d; every rejection must fire OnDrop once", dropped.Load(), queueFull.Load())
+	}
+	// Sanity: every Put returns either nil or ErrQueueFull; no stray errors.
+	if nilCount.Load()+queueFull.Load() != n {
+		t.Fatalf("Put result accounting off: nil=%d queueFull=%d total=%d want %d", nilCount.Load(), queueFull.Load(), nilCount.Load()+queueFull.Load(), n)
+	}
+
+	// Drain the queue so the accepted write reaches inner.
 	if err := a.Close(context.Background()); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
-	// blindfold: contract — at least one same-key Put must durably reach the backend; value is verbatim "v"
+	// (c) An accepted write is durably present — no silent loss of an accepted write.
+	// Use inner.Get (not a.Get) to confirm the write reached the backend.
+	// blindfold: contract — the queued write must flush to inner; value is verbatim "v"
 	got, err := inner.Get("sha256:key")
 	if err != nil {
-		t.Fatalf("value lost — not durably flushed: %v", err)
+		t.Fatalf("accepted write was lost — not durably flushed to inner: %v", err)
 	}
 	if got != "v" { // blindfold: contract — value flushed is verbatim what Put stored ("v")
 		t.Fatalf("durable value: got %q want %q", got, "v")
