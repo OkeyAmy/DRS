@@ -31,6 +31,11 @@ func (c *AsyncConfig) applyDefaults() {
 	}
 }
 
+// queuedWrite carries both the hash and its value through the queue so the
+// worker can flush without re-loading from pending. This is what makes flushes
+// independent of concurrent pending mutations and prevents silent lost writes.
+type queuedWrite struct{ hash, value string }
+
 // AsyncStore decorates a Store so that Put does not block the caller on the
 // inner backend. Writes are buffered in memory and flushed by a worker pool.
 // Get is read-after-write consistent: values not yet flushed are served from
@@ -39,21 +44,20 @@ func (c *AsyncConfig) applyDefaults() {
 type AsyncStore struct {
 	inner   Store
 	cfg     AsyncConfig
-	queue   chan string
+	queue   chan queuedWrite
 	pending sync.Map // hash -> string (in-flight, not yet durably flushed)
 	wg      sync.WaitGroup
-	closed  chan struct{}
-	once    sync.Once
+	mu      sync.RWMutex // guards closed; held (read) across Put's enqueue
+	closed  bool
 }
 
 // NewAsyncStore starts the worker pool and returns a ready AsyncStore.
 func NewAsyncStore(inner Store, cfg AsyncConfig) *AsyncStore {
 	cfg.applyDefaults()
 	a := &AsyncStore{
-		inner:  inner,
-		cfg:    cfg,
-		queue:  make(chan string, cfg.QueueSize),
-		closed: make(chan struct{}),
+		inner: inner,
+		cfg:   cfg,
+		queue: make(chan queuedWrite, cfg.QueueSize),
 	}
 	for i := 0; i < cfg.Workers; i++ {
 		a.wg.Add(1)
@@ -64,14 +68,29 @@ func NewAsyncStore(inner Store, cfg AsyncConfig) *AsyncStore {
 
 // Put buffers the value and enqueues it for durable flush. Non-blocking:
 // returns ErrQueueFull immediately if the queue is saturated, so the caller
-// can surface an evidence gap instead of stalling the verify path.
+// can surface an evidence gap instead of stalling the verify path. Returns
+// ErrStoreClosed if the store is already closed.
+//
+// The read lock is held across both the closed-check and the send so that
+// Close (which needs the write lock) cannot close the channel mid-send. It is
+// released before any user callback to avoid deadlocking a callback that calls
+// back into Put while Close is parked waiting for the write lock.
 func (a *AsyncStore) Put(hash, jwt string) error {
 	a.pending.Store(hash, jwt)
+
+	a.mu.RLock()
+	if a.closed {
+		a.mu.RUnlock()
+		a.pending.CompareAndDelete(hash, jwt)
+		return ErrStoreClosed
+	}
 	select {
-	case a.queue <- hash:
+	case a.queue <- queuedWrite{hash: hash, value: jwt}:
+		a.mu.RUnlock()
 		return nil
 	default:
-		a.pending.Delete(hash)
+		a.mu.RUnlock()
+		a.pending.CompareAndDelete(hash, jwt)
 		if a.cfg.OnDrop != nil {
 			a.cfg.OnDrop(hash)
 		}
@@ -95,12 +114,8 @@ func (a *AsyncStore) Delete(hash string) error {
 
 func (a *AsyncStore) worker() {
 	defer a.wg.Done()
-	for hash := range a.queue {
-		v, ok := a.pending.Load(hash)
-		if !ok {
-			continue // deleted before flush
-		}
-		a.flush(hash, v.(string))
+	for q := range a.queue {
+		a.flush(q.hash, q.value)
 	}
 }
 
@@ -108,10 +123,13 @@ func (a *AsyncStore) flush(hash, jwt string) {
 	var err error
 	for attempt := 0; attempt <= a.cfg.MaxRetries; attempt++ {
 		if err = a.inner.Put(hash, jwt); err == nil {
-			a.pending.Delete(hash)
+			// Remove only our own value; a concurrent newer Put's value stays.
+			a.pending.CompareAndDelete(hash, jwt)
 			return
 		}
-		time.Sleep(a.cfg.RetryBackoff * time.Duration(attempt+1))
+		if attempt < a.cfg.MaxRetries {
+			time.Sleep(a.cfg.RetryBackoff * time.Duration(attempt+1))
+		}
 	}
 	// Give up: keep the value in pending (still readable) and surface the error.
 	if a.cfg.OnFlushError != nil {
@@ -120,9 +138,17 @@ func (a *AsyncStore) flush(hash, jwt string) {
 }
 
 // Close stops accepting new work and drains the queue until empty or ctx
-// expires. Safe to call once; subsequent calls are no-ops.
+// expires. Safe to call more than once; subsequent calls are no-ops.
 func (a *AsyncStore) Close(ctx context.Context) error {
-	a.once.Do(func() { close(a.queue) })
+	a.mu.Lock()
+	if a.closed {
+		a.mu.Unlock()
+		return nil
+	}
+	a.closed = true
+	close(a.queue)
+	a.mu.Unlock()
+
 	done := make(chan struct{})
 	go func() { a.wg.Wait(); close(done) }()
 	select {

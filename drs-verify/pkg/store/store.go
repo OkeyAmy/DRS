@@ -25,6 +25,9 @@ var ErrIntegrity = errors.New("store: stored value fails content-hash integrity 
 // potential evidence gap — not a silent drop.
 var ErrQueueFull = errors.New("store: async write queue full")
 
+// ErrStoreClosed is returned by AsyncStore.Put after the store has been closed.
+var ErrStoreClosed = errors.New("store: async store is closed")
+
 // Store is the interface that all DR storage tiers implement.
 // The key is always a SHA-256 chain hash in "sha256:{hex}" format.
 // The value is the raw JWT string of the delegation receipt.
