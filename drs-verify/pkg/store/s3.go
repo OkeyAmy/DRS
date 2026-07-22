@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -123,17 +124,37 @@ func (s *S3Store) Get(hash string) (string, error) {
 	return buf.String(), nil
 }
 
-// Delete removes a JWT entry. Under Object Lock COMPLIANCE this call is a
-// no-op until the retention window elapses — which is the intended WORM
-// guarantee, not an error condition.
+// Delete removes a JWT entry. Under Object Lock (WORM) this is a logged no-op:
+// a simple RemoveObject on a versioned, Object-Lock bucket writes a delete
+// marker rather than removing the retained version, hiding evidence without
+// destroying it. Deletion of compliance evidence is governed by the bucket's
+// Object Lock retention/lifecycle policy, not this API.
 func (s *S3Store) Delete(hash string) error {
 	name, err := objectName(hash)
 	if err != nil {
 		return err
 	}
-	err = s.client.RemoveObject(context.Background(), s.bucket, name, minio.RemoveObjectOptions{})
-	if err != nil {
+	if s.objectLock {
+		// WORM/compliance: objects are immutable until their Object Lock
+		// retention expires. A simple S3 delete would only add a delete marker
+		// (hiding the current version) without removing the retained evidence,
+		// which is misleading. Deletion of compliance evidence is governed by
+		// the bucket's Object Lock retention/lifecycle policy, not this API.
+		slog.Warn("s3 store: Delete ignored — Object Lock (WORM) store; evidence is immutable until retention expires", "key", hash)
+		return nil
+	}
+	if err := s.client.RemoveObject(context.Background(), s.bucket, name, minio.RemoveObjectOptions{}); err != nil {
 		return fmt.Errorf("store: s3 delete: %w", err)
 	}
 	return nil
+}
+
+// objectRetention returns the Object Lock retention (mode + retain-until) for
+// the current version of the object under hash. Used to verify WORM was applied.
+func (s *S3Store) objectRetention(ctx context.Context, hash string) (*minio.RetentionMode, *time.Time, error) {
+	name, err := objectName(hash)
+	if err != nil {
+		return nil, nil, err
+	}
+	return s.client.GetObjectRetention(ctx, s.bucket, name, "")
 }
