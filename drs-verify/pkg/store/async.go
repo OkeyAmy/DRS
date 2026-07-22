@@ -8,12 +8,13 @@ import (
 
 // AsyncConfig configures the AsyncStore write pipeline.
 type AsyncConfig struct {
-	QueueSize    int                          // bounded queue depth; 0 -> 4096
-	Workers      int                          // flush worker goroutines; 0 -> 4
-	MaxRetries   int                          // per-item flush retries; 0 -> 5
-	RetryBackoff time.Duration                // base backoff between retries; 0 -> 100ms
-	OnDrop       func(hash string)            // called when Put is rejected (queue full)
-	OnFlushError func(hash string, err error) // called when a flush ultimately fails
+	QueueSize      int                          // bounded queue depth; 0 -> 4096
+	Workers        int                          // flush worker goroutines; 0 -> 4
+	MaxRetries     int                          // per-item flush retries; 0 -> 5
+	RetryBackoff   time.Duration                // base backoff between retries; 0 -> 100ms
+	OnDrop         func(hash string)            // called when Put is rejected (queue full)
+	OnFlushError   func(hash string, err error) // called when a flush ultimately fails
+	OnFlushSuccess func(hash string)            // called after each successful inner.Put; used for metrics
 }
 
 func (c *AsyncConfig) applyDefaults() {
@@ -140,6 +141,9 @@ func (a *AsyncStore) flush(hash, jwt string) {
 		if err = a.inner.Put(hash, jwt); err == nil {
 			// Remove only our own value; a concurrent newer Put's value stays.
 			a.pending.CompareAndDelete(hash, jwt)
+			if a.cfg.OnFlushSuccess != nil {
+				a.cfg.OnFlushSuccess(hash)
+			}
 			return
 		}
 		if attempt < a.cfg.MaxRetries {

@@ -146,6 +146,7 @@ func main() {
 				metrics.StoreFlushErrors.Inc()
 				metrics.StoreWritesTotal.WithLabelValues("error").Inc()
 			},
+			OnFlushSuccess: func(string) { metrics.StoreWritesTotal.WithLabelValues("flushed").Inc() },
 		})
 		if cfg.TSAURL != "" {
 			drStore = anchor.NewTier3Store(asyncStore, anchor.NewTSAClient(cfg.TSAURL))

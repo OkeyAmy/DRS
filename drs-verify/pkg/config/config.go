@@ -235,6 +235,9 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("TSA_URL (Tier 3) requires S3_OBJECT_LOCK=true for WORM-immutable compliance evidence")
 		}
 	}
+	if s3ObjectLock && s3RetentionDays <= 0 {
+		return Config{}, fmt.Errorf("S3_RETENTION_DAYS must be a positive number of days when S3_OBJECT_LOCK=true, got %d", s3RetentionDays)
+	}
 
 	nonceMax, err := getEnvInt("NONCE_STORE_MAX_ENTRIES", 100_000)
 	if err != nil {

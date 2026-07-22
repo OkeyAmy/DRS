@@ -129,6 +129,8 @@ func TestLoad_Tier3RequiresObjectLock(t *testing.T) {
 }
 
 func TestLoad_S3BucketRequiresCredentials(t *testing.T) {
+	t.Setenv("S3_ACCESS_KEY", "")
+	t.Setenv("S3_SECRET_KEY", "")
 	t.Setenv("S3_BUCKET", "drs")
 	t.Setenv("S3_ENDPOINT", "")
 	_, err := Load()
@@ -150,6 +152,42 @@ func TestLoad_NegativeStoreTTLRejected(t *testing.T) {
 	}
 	// blindfold: contract — task-2-brief.md §Step 4: exact error emitted by the storeTTL <= 0 guard
 	want := "STORE_TTL_SECS must be a positive number of seconds, got -5"
+	if got := err.Error(); got != want {
+		t.Fatalf("guard error = %q, want %q", got, want)
+	}
+}
+
+func TestLoad_ObjectLockZeroRetentionRejected(t *testing.T) {
+	t.Setenv("S3_BUCKET", "drs")
+	t.Setenv("S3_ENDPOINT", "localhost:9000")
+	t.Setenv("S3_ACCESS_KEY", "k")
+	t.Setenv("S3_SECRET_KEY", "s")
+	t.Setenv("S3_OBJECT_LOCK", "true")
+	t.Setenv("S3_RETENTION_DAYS", "0")
+	_, err := Load()
+	if err == nil {
+		t.Fatal("S3_OBJECT_LOCK=true with S3_RETENTION_DAYS=0 must be rejected: WORM with zero retention is a silent fail-open")
+	}
+	// blindfold: contract — exact error emitted by the S3_RETENTION_DAYS guard when days==0
+	want := "S3_RETENTION_DAYS must be a positive number of days when S3_OBJECT_LOCK=true, got 0"
+	if got := err.Error(); got != want {
+		t.Fatalf("guard error = %q, want %q", got, want)
+	}
+}
+
+func TestLoad_ObjectLockNegativeRetentionRejected(t *testing.T) {
+	t.Setenv("S3_BUCKET", "drs")
+	t.Setenv("S3_ENDPOINT", "localhost:9000")
+	t.Setenv("S3_ACCESS_KEY", "k")
+	t.Setenv("S3_SECRET_KEY", "s")
+	t.Setenv("S3_OBJECT_LOCK", "true")
+	t.Setenv("S3_RETENTION_DAYS", "-1")
+	_, err := Load()
+	if err == nil {
+		t.Fatal("S3_OBJECT_LOCK=true with S3_RETENTION_DAYS=-1 must be rejected")
+	}
+	// blindfold: contract — exact error emitted by the S3_RETENTION_DAYS guard when days==-1
+	want := "S3_RETENTION_DAYS must be a positive number of days when S3_OBJECT_LOCK=true, got -1"
 	if got := err.Error(); got != want {
 		t.Fatalf("guard error = %q, want %q", got, want)
 	}

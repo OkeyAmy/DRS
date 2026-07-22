@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -226,6 +227,35 @@ func TestAsyncStore_SameKeyConcurrent_NoSilentLoss(t *testing.T) {
 	}
 	if got != "v" { // blindfold: contract — value flushed is verbatim what Put stored ("v")
 		t.Fatalf("durable value: got %q want %q", got, "v")
+	}
+}
+
+func TestAsyncStore_OnFlushSuccess_CountsExactFlushes(t *testing.T) {
+	// Use N distinct keys and a queue large enough to accept all puts without
+	// dropping, so every Put returns nil and exactly N success callbacks fire.
+	const n = 10
+	inner := newRecordingStore()
+	var successCount atomic.Int64
+	a := NewAsyncStore(inner, AsyncConfig{
+		QueueSize:      n * 2,
+		Workers:        2,
+		OnFlushSuccess: func(string) { successCount.Add(1) },
+	})
+
+	for i := 0; i < n; i++ {
+		hash := fmt.Sprintf("sha256:key%d", i)
+		if err := a.Put(hash, "v"); err != nil {
+			t.Fatalf("Put(%s): unexpected error %v", hash, err)
+		}
+	}
+
+	if err := a.Close(context.Background()); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	// blindfold: contract — one success callback per accepted Put; Close drains all workers before returning
+	if got := successCount.Load(); got != n {
+		t.Fatalf("OnFlushSuccess fired %d times, want %d", got, n)
 	}
 }
 
