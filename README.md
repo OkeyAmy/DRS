@@ -203,7 +203,7 @@ Kubernetes and Docker health probes.
 - **RFC 8785 JCS canonicalization** — no shallow `JSON.stringify` key sort; conformance vectors guard cross-language canonicalization behavior
 - **LRU-bounded DID resolver cache** — hard cap at 10,000 entries (~640 KB)
 - **W3C Bitstring Status List revocation** — mutex + re-check concurrency guard prevents thundering herd on cache miss (`sync.Once` is deliberately avoided: a failed fetch must be retryable)
-- **Request body capped** at 64 KiB — hard-coded, not configurable, so a deployment cannot accidentally widen it
+- **MCP/A2A binding middleware body capped** at 64 KiB — hard-coded (`maxBindingBodyBytes`), not env-var controlled; the `/verify` endpoint body limit is separately configurable via `MAX_BODY_BYTES` (default 1 MiB)
 - **DID resolver** supports `did:key` (self-authenticating, no network I/O) and `did:web` (HTTPS + TLS)
 
 ## Performance
@@ -251,7 +251,7 @@ All configuration is environment-variable driven. No hard-coded URLs, ports, or 
 | `REVOCATION_STORE_PATH` | — | Optional durable local revocation log path |
 | `STORE_DIR` | — | Filesystem store base directory (Tier 1/3) |
 | `TSA_URL` | — | RFC 3161 TSA endpoint — enables Tier 3 store |
-| `MAX_BODY_BYTES` | `1048576` | Maximum request body size (1 MiB) |
+| `MAX_BODY_BYTES` | `1048576` | Maximum `/verify` request body size (1 MiB); MCP/A2A binding middleware cap is hard-coded at 64 KiB and is not affected by this variable |
 | `LOG_LEVEL` | `info` | Log level: debug / info / warn / error |
 | `LOG_FORMAT` | `text` | Log format: `text` or `json` |
 | `METRICS_ADDR` | — | Separate Prometheus listener; empty disables metrics |
