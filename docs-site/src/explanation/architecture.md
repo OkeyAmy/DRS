@@ -47,7 +47,7 @@ The Go service is the production verification path today. It handles:
 - `verify.Chain()` (Blocks A-F)
 - `MCPMiddleware` / `A2AMiddleware`
 - DID resolution with LRU caching
-- Bitstring Status List caching with `sync.Once`
+- Bitstring Status List caching with mutex + re-check guard (failed fetches are retryable)
 - health and readiness endpoints
 - storage and local revocation
 

@@ -54,4 +54,4 @@ for each DR in bundle:
 
 ## Status list cache concurrency
 
-The status list cache uses `sync.Once` internally to prevent double-fetch race conditions under concurrent load. When the cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result.
+The status list cache uses a mutex + re-check concurrency guard to prevent double-fetch race conditions under concurrent load. When the cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result. Unlike `sync.Once`, a failed fetch is retryable: if the TSA is temporarily unreachable, the next cache miss will attempt the fetch again.

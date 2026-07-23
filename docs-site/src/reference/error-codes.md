@@ -104,7 +104,7 @@ Requests rejected *before* verification return a non-200 status with a JSON
 |---|---|---|
 | 400 | (varies) | Malformed JSON, missing fields, or missing invocation `jti` |
 | 409 | `REPLAY_DETECTED` | The invocation `jti` has already been consumed |
-| 413 | `REQUEST_BODY_TOO_LARGE` | Request body exceeds the 64 KiB cap |
+| 413 | `REQUEST_BODY_TOO_LARGE` | `/verify` request body exceeds `MAX_BODY_BYTES` (default 1 MiB) |
 | 429 | `RATE_LIMIT_EXCEEDED` | Per-IP or global rate limit hit |
 | 503 | `NONCE_STORE_EXHAUSTED` | Replay-protection store at capacity — retry shortly |
 

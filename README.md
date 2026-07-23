@@ -246,7 +246,7 @@ All configuration is environment-variable driven. No hard-coded URLs, ports, or 
 | `NONCE_STORE_BACKEND` | `memory` | Replay backend: `memory` or `redis` |
 | `REDIS_URL` | — | Required when `NONCE_STORE_BACKEND=redis` |
 | `NONCE_STORE_MAX_ENTRIES` | `100000` | Replay protection store capacity |
-| `NONCE_STORE_TTL_SECS` | `3600` | Replay protection TTL (1 hour) |
+| `NONCE_STORE_TTL_SECS` | `900` | Replay protection TTL (15 min) — also bounds the invocation replay window; raise only if legitimate invocation latency exceeds 15 minutes |
 | `DRS_ADMIN_TOKEN` | — | Bearer token for `POST /admin/revoke` |
 | `REVOCATION_STORE_PATH` | — | Optional durable local revocation log path |
 | `STORE_DIR` | — | Filesystem store base directory (Tier 1/3) |

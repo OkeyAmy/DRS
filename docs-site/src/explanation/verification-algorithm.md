@@ -87,7 +87,7 @@ revocation still runs.
 **Fail condition:** any receipt is marked revoked, or a configured remote
 revocation check errors.
 
-> The `sync.Once` guard prevents double-fetch race conditions: when the remote cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result.
+> A mutex + re-check concurrency guard prevents double-fetch race conditions: when the remote cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result. Unlike `sync.Once`, a failed fetch is retryable so a transient TSA outage does not permanently poison the cache.
 
 ---
 
@@ -148,6 +148,6 @@ At 10,000 requests/second on the Go verification server:
 |---|---|---|
 | Policy check per level | O(1) avg | Hash-set intersection in capability index |
 | DID resolution | O(1) amortised | LRU cache, 10,000 entry cap, 1-hour TTL |
-| Status list check | O(1) amortised | 5-min TTL, `sync.Once` guard |
+| Status list check | O(1) amortised | 5-min TTL, mutex + re-check guard |
 | Ed25519 verify | implementation-dependent | Rust uses `ed25519-dalek` `verify_strict`; Go checks canonical `S < L` before `crypto/ed25519.Verify` |
 | Total per request (2-hop chain) | ~0.8ms p99 | |
