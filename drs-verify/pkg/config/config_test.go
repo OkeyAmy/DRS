@@ -92,3 +92,103 @@ func TestRedisNonceWithTrustProxyIsAccepted(t *testing.T) {
 		t.Fatalf("RedisURL = %q, want the value set in env", cfg.RedisURL)
 	}
 }
+
+func TestLoad_S3AndTTLDefaults(t *testing.T) {
+	t.Setenv("STORE_TTL_SECS", "")
+	t.Setenv("S3_BUCKET", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	// blindfold: doc — task-2-brief.md §Step 1: "default 172800 (48h)"
+	if cfg.StoreTTLSecs != 172800 {
+		t.Errorf("StoreTTLSecs default = %d, want 172800", cfg.StoreTTLSecs)
+	}
+	// blindfold: doc — task-2-brief.md §Step 4: getEnvInt("ASYNC_WORKERS", 4)
+	if cfg.AsyncWorkers != 4 {
+		t.Errorf("AsyncWorkers default = %d, want 4", cfg.AsyncWorkers)
+	}
+}
+
+func TestLoad_Tier3RequiresObjectLock(t *testing.T) {
+	t.Setenv("S3_BUCKET", "drs")
+	t.Setenv("S3_ENDPOINT", "localhost:9000")
+	t.Setenv("S3_ACCESS_KEY", "k")
+	t.Setenv("S3_SECRET_KEY", "s")
+	t.Setenv("TSA_URL", "https://freetsa.org/tsr") // Tier 3
+	t.Setenv("S3_OBJECT_LOCK", "false")            // but WORM off
+	_, err := Load()
+	if err == nil {
+		t.Fatal("Tier 3 (TSA + S3) without S3_OBJECT_LOCK must fail at boot")
+	}
+	// blindfold: contract — task-2-brief.md §Step 4: exact error emitted by the Tier-3 WORM guard
+	want := "TSA_URL (Tier 3) requires S3_OBJECT_LOCK=true for WORM-immutable compliance evidence"
+	if got := err.Error(); got != want {
+		t.Fatalf("guard error = %q, want %q", got, want)
+	}
+}
+
+func TestLoad_S3BucketRequiresCredentials(t *testing.T) {
+	t.Setenv("S3_ACCESS_KEY", "")
+	t.Setenv("S3_SECRET_KEY", "")
+	t.Setenv("S3_BUCKET", "drs")
+	t.Setenv("S3_ENDPOINT", "")
+	_, err := Load()
+	if err == nil {
+		t.Fatal("S3_BUCKET without S3_ENDPOINT/keys must fail at boot")
+	}
+	// blindfold: contract — task-2-brief.md §Step 4: exact error emitted by the S3 credentials guard
+	want := "S3_BUCKET requires S3_ENDPOINT, S3_ACCESS_KEY, and S3_SECRET_KEY"
+	if got := err.Error(); got != want {
+		t.Fatalf("guard error = %q, want %q", got, want)
+	}
+}
+
+func TestLoad_NegativeStoreTTLRejected(t *testing.T) {
+	t.Setenv("STORE_TTL_SECS", "-5")
+	_, err := Load()
+	if err == nil {
+		t.Fatal("negative STORE_TTL_SECS must be rejected")
+	}
+	// blindfold: contract — task-2-brief.md §Step 4: exact error emitted by the storeTTL <= 0 guard
+	want := "STORE_TTL_SECS must be a positive number of seconds, got -5"
+	if got := err.Error(); got != want {
+		t.Fatalf("guard error = %q, want %q", got, want)
+	}
+}
+
+func TestLoad_ObjectLockZeroRetentionRejected(t *testing.T) {
+	t.Setenv("S3_BUCKET", "drs")
+	t.Setenv("S3_ENDPOINT", "localhost:9000")
+	t.Setenv("S3_ACCESS_KEY", "k")
+	t.Setenv("S3_SECRET_KEY", "s")
+	t.Setenv("S3_OBJECT_LOCK", "true")
+	t.Setenv("S3_RETENTION_DAYS", "0")
+	_, err := Load()
+	if err == nil {
+		t.Fatal("S3_OBJECT_LOCK=true with S3_RETENTION_DAYS=0 must be rejected: WORM with zero retention is a silent fail-open")
+	}
+	// blindfold: contract — exact error emitted by the S3_RETENTION_DAYS guard when days==0
+	want := "S3_RETENTION_DAYS must be a positive number of days when S3_OBJECT_LOCK=true, got 0"
+	if got := err.Error(); got != want {
+		t.Fatalf("guard error = %q, want %q", got, want)
+	}
+}
+
+func TestLoad_ObjectLockNegativeRetentionRejected(t *testing.T) {
+	t.Setenv("S3_BUCKET", "drs")
+	t.Setenv("S3_ENDPOINT", "localhost:9000")
+	t.Setenv("S3_ACCESS_KEY", "k")
+	t.Setenv("S3_SECRET_KEY", "s")
+	t.Setenv("S3_OBJECT_LOCK", "true")
+	t.Setenv("S3_RETENTION_DAYS", "-1")
+	_, err := Load()
+	if err == nil {
+		t.Fatal("S3_OBJECT_LOCK=true with S3_RETENTION_DAYS=-1 must be rejected")
+	}
+	// blindfold: contract — exact error emitted by the S3_RETENTION_DAYS guard when days==-1
+	want := "S3_RETENTION_DAYS must be a positive number of days when S3_OBJECT_LOCK=true, got -1"
+	if got := err.Error(); got != want {
+		t.Fatalf("guard error = %q, want %q", got, want)
+	}
+}

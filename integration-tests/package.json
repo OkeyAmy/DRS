@@ -9,7 +9,6 @@
     "test:e2e": "./run.sh"
   },
   "dependencies": {
-    "@drs/mcp-server": "workspace:*",
     "@okeyamy/drs-sdk": "workspace:*"
   },
   "engines": {

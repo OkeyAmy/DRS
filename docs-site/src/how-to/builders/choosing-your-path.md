@@ -74,7 +74,7 @@ If your tool server is in Go, import the middleware package directly.
 Faster path (no extra hop), but Go-only.
 
 ```go
-import "github.com/drs-protocol/drs-verify/pkg/middleware"
+import "github.com/OkeyAmy/DRS/drs-verify/pkg/middleware"
 
 mux.Handle("/tools/call", middleware.MCPMiddleware(deps, nonceStore, "enforced", yourHandler))
 ```

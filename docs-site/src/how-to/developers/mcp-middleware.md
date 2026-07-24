@@ -29,6 +29,10 @@ If verification fails:
 If your MCP-facing server is in Go, wrap the route with
 `middleware.MCPMiddleware` or `middleware.OptionalMCPMiddleware`.
 
+```bash
+go get github.com/OkeyAmy/DRS/drs-verify
+```
+
 ```go
 package main
 
@@ -37,10 +41,10 @@ import (
     "net/http"
     "time"
 
-    "github.com/drs-protocol/drs-verify/pkg/middleware"
-    "github.com/drs-protocol/drs-verify/pkg/nonce"
-    "github.com/drs-protocol/drs-verify/pkg/resolver"
-    "github.com/drs-protocol/drs-verify/pkg/verify"
+    "github.com/OkeyAmy/DRS/drs-verify/pkg/middleware"
+    "github.com/OkeyAmy/DRS/drs-verify/pkg/nonce"
+    "github.com/OkeyAmy/DRS/drs-verify/pkg/resolver"
+    "github.com/OkeyAmy/DRS/drs-verify/pkg/verify"
 )
 
 func main() {
@@ -86,18 +90,22 @@ safely process requests without a bundle.
 
 ## TypeScript / pure JSON-RPC integration
 
-If your MCP traffic is pure JSON-RPC rather than HTTP-terminated, use the
-TypeScript wrapper packages in `packages/drs-mcp-client` and
-`packages/drs-mcp-server`.
+This Go middleware is the normative HTTP (Shape 1) enforcement path. If your
+tool server is Node rather than Go, DRS ships no bundled middleware — you write
+a small fail-closed gate against `/verify`, shown in the
+[Node tool-server guide](../builders/mcp-node.md#the-gate).
 
-- client side: injects the bundle into `params._meta["X-DRS-Bundle"]`
-- server side: decodes the same base64url string, posts `{ ...bundle, body }` to
-  `/verify`, and requires `binding === "match"`
+If your MCP traffic is pure JSON-RPC rather than HTTP-terminated (**Shape 2**),
+the same base64url bundle rides in `params._meta["X-DRS-Bundle"]`:
 
-This is the Shape 2 transport described in `docs/drs-source-of-truth.md`. For
-`tools/call`, the server middleware builds the binding body from
-`params.name` and `params.arguments`, matching signed invocation args such as
-`{ "tool": "web_search", "query": "..." }`.
+- client side: inject the bundle into `params._meta["X-DRS-Bundle"]`
+- server side: decode that string, `POST { ...bundle, body }` to `/verify`, and
+  require `valid: true` **and** `binding === "match"` — building the binding
+  body from `params.name` and `params.arguments`, matching signed invocation
+  args such as `{ "tool": "web_search", "query": "..." }`
+
+Both shapes are the same fail-closed check; only where the bundle and body come
+from differs.
 
 ## Testing your integration
 

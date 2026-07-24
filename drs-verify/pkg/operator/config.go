@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/drs-protocol/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
 )
 
 // ValidRootTypes lists the accepted values for DrsRootType.
@@ -31,11 +31,12 @@ var ValidKeyManagements = map[string]bool{
 }
 
 // ImplementedStorageTiers lists the storage tiers that have a working runtime
-// implementation. Tiers 2 (S3/durable) and 5 (on-chain/Ethereum) are roadmap
-// items — accepting them would let the server start and then fail at first use.
+// implementation. Tier 5 (on-chain/Ethereum) is a roadmap item — accepting it
+// would let the server start and then fail at first use.
 var ImplementedStorageTiers = map[int]bool{
 	0: true, // session (memory)
 	1: true, // ephemeral (filesystem)
+	2: true, // durable (S3, no TSA)
 	3: true, // compliant (WORM + RFC 3161)
 	4: true, // timestamped (per-DR TSToken)
 }
@@ -73,8 +74,9 @@ type OperatorConfig struct {
 
 	// StorageTier selects the DR Store tier for receipts issued by this operator.
 	// Implemented: 0 = session (memory), 1 = ephemeral (filesystem),
-	//              3 = compliant (WORM + RFC 3161), 4 = timestamped (per-DR TSToken).
-	// Roadmap (not yet available): 2 = durable (S3), 5 = on-chain (Ethereum).
+	//              2 = durable (S3, no TSA), 3 = compliant (WORM + RFC 3161),
+	//              4 = timestamped (per-DR TSToken).
+	// Roadmap (not yet available): 5 = on-chain (Ethereum).
 	StorageTier int `json:"storage_tier"`
 }
 
@@ -130,7 +132,7 @@ func (c *OperatorConfig) Validate() error {
 		return fmt.Errorf("operator: session_ttl_hours must be >= 0")
 	}
 	if !ImplementedStorageTiers[c.StorageTier] {
-		return fmt.Errorf("operator: storage_tier %d is not implemented (implemented tiers: 0, 1, 3, 4 — tiers 2 and 5 are roadmap)", c.StorageTier)
+		return fmt.Errorf("operator: storage_tier %d is not implemented (implemented tiers: 0, 1, 2, 3, 4 — tier 5 is roadmap)", c.StorageTier)
 	}
 	return nil
 }

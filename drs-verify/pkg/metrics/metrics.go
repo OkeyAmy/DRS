@@ -95,6 +95,39 @@ var BindingChecks = promauto.NewCounterVec(prometheus.CounterOpts{
 	Help:      "Request-body binding check outcomes.",
 }, []string{"result"})
 
+// StoreWriteQueueDropped counts receipt writes dropped because the async
+// write queue was full. A non-zero value means evidence is being lost and
+// the backend cannot keep pace with ingress.
+var StoreWriteQueueDropped = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "drs",
+	Subsystem: "store",
+	Name:      "write_queue_dropped_total",
+	Help:      "Receipt writes dropped because the async queue was full (evidence gap).",
+})
+
+// StoreFlushErrors counts receipt writes that exhausted all retries against
+// the durable backend. Each increment means a receipt that should have been
+// persisted was permanently lost.
+var StoreFlushErrors = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "drs",
+	Subsystem: "store",
+	Name:      "flush_errors_total",
+	Help:      "Receipt writes that exhausted retries against the durable backend.",
+})
+
+// StoreWritesTotal counts store write attempts by outcome.
+//
+// result labels:
+//   - flushed — write succeeded and was committed to the backend
+//   - dropped — write was shed at the queue boundary (correlates with StoreWriteQueueDropped)
+//   - error   — write reached the backend but the backend returned an error
+var StoreWritesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "drs",
+	Subsystem: "store",
+	Name:      "writes_total",
+	Help:      "Receipt store write outcomes.",
+}, []string{"result"})
+
 // RequestDuration times HTTP handlers.
 //
 // endpoint: /verify | /mcp | /a2a | /admin/revoke

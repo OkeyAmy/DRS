@@ -9,8 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/drs-protocol/drs-verify/pkg/binding"
-	"github.com/drs-protocol/drs-verify/pkg/metrics"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/binding"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/metrics"
 )
 
 // Binding-mode values. Must match the DRS_BINDING_MODE env var values parsed

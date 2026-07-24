@@ -130,6 +130,31 @@ type Config struct {
 	//   :9090               — all interfaces (dev)
 	//   127.0.0.1:9090      — loopback only (production / Kubernetes sidecar)
 	MetricsAddr string
+
+	// StoreTTLSecs is the Tier-1 (local filesystem) retention window in seconds.
+	// Entries older than this are removed by the background janitor and by lazy
+	// Get-path expiry. Default 172800 (48h). Must be > 0. Tier 3 ignores this
+	// (compliance evidence never auto-expires). Set via STORE_TTL_SECS.
+	StoreTTLSecs int64
+
+	// S3* configure the durable object-store backend (Tier 2/3). When S3Bucket
+	// is set the durable backend is selected. Works with any S3-compatible
+	// endpoint (AWS S3, GCS, Cloudflare R2, Backblaze, self-hosted MinIO).
+	S3Endpoint   string // host:port, e.g. "s3.amazonaws.com" or "minio:9000"
+	S3Bucket     string
+	S3AccessKey  string
+	S3SecretKey  string
+	S3Region     string // default "us-east-1"
+	S3UseSSL     bool   // S3_USE_SSL=true
+	S3ObjectLock bool   // S3_OBJECT_LOCK=true — required for Tier 3
+	// S3RetentionDays is the Object Lock retention applied to each stored object
+	// when S3ObjectLock is true. Default 2555 (~7 years). Set via S3_RETENTION_DAYS.
+	S3RetentionDays int64
+
+	// AsyncQueueSize / AsyncWorkers configure the async write pipeline that
+	// keeps durable-backend latency off the verify hot path.
+	AsyncQueueSize int // ASYNC_QUEUE_SIZE, default 4096
+	AsyncWorkers   int // ASYNC_WORKERS, default 4
 }
 
 // Load reads all configuration from environment variables.
@@ -167,6 +192,52 @@ func Load() (Config, error) {
 	tsaURL := os.Getenv("TSA_URL")
 	storeDir := os.Getenv("STORE_DIR")
 	serverIdentity := os.Getenv("SERVER_IDENTITY")
+
+	storeTTL, err := getEnvInt64("STORE_TTL_SECS", 172800)
+	if err != nil {
+		return Config{}, fmt.Errorf("STORE_TTL_SECS: %w", err)
+	}
+	if storeTTL <= 0 {
+		return Config{}, fmt.Errorf("STORE_TTL_SECS must be a positive number of seconds, got %d", storeTTL)
+	}
+
+	s3Endpoint := os.Getenv("S3_ENDPOINT")
+	s3Bucket := os.Getenv("S3_BUCKET")
+	s3AccessKey := os.Getenv("S3_ACCESS_KEY")
+	s3SecretKey := os.Getenv("S3_SECRET_KEY")
+	s3Region := getEnvOrDefault("S3_REGION", "us-east-1")
+	s3UseSSL := os.Getenv("S3_USE_SSL") == "true"
+	s3ObjectLock := os.Getenv("S3_OBJECT_LOCK") == "true"
+	s3RetentionDays, err := getEnvInt64("S3_RETENTION_DAYS", 2555)
+	if err != nil {
+		return Config{}, fmt.Errorf("S3_RETENTION_DAYS: %w", err)
+	}
+
+	asyncQueue, err := getEnvInt("ASYNC_QUEUE_SIZE", 4096)
+	if err != nil {
+		return Config{}, fmt.Errorf("ASYNC_QUEUE_SIZE: %w", err)
+	}
+	asyncWorkers, err := getEnvInt("ASYNC_WORKERS", 4)
+	if err != nil {
+		return Config{}, fmt.Errorf("ASYNC_WORKERS: %w", err)
+	}
+
+	if s3Bucket != "" && (s3Endpoint == "" || s3AccessKey == "" || s3SecretKey == "") {
+		return Config{}, fmt.Errorf("S3_BUCKET requires S3_ENDPOINT, S3_ACCESS_KEY, and S3_SECRET_KEY")
+	}
+	// Tier 3 = durable + RFC 3161. Compliance evidence must be WORM-immutable,
+	// so require Object Lock. Local-filesystem compliance is no longer allowed.
+	if tsaURL != "" {
+		if s3Bucket == "" {
+			return Config{}, fmt.Errorf("TSA_URL (Tier 3) requires the S3 durable backend: set S3_BUCKET and credentials")
+		}
+		if !s3ObjectLock {
+			return Config{}, fmt.Errorf("TSA_URL (Tier 3) requires S3_OBJECT_LOCK=true for WORM-immutable compliance evidence")
+		}
+	}
+	if s3ObjectLock && s3RetentionDays <= 0 {
+		return Config{}, fmt.Errorf("S3_RETENTION_DAYS must be a positive number of days when S3_OBJECT_LOCK=true, got %d", s3RetentionDays)
+	}
 
 	nonceMax, err := getEnvInt("NONCE_STORE_MAX_ENTRIES", 100_000)
 	if err != nil {
@@ -250,6 +321,17 @@ func Load() (Config, error) {
 		NonceStoreBackend:          nonceBackend,
 		RedisURL:                   redisURL,
 		MetricsAddr:                metricsAddr,
+		StoreTTLSecs:               storeTTL,
+		S3Endpoint:                 s3Endpoint,
+		S3Bucket:                   s3Bucket,
+		S3AccessKey:                s3AccessKey,
+		S3SecretKey:                s3SecretKey,
+		S3Region:                   s3Region,
+		S3UseSSL:                   s3UseSSL,
+		S3ObjectLock:               s3ObjectLock,
+		S3RetentionDays:            s3RetentionDays,
+		AsyncQueueSize:             asyncQueue,
+		AsyncWorkers:               asyncWorkers,
 	}, nil
 }
 

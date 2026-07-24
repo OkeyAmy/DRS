@@ -61,7 +61,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build workspace packages used by E2E
-        run: pnpm --filter @okeyamy/drs-sdk --filter @drs/mcp-server build
+        run: pnpm --filter @okeyamy/drs-sdk build
 
       - name: Run E2E
         working-directory: integration-tests
@@ -152,7 +152,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build workspace packages used by E2E
-        run: pnpm --filter @okeyamy/drs-sdk --filter @drs/mcp-server build
+        run: pnpm --filter @okeyamy/drs-sdk build
 
       - name: Run E2E against the published image
         working-directory: integration-tests

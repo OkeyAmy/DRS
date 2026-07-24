@@ -21,18 +21,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/anchor"
-	"github.com/drs-protocol/drs-verify/pkg/binding"
-	"github.com/drs-protocol/drs-verify/pkg/config"
-	"github.com/drs-protocol/drs-verify/pkg/health"
-	"github.com/drs-protocol/drs-verify/pkg/metrics"
-	"github.com/drs-protocol/drs-verify/pkg/middleware"
-	"github.com/drs-protocol/drs-verify/pkg/nonce"
-	"github.com/drs-protocol/drs-verify/pkg/resolver"
-	"github.com/drs-protocol/drs-verify/pkg/revocation"
-	"github.com/drs-protocol/drs-verify/pkg/store"
-	"github.com/drs-protocol/drs-verify/pkg/types"
-	"github.com/drs-protocol/drs-verify/pkg/verify"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/anchor"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/binding"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/config"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/health"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/metrics"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/middleware"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/nonce"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/resolver"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/revocation"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/store"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/verify"
 )
 
 // shutdownTimeout is how long the server waits for in-flight requests to drain
@@ -120,20 +120,56 @@ func main() {
 	}
 
 	var drStore store.Store
-	if cfg.StoreDir != "" {
-		fsStore, err := store.NewFilesystemStore(cfg.StoreDir, 0)
+	var asyncStore *store.AsyncStore // non-nil only for the durable (S3) tiers; drained on shutdown
+
+	switch {
+	case cfg.S3Bucket != "":
+		// Tier 2/3: durable object store. Wrap in integrity verification, then
+		// the async write pipeline so S3 latency never lands on the verify path.
+		s3, err := store.NewS3Store(context.Background(), store.S3Config{
+			Endpoint: cfg.S3Endpoint, Bucket: cfg.S3Bucket,
+			AccessKey: cfg.S3AccessKey, SecretKey: cfg.S3SecretKey,
+			Region: cfg.S3Region, UseSSL: cfg.S3UseSSL,
+			ObjectLock: cfg.S3ObjectLock, RetentionDays: cfg.S3RetentionDays,
+		})
 		if err != nil {
 			slog.Error("store init failed", "error", err)
 			os.Exit(1)
 		}
+		asyncStore = store.NewAsyncStore(store.NewIntegrityStore(s3), store.AsyncConfig{
+			QueueSize: cfg.AsyncQueueSize, Workers: cfg.AsyncWorkers,
+			OnDrop: func(string) {
+				metrics.StoreWriteQueueDropped.Inc()
+				metrics.StoreWritesTotal.WithLabelValues("dropped").Inc()
+			},
+			OnFlushError: func(string, error) {
+				metrics.StoreFlushErrors.Inc()
+				metrics.StoreWritesTotal.WithLabelValues("error").Inc()
+			},
+			OnFlushSuccess: func(string) { metrics.StoreWritesTotal.WithLabelValues("flushed").Inc() },
+		})
 		if cfg.TSAURL != "" {
-			drStore = anchor.NewTier3Store(fsStore, anchor.NewTSAClient(cfg.TSAURL))
-			slog.Info("store initialized", "tier", 3, "tsa_url", cfg.TSAURL)
+			drStore = anchor.NewTier3Store(asyncStore, anchor.NewTSAClient(cfg.TSAURL))
+			slog.Info("store initialized", "tier", 3, "backend", "s3+worm", "retention_days", cfg.S3RetentionDays)
 		} else {
-			drStore = fsStore
-			slog.Info("store initialized", "tier", 1)
+			drStore = asyncStore
+			slog.Info("store initialized", "tier", 2, "backend", "s3")
 		}
-	} else {
+
+	case cfg.StoreDir != "":
+		// Tier 1: local filesystem, ephemeral. Configurable TTL + background janitor.
+		fsStore, err := store.NewFilesystemStore(cfg.StoreDir, time.Duration(cfg.StoreTTLSecs)*time.Second)
+		if err != nil {
+			slog.Error("store init failed", "error", err)
+			os.Exit(1)
+		}
+		janitorCtx, stopJanitor := context.WithCancel(context.Background())
+		defer stopJanitor()
+		fsStore.StartJanitor(janitorCtx)
+		drStore = store.NewIntegrityStore(fsStore)
+		slog.Info("store initialized", "tier", 1, "ttl_secs", cfg.StoreTTLSecs)
+
+	default:
 		s, err := store.NewMemoryStore(0)
 		if err != nil {
 			slog.Error("store init failed", "error", err)
@@ -308,6 +344,13 @@ func main() {
 		defer metricsCancel()
 		if err = metricsSrv.Shutdown(metricsShutdownCtx); err != nil {
 			slog.Error("metrics server shutdown failed", "error", err)
+		}
+	}
+	if asyncStore != nil {
+		drainCtx, drainCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer drainCancel()
+		if err := asyncStore.Close(drainCtx); err != nil {
+			slog.Warn("async store did not fully drain before deadline", "error", err)
 		}
 	}
 	// Drain the background goroutine's final error (should be nil after Shutdown).

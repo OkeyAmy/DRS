@@ -17,15 +17,16 @@ backend:
 Same shape as the [MCP Node integration](./mcp-node.md). Summary:
 
 ```ts
-import { drsVerify } from "./drs-middleware.js";
+import { drsGate } from "./drs-gate.js";
 
-app.use(drsVerify);                     // enforce on every route
-app.use("/admin", drsVerify);           // enforce on a subtree only
+app.use(drsGate);                     // enforce on every route
+app.use("/admin", drsGate);           // enforce on a subtree only
 ```
 
-The middleware reads `X-DRS-Bundle`, POSTs to the sidecar verifier, and
-either 401s/403s or attaches `req.drs` and calls `next()`. See the MCP
-guide for the full implementation.
+The gate reads `X-DRS-Bundle`, POSTs to the sidecar verifier, and either
+401s/403s or attaches `req.drs` and calls `next()`. Copy the full
+implementation from the [MCP guide](./mcp-node.md#the-gate) — it is a
+zero-dependency file you own.
 
 ## Pattern 2: reverse proxy (zero app changes)
 
@@ -99,7 +100,9 @@ require DRS + additional RBAC — make DRS enforcement explicit per
 route:
 
 ```ts
-import { drsOptional, drsRequired } from "./drs-middleware.js";
+// drsRequired is the drsGate from the MCP guide; drsOptional is the same gate
+// that calls next() (instead of 401) when no X-DRS-Bundle header is present.
+import { drsOptional, drsRequired } from "./drs-gate.js";
 
 app.get("/status", (req, res) => res.json({ ok: true })); // public
 

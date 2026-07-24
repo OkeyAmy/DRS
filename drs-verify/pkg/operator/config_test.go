@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/drs-protocol/drs-verify/pkg/operator"
-	"github.com/drs-protocol/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/operator"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
 )
 
 func validConfig() operator.OperatorConfig {
@@ -90,7 +90,7 @@ func TestInvalidStorageTierIsRejected(t *testing.T) {
 }
 
 func TestImplementedStorageTiersAreAccepted(t *testing.T) {
-	for _, tier := range []int{0, 1, 3, 4} {
+	for _, tier := range []int{0, 1, 2, 3, 4} {
 		cfg := validConfig()
 		cfg.StorageTier = tier
 		if err := cfg.Validate(); err != nil {
@@ -100,7 +100,7 @@ func TestImplementedStorageTiersAreAccepted(t *testing.T) {
 }
 
 func TestRoadmapStorageTiersAreRejected(t *testing.T) {
-	for _, tier := range []int{2, 5} {
+	for _, tier := range []int{5} {
 		cfg := validConfig()
 		cfg.StorageTier = tier
 		err := cfg.Validate()

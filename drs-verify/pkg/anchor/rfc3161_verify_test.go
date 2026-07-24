@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/anchor"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/anchor"
 )
 
 // ── Test-local ASN.1 types ────────────────────────────────────────────────────

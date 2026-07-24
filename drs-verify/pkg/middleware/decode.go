@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/drs-protocol/drs-verify/pkg/metrics"
-	"github.com/drs-protocol/drs-verify/pkg/nonce"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/metrics"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/nonce"
 )
 
 // jtiPayload is a minimal struct for extracting only the jti field from a JWT

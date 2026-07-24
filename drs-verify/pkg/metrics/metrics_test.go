@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 func TestHandlerServesPrometheusExposition(t *testing.T) {
@@ -85,5 +87,49 @@ func TestStartServerUnknownPortFails(t *testing.T) {
 	_, err := StartServer("127.0.0.1:99999")
 	if err == nil {
 		t.Error("StartServer on invalid port should return error")
+	}
+}
+
+// TestStoreMetricsRegistered verifies the three async-pipeline collectors are
+// registered and actually increment. testutil.ToFloat64 observes a concrete
+// before/after delta, so this is a real oracle, not an absence-of-panic check.
+func TestStoreMetricsRegistered(t *testing.T) {
+	before0 := testutil.ToFloat64(StoreWriteQueueDropped)
+	before1 := testutil.ToFloat64(StoreFlushErrors)
+	before2 := testutil.ToFloat64(StoreWritesTotal.WithLabelValues("flushed"))
+
+	StoreWriteQueueDropped.Inc()
+	StoreFlushErrors.Inc()
+	StoreWritesTotal.WithLabelValues("flushed").Inc()
+
+	if got, want := testutil.ToFloat64(StoreWriteQueueDropped), before0+1; got != want {
+		t.Errorf("StoreWriteQueueDropped: got %v, want %v", got, want)
+	}
+	if got, want := testutil.ToFloat64(StoreFlushErrors), before1+1; got != want {
+		t.Errorf("StoreFlushErrors: got %v, want %v", got, want)
+	}
+	if got, want := testutil.ToFloat64(StoreWritesTotal.WithLabelValues("flushed")), before2+1; got != want {
+		t.Errorf("StoreWritesTotal{flushed}: got %v, want %v", got, want)
+	}
+}
+
+// TestStoreMetricsInExposition verifies the store metric names appear in the
+// Prometheus text exposition served by Handler().
+func TestStoreMetricsInExposition(t *testing.T) {
+	StoreWriteQueueDropped.Inc()
+	StoreFlushErrors.Inc()
+	StoreWritesTotal.WithLabelValues("dropped").Inc()
+
+	rr := httptest.NewRecorder()
+	Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	body := rr.Body.String()
+	for _, m := range []string{
+		"drs_store_write_queue_dropped_total",
+		"drs_store_flush_errors_total",
+		"drs_store_writes_total",
+	} {
+		if !strings.Contains(body, m) {
+			t.Errorf("store metric %q missing from /metrics output", m)
+		}
 	}
 }

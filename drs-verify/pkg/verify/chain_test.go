@@ -19,10 +19,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/resolver"
-	"github.com/drs-protocol/drs-verify/pkg/revocation"
-	"github.com/drs-protocol/drs-verify/pkg/store"
-	"github.com/drs-protocol/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/resolver"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/revocation"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/store"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
 )
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

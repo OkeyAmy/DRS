@@ -6,9 +6,11 @@ This page exists to remove a common confusion.
 cloning this repository into your source tree.**
 
 The core layers are published or containerized. Pick the ones that match your
-role and install them the way you'd install any other dependency. Workspace
-helper packages such as `@drs/mcp-server` are part of this monorepo and may need
-to be vendored until release automation publishes them.
+role and install them the way you'd install any other dependency. Enforcement on
+a Node tool server is not a package to install — it is a small fail-closed gate
+you copy into your own code (see the
+[Node tool-server guide](./mcp-node.md#the-gate)); Go tool servers import the
+reusable middleware with `go get github.com/OkeyAmy/DRS/drs-verify`.
 
 | Layer | How builders get it | You edit this? |
 |---|---|---|

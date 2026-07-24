@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/drs-protocol/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
 )
 
 func boolPtr(b bool) *bool      { return &b }

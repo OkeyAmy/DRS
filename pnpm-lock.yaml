@@ -72,42 +72,9 @@ importers:
 
   integration-tests:
     dependencies:
-      '@drs/mcp-server':
-        specifier: workspace:*
-        version: link:../packages/drs-mcp-server
       '@okeyamy/drs-sdk':
         specifier: workspace:*
         version: link:../drs-sdk
-
-  packages/drs-mcp-client:
-    devDependencies:
-      prettier:
-        specifier: ^3.8.3
-        version: 3.8.3
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-      vite:
-        specifier: ^6.4.3
-        version: 6.4.3(@types/node@25.6.0)(tsx@4.22.4)
-      vitest:
-        specifier: ^4.1.0
-        version: 4.1.8(@types/node@25.6.0)(vite@6.4.3(@types/node@25.6.0)(tsx@4.22.4))
-
-  packages/drs-mcp-server:
-    devDependencies:
-      prettier:
-        specifier: ^3.8.3
-        version: 3.8.3
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-      vite:
-        specifier: ^6.4.3
-        version: 6.4.3(@types/node@25.6.0)(tsx@4.22.4)
-      vitest:
-        specifier: ^4.1.0
-        version: 4.1.8(@types/node@25.6.0)(vite@6.4.3(@types/node@25.6.0)(tsx@4.22.4))
 
 packages:
 

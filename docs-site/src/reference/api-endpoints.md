@@ -111,7 +111,7 @@ drs-verify is a verification service only. It does not proxy, transform,
 or execute MCP/A2A traffic. Tool servers own their own endpoints and call
 `POST /verify` on a local drs-verify instance for each request. See
 `examples/drs-expense-agent/src/tool-server.ts` for the canonical
-tool-server pattern, or import `github.com/drs-protocol/drs-verify/pkg/middleware`
+tool-server pattern, or import `github.com/OkeyAmy/DRS/drs-verify/pkg/middleware`
 for in-process Go integrations.
 
 ---
