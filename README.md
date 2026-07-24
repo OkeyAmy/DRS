@@ -202,9 +202,34 @@ Kubernetes and Docker health probes.
 - **Constant-time comparisons** — multicodec prefix checks and bearer token validation use `crypto/subtle`
 - **RFC 8785 JCS canonicalization** — no shallow `JSON.stringify` key sort; conformance vectors guard cross-language canonicalization behavior
 - **LRU-bounded DID resolver cache** — hard cap at 10,000 entries (~640 KB)
-- **W3C Bitstring Status List revocation** — `sync.Once` concurrency guard prevents thundering herd on cache miss
-- **Request body capped** at 1 MiB by default (`MAX_BODY_BYTES`)
+- **W3C Bitstring Status List revocation** — mutex + re-check concurrency guard prevents thundering herd on cache miss (`sync.Once` is deliberately avoided: a failed fetch must be retryable)
+- **MCP/A2A binding middleware body capped** at 64 KiB — hard-coded (`maxBindingBodyBytes`), not env-var controlled; the `/verify` endpoint body limit is separately configurable via `MAX_BODY_BYTES` (default 1 MiB)
 - **DID resolver** supports `did:key` (self-authenticating, no network I/O) and `did:web` (HTTPS + TLS)
+
+## Performance
+
+Measured against the published artifacts (`ghcr.io/okeyamy/drs-verify` v0.1.1,
+`@okeyamy/drs-sdk` 0.1.1 from npm) with 15 simulated developers, each with
+their own keypair, delegation chain, and client IP. Full methodology and the
+replicable harness live in the standalone
+[**drs-bench**](https://github.com/OkeyAmy/drs-bench) repository (see its
+[RESULTS.md](https://github.com/OkeyAmy/drs-bench/blob/main/RESULTS.md));
+numbers below are from a 4-core/8-thread laptop — treat them as relative,
+not absolute.
+
+| Measurement | Result |
+|---|---|
+| Verification floor latency (depth-1 chain) | ~2.8 ms avg |
+| Verification at the depth cap (16 receipts) | ~8.6 ms avg |
+| Steady multi-tenant load (300 rps, depth 4) | p95 5.4 ms, ~1 core, 0 errors |
+| Single-instance saturation (depth 4) | ~800 rps at 5 cores |
+| Replay storm (10 % replayed JTIs at 300 rps) | all replays 409, latency unchanged |
+| Full topology (agent → org tool server → verifier → tool, 300 rps) | ~5.5 ms median per tool call — the enforcement hop costs ~2.3 ms over direct `/verify` |
+| Redis nonce backend vs in-memory | +0.4 ms avg — the full cost of multi-replica replay safety |
+| SDK issuance (per Node process) | ~217 bundles/s (depth 1) → ~114 (depth 16) |
+
+Past ~800 rps a single instance queues; scale horizontally — the Redis nonce
+store already makes replicas replay-safe.
 
 ## Configuration
 
@@ -221,12 +246,12 @@ All configuration is environment-variable driven. No hard-coded URLs, ports, or 
 | `NONCE_STORE_BACKEND` | `memory` | Replay backend: `memory` or `redis` |
 | `REDIS_URL` | — | Required when `NONCE_STORE_BACKEND=redis` |
 | `NONCE_STORE_MAX_ENTRIES` | `100000` | Replay protection store capacity |
-| `NONCE_STORE_TTL_SECS` | `3600` | Replay protection TTL (1 hour) |
+| `NONCE_STORE_TTL_SECS` | `900` | Replay protection TTL (15 min) — also bounds the invocation replay window; raise only if legitimate invocation latency exceeds 15 minutes |
 | `DRS_ADMIN_TOKEN` | — | Bearer token for `POST /admin/revoke` |
 | `REVOCATION_STORE_PATH` | — | Optional durable local revocation log path |
 | `STORE_DIR` | — | Filesystem store base directory (Tier 1/3) |
 | `TSA_URL` | — | RFC 3161 TSA endpoint — enables Tier 3 store |
-| `MAX_BODY_BYTES` | `1048576` | Maximum request body size (1 MiB) |
+| `MAX_BODY_BYTES` | `1048576` | Maximum `/verify` request body size (1 MiB); MCP/A2A binding middleware cap is hard-coded at 64 KiB and is not affected by this variable |
 | `LOG_LEVEL` | `info` | Log level: debug / info / warn / error |
 | `LOG_FORMAT` | `text` | Log format: `text` or `json` |
 | `METRICS_ADDR` | — | Separate Prometheus listener; empty disables metrics |

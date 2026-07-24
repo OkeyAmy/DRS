@@ -60,7 +60,7 @@ This is a research project. Three architectural approaches were designed and dis
 - UCAN envelopes/CBOR assumptions → DRS JWT receipts with RFC 8785 JCS canonicalisation
 - TypeScript verification → Go verification server (goroutines, predictable GC)
 - Unbounded cache → `golang-lru/v2` with hard cap of 10,000 entries
-- Race condition → `sync.Once` on status list fetch
+- Race condition → mutex + re-check guard on status list fetch (failed fetches are retryable, unlike `sync.Once`)
 - O(n·m) policy check → capability index with O(1) average lookup
 - JSON/CBOR confusion → JWT throughout, JCS canonicalisation for signing
 
