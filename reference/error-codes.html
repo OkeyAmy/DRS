@@ -271,7 +271,7 @@ by the MCP/A2A middleware routes, which gate a request — not by <code>/verify<
 <div class="table-wrapper"><table><thead><tr><th>HTTP</th><th><code>error</code></th><th>When</th></tr></thead><tbody>
 <tr><td>400</td><td>(varies)</td><td>Malformed JSON, missing fields, or missing invocation <code>jti</code></td></tr>
 <tr><td>409</td><td><code>REPLAY_DETECTED</code></td><td>The invocation <code>jti</code> has already been consumed</td></tr>
-<tr><td>413</td><td><code>REQUEST_BODY_TOO_LARGE</code></td><td>Request body exceeds the 64 KiB cap</td></tr>
+<tr><td>413</td><td><code>REQUEST_BODY_TOO_LARGE</code></td><td><code>/verify</code> request body exceeds <code>MAX_BODY_BYTES</code> (default 1 MiB)</td></tr>
 <tr><td>429</td><td><code>RATE_LIMIT_EXCEEDED</code></td><td>Per-IP or global rate limit hit</td></tr>
 <tr><td>503</td><td><code>NONCE_STORE_EXHAUSTED</code></td><td>Replay-protection store at capacity — retry shortly</td></tr>
 </tbody></table>

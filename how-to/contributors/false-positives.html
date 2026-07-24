@@ -216,7 +216,7 @@
 <li>UCAN envelopes/CBOR assumptions → DRS JWT receipts with RFC 8785 JCS canonicalisation</li>
 <li>TypeScript verification → Go verification server (goroutines, predictable GC)</li>
 <li>Unbounded cache → <code>golang-lru/v2</code> with hard cap of 10,000 entries</li>
-<li>Race condition → <code>sync.Once</code> on status list fetch</li>
+<li>Race condition → mutex + re-check guard on status list fetch (failed fetches are retryable, unlike <code>sync.Once</code>)</li>
 <li>O(n·m) policy check → capability index with O(1) average lookup</li>
 <li>JSON/CBOR confusion → JWT throughout, JCS canonicalisation for signing</li>
 </ul>

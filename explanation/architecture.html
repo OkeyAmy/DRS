@@ -221,7 +221,7 @@ reviewable Rust (bug fixes only). It provides:</p>
 <li><code>verify.Chain()</code> (Blocks A-F)</li>
 <li><code>MCPMiddleware</code> / <code>A2AMiddleware</code></li>
 <li>DID resolution with LRU caching</li>
-<li>Bitstring Status List caching with <code>sync.Once</code></li>
+<li>Bitstring Status List caching with mutex + re-check guard (failed fetches are retryable)</li>
 <li>health and readiness endpoints</li>
 <li>storage and local revocation</li>
 </ul>

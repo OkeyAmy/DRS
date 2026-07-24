@@ -218,7 +218,7 @@
       return RECEIPT_REVOKED
 </code></pre>
 <h2 id="status-list-cache-concurrency"><a class="header" href="#status-list-cache-concurrency">Status list cache concurrency</a></h2>
-<p>The status list cache uses <code>sync.Once</code> internally to prevent double-fetch race conditions under concurrent load. When the cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result.</p>
+<p>The status list cache uses a mutex + re-check concurrency guard to prevent double-fetch race conditions under concurrent load. When the cache expires and multiple goroutines arrive simultaneously, only one HTTP request is made — all others wait and reuse the result. Unlike <code>sync.Once</code>, a failed fetch is retryable: if the TSA is temporarily unreachable, the next cache miss will attempt the fetch again.</p>
 
                     </main>
 
