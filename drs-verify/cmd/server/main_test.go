@@ -21,11 +21,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/nonce"
-	"github.com/drs-protocol/drs-verify/pkg/resolver"
-	"github.com/drs-protocol/drs-verify/pkg/store"
-	"github.com/drs-protocol/drs-verify/pkg/types"
-	"github.com/drs-protocol/drs-verify/pkg/verify"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/nonce"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/resolver"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/store"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/verify"
 )
 
 // ── real-fixture helpers (modelled on pkg/verify/chain_test.go) ──────────────
@@ -144,6 +144,11 @@ func newTestVerifyHandler(t *testing.T) http.Handler {
 
 func newTestVerifyHandlerWithBodyLimit(t *testing.T, maxBodyBytes int64) http.Handler {
 	t.Helper()
+	return newTestVerifyHandlerWithOptions(t, maxBodyBytes, true)
+}
+
+func newTestVerifyHandlerWithOptions(t *testing.T, maxBodyBytes int64, requireBinding bool) http.Handler {
+	t.Helper()
 	res, err := resolver.New(100, time.Hour)
 	if err != nil {
 		t.Fatalf("resolver.New: %v", err)
@@ -158,7 +163,7 @@ func newTestVerifyHandlerWithBodyLimit(t *testing.T, maxBodyBytes int64) http.Ha
 		ServerIdentity: "mcp://tools/server", // matches the test fixtures' tool_server
 	}
 	ns := nonce.New(1000, time.Hour)
-	return verifyHandler(deps, ns, maxBodyBytes)
+	return verifyHandler(deps, ns, maxBodyBytes, requireBinding)
 }
 
 func TestWarnIfServerIdentityUnset(t *testing.T) {
@@ -238,27 +243,54 @@ func TestVerifyReturnsBindingMismatchForDivergentBody(t *testing.T) {
 	reqBody := encodeVerifyRequest(t, bundle, []byte(`{"tool":"approve_payment","transaction_id":"T2"}`))
 	_, result := postVerify(t, handler, reqBody)
 
-	if !result.Valid {
-		t.Fatalf("chain should verify; bundle untouched: %+v", result.Error)
+	// blindfold: contract — docs-site/src/reference/protocol-gate.md "/verify changes": with DRS_REQUIRE_BINDING (default) a mismatch is valid:false BINDING_MISMATCH
+	if result.Valid || result.Error == nil || result.Error.Code != "BINDING_MISMATCH" {
+		t.Fatalf("a tampered body must be refused with BINDING_MISMATCH, got valid=%v err=%+v", result.Valid, result.Error)
 	}
 	if result.Binding != "mismatch" { // blindfold: contract — pkg/types/types.go:139 defines Binding values "match"|"mismatch"
 		t.Errorf("binding = %q, want mismatch", result.Binding)
 	}
 }
 
-func TestVerifyReturnsNoBindingFieldWhenBodyAbsent(t *testing.T) {
+func TestVerifyRefusesAbsentBodyWhenBindingRequired(t *testing.T) {
 	handler := newTestVerifyHandler(t)
-	args := map[string]interface{}{"tool": "echo"}
-	bundle := issueSingleHopBundle(t, args)
+	bundle := issueSingleHopBundle(t, map[string]interface{}{"tool": "echo"})
 
 	bundleJSON, _ := json.Marshal(bundle)
 	_, result := postVerify(t, handler, bundleJSON)
 
-	if !result.Valid {
-		t.Fatalf("chain should verify: %+v", result.Error)
+	// blindfold: contract — docs-site/src/reference/protocol-gate.md: absent body is valid:false BINDING_REQUIRED by default
+	if result.Valid || result.Error == nil || result.Error.Code != "BINDING_REQUIRED" {
+		t.Fatalf("a gate that forgets the body must be refused, got valid=%v err=%+v", result.Valid, result.Error)
 	}
-	if result.Binding != "" {
-		t.Errorf("binding should be empty when body absent, got %q", result.Binding)
+}
+
+func TestVerifyAllowsAbsentBodyWhenBindingNotRequired(t *testing.T) {
+	handler := newTestVerifyHandlerWithOptions(t, 1<<20, false)
+	bundle := issueSingleHopBundle(t, map[string]interface{}{"tool": "echo"})
+
+	bundleJSON, _ := json.Marshal(bundle)
+	_, result := postVerify(t, handler, bundleJSON)
+
+	if !result.Valid || result.Binding != "" {
+		t.Fatalf("DRS_REQUIRE_BINDING=false restores chain-only verification, got valid=%v binding=%q err=%+v",
+			result.Valid, result.Binding, result.Error)
+	}
+}
+
+func TestVerifyMismatchDoesNotConsumeNonce(t *testing.T) {
+	handler := newTestVerifyHandler(t)
+	args := map[string]interface{}{"tool": "approve_payment", "transaction_id": "T1"}
+	bundle := issueSingleHopBundle(t, args)
+
+	_, tampered := postVerify(t, handler, encodeVerifyRequest(t, bundle, []byte(`{"tool":"approve_payment","transaction_id":"T2"}`)))
+	if tampered.Valid {
+		t.Fatal("tampered body must be refused")
+	}
+	status, honest := postVerify(t, handler, encodeVerifyRequest(t, bundle, []byte(`{"tool":"approve_payment","transaction_id":"T1"}`)))
+	// blindfold: contract — spec ordering: nonce committed only after binding passes, so the honest retry is 200 valid.
+	if status != http.StatusOK || !honest.Valid {
+		t.Fatalf("an honest retry after a refused tamper must still verify, got %d %+v", status, honest.Error)
 	}
 }
 
@@ -307,11 +339,12 @@ func TestVerifyInvalidJSONBodyReportsInvalidBody(t *testing.T) {
 	// JSON but won't match an object-shaped args).
 	reqBody := encodeVerifyRequest(t, bundle, []byte(`"not-json"`))
 	_, result := postVerify(t, handler, reqBody)
-	if !result.Valid {
-		t.Fatalf("chain should verify: %+v", result.Error)
+	// blindfold: contract — docs-site/src/reference/protocol-gate.md "/verify changes": with DRS_REQUIRE_BINDING (default) a mismatch is valid:false BINDING_MISMATCH
+	if result.Valid || result.Error == nil || result.Error.Code != "BINDING_MISMATCH" {
+		t.Fatalf("a string body against object args must be refused with BINDING_MISMATCH, got valid=%v err=%+v", result.Valid, result.Error)
 	}
 	if result.Binding != "mismatch" { // blindfold: contract — pkg/types/types.go:139 defines Binding values "match"|"mismatch"
-		t.Errorf("binding = %q, want mismatch (string body vs object args)", result.Binding)
+		t.Errorf("binding = %q, want mismatch", result.Binding)
 	}
 }
 
@@ -345,11 +378,12 @@ func TestVerifyBindingMismatchForExtraFieldInBody(t *testing.T) {
 	reqBody := encodeVerifyRequest(t, bundle, []byte(`{"to":"amara@example.com","cc":"attacker@example.com"}`))
 	_, result := postVerify(t, handler, reqBody)
 
-	if !result.Valid {
-		t.Fatalf("chain should verify: %+v", result.Error)
+	// blindfold: contract — docs-site/src/reference/protocol-gate.md "/verify changes": with DRS_REQUIRE_BINDING (default) a mismatch is valid:false BINDING_MISMATCH
+	if result.Valid || result.Error == nil || result.Error.Code != "BINDING_MISMATCH" {
+		t.Fatalf("an appended field must be refused with BINDING_MISMATCH, got valid=%v err=%+v", result.Valid, result.Error)
 	}
 	if result.Binding != "mismatch" { // blindfold: contract — pkg/types/types.go:139 defines Binding values "match"|"mismatch"
-		t.Errorf("binding = %q, want mismatch (extra field)", result.Binding)
+		t.Errorf("binding = %q, want mismatch", result.Binding)
 	}
 }
 
@@ -393,7 +427,7 @@ func TestVerifyOversizedBodyReturns413(t *testing.T) {
 	if err := json.NewDecoder(rr.Body).Decode(&errResp); err != nil {
 		t.Fatalf("413 body is not JSON: %v", err)
 	}
-	// blindfold: contract — docs/drs-source-of-truth.md status table: 413 body error code
+	// blindfold: contract — docs-site/src/reference/error-codes.md: 413 body error code
 	if errResp["error"] != "REQUEST_BODY_TOO_LARGE" {
 		t.Errorf("error = %q, want REQUEST_BODY_TOO_LARGE", errResp["error"])
 	}

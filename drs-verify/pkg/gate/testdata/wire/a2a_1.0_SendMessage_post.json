@@ -1,0 +1,28 @@
+{
+  "http_method": "POST",
+  "headers": {
+    "a2a-version": "1.0",
+    "accept": "application/json",
+    "content-type": "application/json"
+  },
+  "body": {
+    "jsonrpc": "2.0",
+    "method": "SendMessage",
+    "params": {
+      "message": {
+        "messageId": "4a1f1c1e-0000-4000-8000-000000000001",
+        "role": "ROLE_USER",
+        "parts": [
+          {
+            "text": "summarise Q3",
+            "metadata": {}
+          }
+        ],
+        "metadata": {}
+      },
+      "configuration": {},
+      "metadata": {}
+    },
+    "id": 1
+  }
+}

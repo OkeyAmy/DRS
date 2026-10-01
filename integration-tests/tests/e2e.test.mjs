@@ -7,7 +7,7 @@
 
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
-import { createDrsHttpMiddleware } from "@drs/mcp-server";
+import { createDrsGate } from "@drs/mcp-server";
 import {
   buildBundle,
   createInvocationBundle,
@@ -16,14 +16,24 @@ import {
   computeChainHash,
   serialiseBundle,
 } from "@okeyamy/drs-sdk";
-import { generateKey, didFromKey, now, postVerify, postVerifyWithBody, sleep } from "./util.mjs";
+import {
+  generateKey,
+  didFromKey,
+  now,
+  postVerify,
+  postVerifyWithBody,
+  sleep,
+} from "./util.mjs";
 
 const VERIFY_URL = process.env.DRS_VERIFY_URL ?? "http://localhost:8080";
 // /metrics lives on a separate listener (METRICS_ADDR), mapped to host 19090 by
 // docker-compose.test.yml. Derive the host from VERIFY_URL and swap the port.
 const METRICS_URL =
   process.env.DRS_METRICS_URL ??
-  VERIFY_URL.replace(/:\d+$/, `:${process.env.DRS_VERIFY_METRICS_PORT ?? "19090"}`);
+  VERIFY_URL.replace(
+    /:\d+$/,
+    `:${process.env.DRS_VERIFY_METRICS_PORT ?? "19090"}`,
+  );
 
 describe("operational endpoints", () => {
   test("/healthz returns 200", async () => {
@@ -45,7 +55,11 @@ describe("operational endpoints", () => {
     // Go runtime collectors register eagerly on boot — their presence proves
     // promhttp is wired. drs_* metrics register lazily (only when a code path
     // increments them), so we verify those separately after /verify runs.
-    assert.match(body, /^# HELP go_/m, "expected Go runtime metrics from promhttp");
+    assert.match(
+      body,
+      /^# HELP go_/m,
+      "expected Go runtime metrics from promhttp",
+    );
   });
 });
 
@@ -82,10 +96,22 @@ describe("happy path — fresh chain verifies", () => {
     });
 
     const bundle = buildBundle([rootDR], invocation);
-    const { status, body } = await postVerify(VERIFY_URL, bundle);
+    const { status, body } = await postVerifyWithBody(VERIFY_URL, bundle, {
+      tool: "echo",
+      message: "hello",
+      estimated_cost_usd: 0.01,
+    });
 
-    assert.equal(status, 200, `unexpected status: ${status}, body: ${JSON.stringify(body)}`);
-    assert.equal(body.valid, true, `verification failed: ${JSON.stringify(body.error)}`);
+    assert.equal(
+      status,
+      200,
+      `unexpected status: ${status}, body: ${JSON.stringify(body)}`,
+    );
+    assert.equal(
+      body.valid,
+      true,
+      `verification failed: ${JSON.stringify(body.error)}`,
+    );
 
     // Now that at least one verification has happened, drs_verify_verifications_total
     // must appear under the drs_ namespace on /metrics.
@@ -139,14 +165,22 @@ describe("/verify body binding — JCS equality against invocation.args", () => 
     const { status, body } = await postVerifyWithBody(VERIFY_URL, bundle, args);
 
     assert.equal(status, 200, `unexpected status: ${status}`);
-    assert.equal(body.valid, true, `chain must verify: ${JSON.stringify(body.error)}`);
-    assert.equal(body.binding, "match", `binding should be match, got ${body.binding}`);
+    assert.equal(
+      body.valid,
+      true,
+      `chain must verify: ${JSON.stringify(body.error)}`,
+    );
+    assert.equal(
+      body.binding,
+      "match",
+      `binding should be match, got ${body.binding}`,
+    );
   });
 
-  test("divergent body → binding: 'mismatch', chain still valid", async () => {
-    // Agent signs args for T1 but tool server receives a body for T2. Chain
-    // is untouched — only the body diverged. drs-verify must flag this as
-    // binding=mismatch while leaving valid=true (cryptographic truth unchanged).
+  test("divergent body → valid:false, BINDING_MISMATCH", async () => {
+    // Agent signs args for T1 but tool server receives a body for T2. Since
+    // DRS_REQUIRE_BINDING (default true) a mismatch is refused outright, so a
+    // gate that only checks `valid` cannot execute the tampered body.
     const operatorKey = generateKey();
     const agentKey = generateKey();
     const operatorDid = didFromKey(operatorKey);
@@ -188,8 +222,14 @@ describe("/verify body binding — JCS equality against invocation.args", () => 
     };
     const { body } = await postVerifyWithBody(VERIFY_URL, bundle, tamperedBody);
 
-    assert.equal(body.valid, true, "bundle bytes were not touched; chain must verify");
-    assert.equal(body.binding, "mismatch", `binding should be mismatch, got ${body.binding}`);
+    // blindfold: contract — docs-site/src/reference/protocol-gate.md "/verify changes"
+    assert.equal(body.valid, false, "a mismatched body must not verify");
+    assert.equal(body.error?.code, "BINDING_MISMATCH");
+    assert.equal(
+      body.binding,
+      "mismatch",
+      `binding should be mismatch, got ${body.binding}`,
+    );
   });
 
   test("reordered keys in body still match via JCS", async () => {
@@ -225,13 +265,21 @@ describe("/verify body binding — JCS equality against invocation.args", () => 
     const bundle = buildBundle([rootDR], invocation);
 
     const reorderedBody = { a: 1, b: 2, c: "value", estimated_cost_usd: 0.01 };
-    const { body } = await postVerifyWithBody(VERIFY_URL, bundle, reorderedBody);
+    const { body } = await postVerifyWithBody(
+      VERIFY_URL,
+      bundle,
+      reorderedBody,
+    );
 
     assert.equal(body.valid, true);
-    assert.equal(body.binding, "match", "JCS must normalise key order on both sides");
+    assert.equal(
+      body.binding,
+      "match",
+      "JCS must normalise key order on both sides",
+    );
   });
 
-  test("body omitted → no binding field in response", async () => {
+  test("body omitted → valid:false, BINDING_REQUIRED", async () => {
     const operatorKey = generateKey();
     const agentKey = generateKey();
     const operatorDid = didFromKey(operatorKey);
@@ -261,12 +309,9 @@ describe("/verify body binding — JCS equality against invocation.args", () => 
 
     const { body } = await postVerify(VERIFY_URL, bundle);
 
-    assert.equal(body.valid, true);
-    assert.equal(
-      body.binding,
-      undefined,
-      "binding field must be absent when no body was sent",
-    );
+    // blindfold: contract — spec "/verify changes": a gate that forgets the body is refused, not waved through
+    assert.equal(body.valid, false);
+    assert.equal(body.error?.code, "BINDING_REQUIRED");
   });
 });
 
@@ -303,21 +348,14 @@ describe("Node middleware golden path", () => {
       tool: "approve_payment",
       args: { transaction_id: "T1", estimated_cost_usd: 0.01 },
     });
-    const middleware = createDrsHttpMiddleware({ verifyUrl: `${VERIFY_URL}/verify` });
+    const gate = createDrsGate({ verifyUrl: VERIFY_URL, protocol: "http" });
 
-    let executed = 0;
-    const valid = await middleware(
-      {
-        headers: { "x-drs-bundle": serialiseBundle(bundle) },
-        body: signedBody,
-      },
-      () => {
-        executed += 1;
-      },
-    );
-
-    assert.equal(valid.ok, true, JSON.stringify(valid));
-    assert.equal(executed, 1, "handler should run after verified request");
+    const valid = await gate.check({
+      method: "POST",
+      headers: { "x-drs-bundle": serialiseBundle(bundle) },
+      body: signedBody,
+    });
+    assert.equal(valid.allow, true, JSON.stringify(valid));
 
     const tamperedBundle = await createInvocationBundle({
       rootReceipt,
@@ -329,24 +367,19 @@ describe("Node middleware golden path", () => {
       args: { transaction_id: "T1", estimated_cost_usd: 0.01 },
     });
 
-    const tampered = await middleware(
-      {
-        headers: { "x-drs-bundle": serialiseBundle(tamperedBundle) },
-        body: {
-          tool: "approve_payment",
-          transaction_id: "T2",
-          estimated_cost_usd: 0.01,
-        },
+    const tampered = await gate.check({
+      method: "POST",
+      headers: { "x-drs-bundle": serialiseBundle(tamperedBundle) },
+      body: {
+        tool: "approve_payment",
+        transaction_id: "T2",
+        estimated_cost_usd: 0.01,
       },
-      () => {
-        executed += 1;
-      },
-    );
+    });
 
-    assert.equal(tampered.ok, false, "tampered body must be rejected");
-    assert.equal(tampered.status, 403);
-    assert.equal(tampered.error.code, "BINDING_MISMATCH");
-    assert.equal(executed, 1, "handler must not run for tampered body");
+    assert.equal(tampered.allow, false, "tampered body must be rejected");
+    assert.equal(tampered.status, 403); // blindfold: contract — spec error table: BINDING_MISMATCH is 403
+    assert.equal(tampered.response.error, "BINDING_MISMATCH");
   });
 });
 
@@ -387,12 +420,21 @@ describe("failure paths", () => {
     const parts = invocation.split(".");
     const sig = parts[2];
     const tampered =
-      parts[0] + "." + parts[1] + "." + (sig[0] === "A" ? "B" : "A") + sig.slice(1);
+      parts[0] +
+      "." +
+      parts[1] +
+      "." +
+      (sig[0] === "A" ? "B" : "A") +
+      sig.slice(1);
 
     const bundle = buildBundle([rootDR], tampered);
     const { body } = await postVerify(VERIFY_URL, bundle);
 
-    assert.equal(body.valid, false, "tampered signature must fail verification");
+    assert.equal(
+      body.valid,
+      false,
+      "tampered signature must fail verification",
+    );
     assert.ok(body.error, "response must include error object");
   });
 
@@ -424,7 +466,10 @@ describe("failure paths", () => {
       toolServer: "did:key:z6MkTool",
     });
 
-    const { body } = await postVerify(VERIFY_URL, buildBundle([rootDR], invocation));
+    const { body } = await postVerify(
+      VERIFY_URL,
+      buildBundle([rootDR], invocation),
+    );
     assert.equal(body.valid, false);
   });
 
@@ -456,10 +501,11 @@ describe("failure paths", () => {
     });
     const bundle = buildBundle([rootDR], invocation);
 
-    const first = await postVerify(VERIFY_URL, bundle);
+    const executed = { n: 1, estimated_cost_usd: 0.01 };
+    const first = await postVerifyWithBody(VERIFY_URL, bundle, executed);
     assert.equal(first.body.valid, true, "first call should succeed");
 
-    const second = await postVerify(VERIFY_URL, bundle);
+    const second = await postVerifyWithBody(VERIFY_URL, bundle, executed);
     // The verifier commits the nonce only on valid chains. Once committed,
     // the same JTI must be rejected. Status may be 200 (with valid:false)
     // or 409 depending on how the server surfaces the replay — accept both.

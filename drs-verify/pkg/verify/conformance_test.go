@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/drs-protocol/drs-verify/pkg/policy"
-	"github.com/drs-protocol/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/policy"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
 )
 
 func fixturesDir() string {

@@ -15,13 +15,13 @@ same as [React Native issuance](./react-native.md) and
 ```
 Agent A (initiator)                  Agent B (receiver)
      │
-     │ POST /a2a/task
+     │ POST /a2a  (JSON-RPC SendMessage)
      │ X-DRS-Bundle: eyJ...
      ▼
 ┌──────────────────┐         ┌─────────────────────┐
 │ Agent B (Node)   │────────▶│ drs-verify sidecar  │
-│ 1. extract hdr   │  POST   │ ghcr.io/okeyamy/... │
-│ 2. /verify       │ /verify │                     │
+│ 1. forward req   │  POST   │ ghcr.io/okeyamy/... │
+│ 2. /v1/gate      │/v1/gate │                     │
 │ 3. if valid →    │◀────────│                     │
 │    run task      │         └─────────────────────┘
 └──────────────────┘
@@ -34,8 +34,8 @@ inbound bundle before executing. If you've already set up the
 ## Install
 
 ```bash
-# Once published: pnpm add @drs/mcp-server
-# Today: vendor packages/drs-mcp-server from this repository or use a workspace dependency.
+pnpm add @drs/mcp-server @a2a-js/sdk express
+# Until @drs/mcp-server is published, use it as a workspace dependency from this repo.
 ```
 
 The actual cryptographic verification happens in the `drs-verify` container.
@@ -69,95 +69,43 @@ services:
     image: redis:7-alpine
 ```
 
-## A2A middleware
-
-```ts
-// a2a-middleware.ts
-import { createDrsHttpMiddleware } from "@drs/mcp-server";
-
-const VERIFY_URL = process.env.DRS_VERIFY_URL ?? "http://localhost:8080";
-const drs = createDrsHttpMiddleware({ verifyUrl: VERIFY_URL });
-
-export async function drsA2A(req, res, next) {
-  const result = await drs(
-    {
-      headers: req.headers,
-      body: req.body,
-    },
-    (verifiedReq) => {
-      req.drs = verifiedReq.drs;
-      next();
-    },
-  );
-
-  if (!result.ok) return res.status(result.status).json({ drs_error: result.error });
-}
-```
-
-## Task handler
+## Gate the official A2A agent
 
 ```ts
 import express from "express";
-import { drsA2A } from "./a2a-middleware.js";
+import { DefaultRequestHandler, InMemoryTaskStore } from "@a2a-js/sdk/server";
+import { jsonRpcHandler, agentCardHandler, UserBuilder } from "@a2a-js/sdk/server/express";
+import { createDrsGate, withDrsGate } from "@drs/mcp-server";
+
+const gate = createDrsGate({
+  verifyUrl: process.env.DRS_VERIFY_URL ?? "http://localhost:8080",
+  protocol: "a2a",
+});
+const requestHandler = new DefaultRequestHandler(agentCard, new InMemoryTaskStore(), executor);
 
 const app = express();
-app.use(express.json({ limit: "65kb" })); // drs-verify binding middleware enforces 64 KiB
-
-app.post("/a2a/task", drsA2A, async (req, res) => {
-  // req.drs.root_principal is the original human/organisation
-  // req.drs.leaf_policy is the effective policy AFTER attenuation
-  const { task_type, payload } = req.body;
-
-  // A2A-specific: enforce that the task matches what's allowed by policy.
-  const allowedTools = req.drs.leaf_policy?.allowed_tools ?? [];
-  if (allowedTools.length > 0 && !allowedTools.includes(task_type)) {
-    return res.status(403).json({
-      error: "task_type not in allowed_tools",
-      allowed: allowedTools,
-    });
-  }
-
-  const result = await runA2ATask(task_type, payload, {
-    onBehalfOf: req.drs.root_principal,
-  });
-  res.json(result);
-});
-
+// The agent card stays public so callers can discover the agent.
+app.use("/.well-known/agent-card.json", agentCardHandler({ agentCardProvider: requestHandler }));
+// Every JSON-RPC call to /a2a is decided by drs-verify before the SDK sees it.
+app.use("/a2a", express.json({ limit: "64kb" }), (req, res, next) =>
+  withDrsGate(gate, () => next())(req, res, req.body));
+app.use("/a2a", jsonRpcHandler({ requestHandler, userBuilder: UserBuilder.noAuthentication }));
 app.listen(3000);
 ```
 
-## JSON-RPC variant
+The caller signs each request with `cmd: "/a2a/<method>"` and
+`args: { ...params, tool: "<method>" }`, so a delegation policy of
+`allowed_tools: ["SendMessage"]` restricts which A2A methods an agent may call.
+`@drs/mcp-client`'s `createDrsFetch({ signer, protocol: "a2a" })` does this for
+the official A2A client (`JsonRpcTransportFactory({ fetchImpl })`).
 
-Some A2A deployments use JSON-RPC instead of plain HTTP. The DRS
-spec allows the bundle to live in `_meta["X-DRS-Bundle"]` instead of
-a header.
+A changed message, a replayed bundle or an unsigned call is refused with a
+JSON-RPC error (`-32010`) before your executor runs.
 
-```ts
-app.post("/a2a/rpc", express.json(), async (req, res) => {
-  const bundleStr = req.body?._meta?.["X-DRS-Bundle"];
-  if (!bundleStr) return res.status(401).json({ error: "missing bundle" });
+### Plain HTTP endpoints
 
-  const bundle = JSON.parse(
-    Buffer.from(bundleStr, "base64url").toString("utf8"),
-  );
-  const r = await fetch(`${VERIFY_URL}/verify`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(bundle),
-  });
-  const result = await r.json();
-
-  if (!result.valid) {
-    return res.json({
-      jsonrpc: "2.0",
-      id: req.body.id,
-      error: { code: -32001, message: "DRS verification failed", data: result.error },
-    });
-  }
-
-  // dispatch on req.body.method ...
-});
-```
+For a custom REST endpoint (not the A2A JSON-RPC binding), use
+`protocol: "http"`: the whole JSON body must equal the signed args.
 
 ## Related
 

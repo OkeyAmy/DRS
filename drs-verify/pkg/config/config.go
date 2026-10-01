@@ -93,6 +93,11 @@ type Config struct {
 	// Set via TRUST_PROXY=true.
 	TrustProxy bool
 
+	// RequireBinding makes POST /verify refuse a request without a body, and
+	// mark a body mismatch as invalid. Set via DRS_REQUIRE_BINDING (default
+	// true; "false" disables; any other value is a boot error).
+	RequireBinding bool
+
 	// CircuitBreakerThreshold is the number of consecutive did:web failures before
 	// the circuit opens for that DID. Default: 5. Set via CIRCUIT_BREAKER_THRESHOLD.
 	CircuitBreakerThreshold int
@@ -190,6 +195,16 @@ func Load() (Config, error) {
 	}
 	trustProxy := os.Getenv("TRUST_PROXY") == "true"
 
+	var requireBinding bool
+	switch v := os.Getenv("DRS_REQUIRE_BINDING"); v {
+	case "", "true":
+		requireBinding = true
+	case "false":
+		requireBinding = false
+	default:
+		return Config{}, fmt.Errorf("DRS_REQUIRE_BINDING: want true or false, got %q", v)
+	}
+
 	cbThreshold, err := getEnvInt("CIRCUIT_BREAKER_THRESHOLD", 5)
 	if err != nil {
 		return Config{}, fmt.Errorf("CIRCUIT_BREAKER_THRESHOLD: %w", err)
@@ -244,6 +259,7 @@ func Load() (Config, error) {
 		RateLimitPerIP:             rateLimitPerIP,
 		RateLimitGlobal:            rateLimitGlobal,
 		TrustProxy:                 trustProxy,
+		RequireBinding:             requireBinding,
 		CircuitBreakerThreshold:    cbThreshold,
 		CircuitBreakerCooldownSecs: cbCooldown,
 		RevocationStorePath:        revocationStorePath,

@@ -92,3 +92,33 @@ func TestRedisNonceWithTrustProxyIsAccepted(t *testing.T) {
 		t.Fatalf("RedisURL = %q, want the value set in env", cfg.RedisURL)
 	}
 }
+
+func TestRequireBindingDefaultsToTrue(t *testing.T) {
+	t.Setenv("DRS_REQUIRE_BINDING", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	// blindfold: contract — CLAUDE.md fail-closed; docs-site/src/reference/protocol-gate.md: default true
+	if !cfg.RequireBinding {
+		t.Error("RequireBinding must default to true")
+	}
+}
+
+func TestRequireBindingCanBeDisabled(t *testing.T) {
+	t.Setenv("DRS_REQUIRE_BINDING", "false")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.RequireBinding {
+		t.Error("DRS_REQUIRE_BINDING=false must disable the requirement")
+	}
+}
+
+func TestRequireBindingRejectsUnknownValue(t *testing.T) {
+	t.Setenv("DRS_REQUIRE_BINDING", "flase")
+	if _, err := Load(); err == nil {
+		t.Error("a mistyped DRS_REQUIRE_BINDING must fail at boot, not silently weaken enforcement")
+	}
+}

@@ -4,7 +4,7 @@
  * Routes subcommands to their handlers.
  *
  * Usage:
- *   drs verify   <bundle.json>
+ *   drs verify   [--body <request.json>] <bundle.json>
  *   drs policy   <receipt.json>
  *   drs translate <policy.json>
  *   drs audit    <bundle.json>

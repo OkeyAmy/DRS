@@ -198,7 +198,7 @@ await fetch("http://localhost:3001/mcp/tools/call", {
 **Verifying at the tool server boundary** (`src/tool-server.ts`):
 ```typescript
 const bundle = parseBundle(req.headers["x-drs-bundle"]);
-const result = await client.verify(bundle);   // POST /verify → Go service
+const result = await client.verify(bundle, { body: requestData });   // POST /verify → Go service
 
 if (!result.valid) {
   res.writeHead(403);

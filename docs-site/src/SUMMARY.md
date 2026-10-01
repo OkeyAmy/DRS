@@ -73,6 +73,7 @@
 - [Error Codes](./reference/error-codes.md)
 - [CLI Commands](./reference/cli-commands.md)
 - [API Endpoints](./reference/api-endpoints.md)
+- [Protocol Gate (MCP, A2A, HTTP)](./reference/protocol-gate.md)
 - [Configuration](./reference/configuration.md)
 - [DRS vs Alternatives](./reference/comparison.md)
 - [Roadmap](./reference/roadmap.md)

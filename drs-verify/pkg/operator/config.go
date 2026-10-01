@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/drs-protocol/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
 )
 
 // ValidRootTypes lists the accepted values for DrsRootType.

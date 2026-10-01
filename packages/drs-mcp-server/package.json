@@ -1,7 +1,7 @@
 {
   "name": "@drs/mcp-server",
   "version": "0.1.0",
-  "description": "DRS MCP server middleware — extracts and verifies X-DRS-Bundle headers",
+  "description": "DRS enforcement point for MCP, A2A and HTTP tool servers \u2014 a thin client of drs-verify POST /v1/gate",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -34,6 +34,7 @@
     "verification"
   ],
   "devDependencies": {
+    "@types/node": "^25.6.0",
     "prettier": "^3.8.3",
     "typescript": "^6.0.3",
     "vite": "^6.4.3",

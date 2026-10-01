@@ -1,6 +1,6 @@
 // Package store defines the DR Store interface and implementations.
 //
-// Tiers (see docs/storage-tiers.md for the canonical reference):
+// Tiers (see docs-site/src/how-to/operators/storage-tiers.md):
 //
 //	0 — Session:     In-process memory (LRU), session lifetime only      [implemented]
 //	1 — Ephemeral:   Local filesystem, 48h TTL                           [implemented]

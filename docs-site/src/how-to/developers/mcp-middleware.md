@@ -1,118 +1,94 @@
 # MCP Middleware Integration
 
-Add DRS verification to an MCP server. The Go middleware verifies the
-`X-DRS-Bundle` header before your business handler runs.
+Gate an MCP server so every `tools/call` must carry a DRS bundle signed for
+exactly the arguments it executes. Works with MCP protocol versions
+`2025-11-25` and `2026-07-28`, over Streamable HTTP or stdio.
 
-## How it works
+## What the gate does
 
 ```
-MCP client
-    │  POST /mcp/tools/call
-    │  X-DRS-Bundle: <base64url(JSON bundle)>
-    ▼
-drs-verify/pkg/middleware.MCPMiddleware
-    │  decode base64url
-    │  parse JSON bundle
-    │  run verify.Chain (blocks A–F)
-    ▼ VALID
-business handler
+MCP client ──► gate (pkg/gate MCP adapter)
+                 │ initialize, server/discover, tools/list, notifications, GET → pass through
+                 │ tools/call → bundle from X-DRS-Bundle header or params._meta["xyz.okeyamy.drs/bundle"]
+                 │            → verify chain → invocation.cmd == /mcp/tools/call
+                 │            → signed args == params.arguments + {"tool": params.name}
+                 │            → commit jti (replay protection)
+                 ▼
+            MCP server handler
 ```
 
-If verification fails:
+The agent signs `args = { ...arguments, tool: name }` under `cmd: "/mcp/tools/call"`.
+An argument named `tool` is reserved and refused.
 
-- missing bundle: `401`
-- malformed base64url/JSON: `400`
-- invalid chain: `403`
+Refusals are JSON-RPC errors that echo the request `id`, code `-32010`, with
+`error.data.code` set to `MISSING_BUNDLE`, `BINDING_MISMATCH`, `REPLAY_DETECTED`,
+`POLICY_VIOLATION`, `CMD_MISMATCH`, `HEADER_MISMATCH`, … A missing bundle is
+HTTP **403**, never 401 — MCP clients treat 401 as an OAuth challenge.
 
-## Go integration
+## Go: the official Go MCP SDK behind `gate.Middleware`
 
-If your MCP-facing server is in Go, wrap the route with
-`middleware.MCPMiddleware` or `middleware.OptionalMCPMiddleware`.
+```bash
+go get github.com/OkeyAmy/DRS/drs-verify
+```
 
 ```go
 package main
 
 import (
-    "log"
-    "net/http"
-    "time"
+	"log"
+	"net/http"
+	"time"
 
-    "github.com/drs-protocol/drs-verify/pkg/middleware"
-    "github.com/drs-protocol/drs-verify/pkg/nonce"
-    "github.com/drs-protocol/drs-verify/pkg/resolver"
-    "github.com/drs-protocol/drs-verify/pkg/verify"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/binding"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/gate"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/nonce"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/verify"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func main() {
-    res, err := resolver.New(10_000, time.Hour)
-    if err != nil {
-        log.Fatal(err)
-    }
+	srv := mcp.NewServer(&mcp.Implementation{Name: "tools", Version: "1.0.0"}, nil)
+	// mcp.AddTool(srv, ...) — register your tools as usual.
 
-    deps := verify.Deps{
-        Resolver: res,
-    }
+	deps, err := verify.NewDefaultDeps("did:web:tools.example") // this server's identity
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Use nonce.NewRedisStore for multi-replica deployments.
+	cfg, err := gate.NewConfig(deps, nonce.New(100_000, 15*time.Minute), binding.ModeEnforced)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-    mux := http.NewServeMux()
-    // 1) Define your normal business logic handler.
-    mcpBusinessHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // 3) Read verification context after middleware has validated the bundle.
-        ctx := middleware.GetVerificationContext(r.Context())
-        if ctx == nil {
-            http.Error(w, "missing verification context", http.StatusForbidden)
-            return
-        }
-
-        // Example: make authorization/usage decisions with verified identity.
-        // ctx.RootPrincipal, ctx.ChainDepth, ctx.LeafPolicy
-        w.WriteHeader(http.StatusOK)
-    })
-
-    // 2) Configure replay protection and wrap your business handler with MCP middleware.
-    nonceStore := nonce.NewMemoryStore(100_000)
-    mux.Handle("/mcp/", middleware.MCPMiddleware(
-        deps,
-        nonceStore,
-        "enforced",
-        mcpBusinessHandler,
-    ))
-
-    log.Fatal(http.ListenAndServe(":8080", mux))
+	mcpHandler := mcp.NewStreamableHTTPHandler(
+		func(*http.Request) *mcp.Server { return srv },
+		&mcp.StreamableHTTPOptions{Stateless: true},
+	)
+	http.Handle("/mcp", gate.Middleware(cfg, gate.MCP{}, mcpHandler))
+	log.Fatal(http.ListenAndServe(":3000", nil))
 }
 ```
 
-Use `OptionalMCPMiddleware` only when DRS is advisory and your business handler can
-safely process requests without a bundle.
+Inside a tool, `gate.VerificationContext(ctx)` returns the verified root
+principal, chain depth and leaf policy.
 
-## TypeScript / pure JSON-RPC integration
+`binding.ModeLenient` (log, don't refuse) and `binding.ModeOff` exist for
+migrations. `binding.ParseMode` and `gate.NewConfig` reject unknown modes and a
+nil nonce store, so a configuration typo cannot silently open the gate.
 
-If your MCP traffic is pure JSON-RPC rather than HTTP-terminated, use the
-TypeScript wrapper packages in `packages/drs-mcp-client` and
-`packages/drs-mcp-server`.
+## Node / other languages
 
-- client side: injects the bundle into `params._meta["X-DRS-Bundle"]`
-- server side: decodes the same base64url string, posts `{ ...bundle, body }` to
-  `/verify`, and requires `binding === "match"`
+Use `@drs/mcp-server` (server) and `@drs/mcp-client` (agent). The server
+package forwards each request to a running drs-verify at `POST /v1/gate`; all
+protocol rules stay in Go. See [MCP on a Node server](../builders/mcp-node.md).
 
-This is the Shape 2 transport described in `docs/drs-source-of-truth.md`. For
-`tools/call`, the server middleware builds the binding body from
-`params.name` and `params.arguments`, matching signed invocation args such as
-`{ "tool": "web_search", "query": "..." }`.
+## Testing
 
-## Testing your integration
+The live suite in `integration-tests/` runs the official MCP SDKs (v1.31,
+v2.2 in both protocol eras, stdio) and the official Go MCP SDK against this
+gate, including tampering, replay, tool swap and unsigned-call attacks:
 
 ```bash
-# Valid bundle — expect exit code 0
-DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
-
-# Missing bundle — expect 401
-curl -X POST http://localhost:8080/mcp/tools/call \
-  -H "Content-Type: application/json" \
-  -d '{"tool":"web_search","query":"test"}'
-
-# Malformed bundle — expect 400
-curl -X POST http://localhost:8080/mcp/tools/call \
-  -H "X-DRS-Bundle: !!!not-base64url!!!" \
-  -H "Content-Type: application/json" \
-  -d '{"tool":"web_search","query":"test"}'
+cd integration-tests/go && go test ./...
+cd integration-tests && DRS_VERIFY_URL=http://127.0.0.1:8080 pnpm test:protocols
 ```

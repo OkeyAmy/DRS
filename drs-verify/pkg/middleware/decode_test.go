@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/nonce"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/nonce"
 )
 
 func TestDecodeInvocationJTI_Valid(t *testing.T) {
@@ -94,48 +94,6 @@ func TestCheckNonceReplayNilStoreFailsClosed(t *testing.T) {
 	}
 	if w.Header().Get("Content-Type") != "application/json" {
 		t.Errorf("Content-Type = %q, want application/json", w.Header().Get("Content-Type"))
-	}
-}
-
-func TestDecodeInvocationArgs(t *testing.T) {
-	payload := map[string]interface{}{
-		"jti":  "inv:1",
-		"args": map[string]interface{}{"to": "amara@example.com", "count": 3},
-	}
-	jwt := fakeJWT(t, payload)
-
-	args, err := DecodeInvocationArgs(jwt)
-	if err != nil {
-		t.Fatalf("DecodeInvocationArgs: %v", err)
-	}
-	argsMap, ok := args.(map[string]interface{})
-	if !ok {
-		t.Fatalf("args type = %T, want map[string]interface{}", args)
-	}
-	if argsMap["to"] != "amara@example.com" {
-		t.Errorf("args.to = %v, want amara@example.com", argsMap["to"])
-	}
-}
-
-func TestDecodeInvocationArgsMalformed(t *testing.T) {
-	if _, err := DecodeInvocationArgs("not-a-jwt"); err == nil {
-		t.Error("malformed JWT should fail")
-	}
-	if _, err := DecodeInvocationArgs("bad!!.payload!!.sig"); err == nil {
-		t.Error("non-base64 payload should fail")
-	}
-}
-
-func TestDecodeInvocationArgsAbsent(t *testing.T) {
-	payload := map[string]interface{}{"jti": "inv:1"}
-	jwt := fakeJWT(t, payload)
-
-	args, err := DecodeInvocationArgs(jwt)
-	if err != nil {
-		t.Fatalf("DecodeInvocationArgs: %v", err)
-	}
-	if args != nil {
-		t.Errorf("args should be nil when absent, got %v", args)
 	}
 }
 

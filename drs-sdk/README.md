@@ -122,7 +122,7 @@ The package ships a `drs` binary:
 
 ```bash
 drs keygen                 # generate an Ed25519 keypair + did:key
-drs verify <bundle.json>   # verify a bundle against a drs-verify endpoint
+drs verify --body <request.json> <bundle.json>   # verify a bundle against a drs-verify endpoint
 drs policy <...>           # inspect / attenuate policies
 drs translate <...>        # translate policy representations
 drs audit <...>            # audit a receipt chain
@@ -134,7 +134,7 @@ drs audit <...>            # audit a receipt chain
 |---|---|---|
 | Issuance | `@okeyamy/drs-sdk` (this) | mint receipts, assemble bundles, call the verifier |
 | Crypto core | [`drs-core`](https://crates.io/crates/drs-core) (Rust/WASM) | JCS, SHA-256 chain hash, Ed25519 |
-| Verification | [`drs-verify`](https://github.com/OkeyAmy/DRS/tree/main/drs-verify) (Go) | the `/verify` service + MCP/A2A middleware |
+| Verification | [`drs-verify`](https://github.com/OkeyAmy/DRS/tree/main/drs-verify) (Go) | the `/verify` service + MCP/A2A/HTTP protocol gate (`/v1/gate`) |
 
 The Rust core compiles to both native and WASM, so issuance (SDK) and verification
 (`drs-verify`) share one canonicalization implementation — chains cannot diverge across

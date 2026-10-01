@@ -34,11 +34,12 @@ export class VerifyClient {
    * the RFC 3161 timestamp token for each receipt and includes the results
    * in `VerificationResult.timestamps`.
    *
-   * When `options.body` is provided, drs-verify canonicalises it via RFC 8785
-   * (JCS) and compares with `invocation.args`. The outcome is reported in
-   * `result.binding` — "match" | "mismatch" | "invalid_body" (or "empty_match"
-   * from the middleware path). `valid` stays cryptographic truth; the caller
-   * decides whether to reject on `binding === "mismatch"`.
+   * Pass `options.body`: drs-verify canonicalises it via RFC 8785 (JCS) and
+   * compares it with `invocation.args`, reporting `result.binding`
+   * ("match" | "mismatch" | "invalid_body"). With the server default
+   * DRS_REQUIRE_BINDING=true, an omitted body returns `valid: false`
+   * (BINDING_REQUIRED) and a mismatch returns `valid: false`
+   * (BINDING_MISMATCH). For MCP/A2A traffic prefer drs-verify POST /v1/gate.
    *
    * Pass the parsed request body the tool server received from its client —
    * e.g. the result of `JSON.parse(rawHttpBody)`. drs-verify canonicalises

@@ -58,4 +58,4 @@ done
 echo "verifier is ready after ${elapsed}s"
 
 echo "--- running Node test suite ---"
-DRS_VERIFY_URL="$VERIFY_URL" node --test tests/
+DRS_VERIFY_URL="$VERIFY_URL" node --test tests/*.test.mjs

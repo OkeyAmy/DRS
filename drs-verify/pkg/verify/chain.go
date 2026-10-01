@@ -24,12 +24,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/anchor"
-	"github.com/drs-protocol/drs-verify/pkg/policy"
-	"github.com/drs-protocol/drs-verify/pkg/resolver"
-	"github.com/drs-protocol/drs-verify/pkg/revocation"
-	"github.com/drs-protocol/drs-verify/pkg/store"
-	"github.com/drs-protocol/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/anchor"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/policy"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/resolver"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/revocation"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/store"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
 )
 
 var errSignatureMalleability = errors.New("signature malleability")

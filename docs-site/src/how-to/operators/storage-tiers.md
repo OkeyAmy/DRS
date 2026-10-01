@@ -1,8 +1,7 @@
 # Storage Tiers
 
-DRS uses a six-tier storage model. The canonical reference lives in
-`docs/storage-tiers.md`; this page summarizes it and highlights what is actually
-implemented today.
+DRS uses a six-tier storage model. This page is the canonical reference and
+highlights what is actually implemented today.
 
 ## Tier reference
 
@@ -53,6 +52,3 @@ LISTEN_ADDR=:8080 \
   TSA_URL=https://freetsa.org/tsr \
   ./drs-verify
 ```
-
-For the full canonical model, caveats, and tier semantics, see
-[Canonical Storage Tiers](../../../docs/storage-tiers.md).

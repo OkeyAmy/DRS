@@ -117,4 +117,4 @@ spec:
 
 ## Sidecar pattern
 
-Running drs-verify as a sidecar that proxies requests to an upstream MCP server is a planned deployment mode. It is not implemented in the current release. For now, configure your MCP server to call `POST /verify` directly before accepting tool-call requests.
+Run drs-verify next to your tool server. drs-verify is a verification service only: it never proxies traffic and has no upstream URL. Your tool server owns its endpoints and asks drs-verify for a decision before executing a call — `POST /v1/gate` for MCP, A2A and plain HTTP traffic (see [Protocol Gate](../../reference/protocol-gate.md)), or `POST /verify` with the executed request as `body`.

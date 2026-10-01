@@ -48,13 +48,19 @@ const bundle = buildBundle({
 });
 
 writeFileSync('bundle.json', serialiseBundle(bundle));
+// The request the tool server executes; drs-verify checks it equals invocation.args.
+writeFileSync('request.json', JSON.stringify({
+  tool: 'web_search',
+  query: 'Monad TPS benchmarks',
+  estimated_cost_usd: 0.02,
+}));
 console.log('Bundle written to bundle.json');
 ```
 
 ## Step 3: Verify via CLI
 
 ```bash
-DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
+DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify --body request.json bundle.json
 ```
 
 Expected output begins with:
@@ -67,9 +73,10 @@ Expected output begins with:
 ## Step 4: Verify via HTTP API directly
 
 ```bash
-curl -s -X POST http://localhost:8080/verify \
-  -H "Content-Type: application/json" \
-  -d @bundle.json | jq .
+jq --slurpfile body request.json '. + {body: $body[0]}' bundle.json \
+  | curl -s -X POST http://localhost:8080/verify \
+      -H "Content-Type: application/json" \
+      -d @- | jq .
 ```
 
 ```json
@@ -79,7 +86,8 @@ curl -s -X POST http://localhost:8080/verify \
     "root_principal": "did:key:z6MkHUMAN...",
     "chain_depth": 2,
     "root_type": "human"
-  }
+  },
+  "binding": "match"
 }
 ```
 
@@ -90,7 +98,7 @@ Tamper with the bundle — modify one character in `rootDR`:
 ```bash
 # Create a tampered bundle
 cat bundle.json | sed 's/"receipts":\["eyJ/\"receipts\":[\"fakeXXX/' > tampered.json
-DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify tampered.json
+DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify --body request.json tampered.json
 ```
 
 Expected:

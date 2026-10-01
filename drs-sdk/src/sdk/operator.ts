@@ -45,7 +45,7 @@ export interface OperatorConfig {
   renewal_rules: RenewalRules;
   /** Escalation path for out-of-policy requests. */
   escalation: Escalation;
-  /** DR Store tier: 0=Session(memory), 1=Ephemeral(filesystem), 2=Durable(S3), 3=Compliant(WORM+RFC3161), 4=Timestamped(Tier3+TSToken), 5=On-Chain(Ethereum). See docs/storage-tiers.md. */
+  /** DR Store tier: 0=Session(memory), 1=Ephemeral(filesystem), 2=Durable(S3), 3=Compliant(WORM+RFC3161), 4=Timestamped(Tier3+TSToken), 5=On-Chain(Ethereum). See https://okeyamy.github.io/DRS/how-to/operators/storage-tiers.html. */
   storage_tier: 0 | 1 | 2 | 3 | 4 | 5;
 }
 

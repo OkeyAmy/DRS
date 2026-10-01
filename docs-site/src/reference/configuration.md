@@ -13,7 +13,8 @@ All configuration is via environment variables. No hard-coded URLs, ports, or ke
 | `DID_CACHE_TTL_SECS` | `3600` | DID resolver cache entry TTL in seconds. |
 | `STATUS_LIST_BASE_URL` | — | W3C Bitstring Status List endpoint base URL. Required for remote revocation (Block F). |
 | `STATUS_CACHE_TTL_SECS` | `300` | Bitstring Status List cache TTL in seconds. Revocations take effect within this window. |
-| `MAX_BODY_BYTES` | `1048576` | Maximum request body size in bytes for `/verify` (default 1 MiB). |
+| `MAX_BODY_BYTES` | `1048576` | Maximum request body size in bytes for `/verify` and `/v1/gate` (default 1 MiB). The gated protocol body inside is always capped at 64 KiB. |
+| `DRS_REQUIRE_BINDING` | `true` | `/verify` refuses a request without `body` (`BINDING_REQUIRED`) and marks a body mismatch `valid: false` (`BINDING_MISMATCH`). `false` restores chain-only verification. Any other value fails at boot. |
 | `LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, or `error`. |
 | `LOG_FORMAT` | `text` | Log format: `text` or `json`. Use `json` for log aggregation. |
 | `SERVER_IDENTITY` | — | This verifier's DID or server identifier. When set, `/verify` rejects invocations whose `tool_server` does not match (`TOOL_SERVER_MISMATCH`). **When unset, the verifier is fail-closed:** any invocation that names a `tool_server` is still rejected, because a bundle minted for server A must not verify on a server B that simply left this unset (cross-server replay). Leave unset only if no issuer ever sets `tool_server`. |

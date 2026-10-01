@@ -1,7 +1,7 @@
 {
   "name": "@drs/mcp-client",
   "version": "0.1.0",
-  "description": "DRS MCP client transport — injects X-DRS-Bundle headers into MCP tool calls",
+  "description": "DRS client signing for MCP and A2A \u2014 signs each tool call with the exact arguments it sends",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -41,5 +41,8 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@okeyamy/drs-sdk": "workspace:*"
   }
 }

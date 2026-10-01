@@ -85,20 +85,16 @@ yarn-error.log*
 Thumbs.db
 .eslintcache
 
-# ── Project-local scratch/history files excluded from the public repo ─────────
-reddit_post.md
+# ── Internal documentation (maintainers only) ─────────────────────────────────
+# The only public documentation is the mdBook site in docs-site/ plus the
+# standard repo files (README, CHANGELOG, CONTRIBUTING, SECURITY, package READMEs).
 CLAUDE.md
-docs/plans/2026-04-19-group2-security-fixes.md
-docs/plans/2026-04-21-metrics-auth-impl.md
-docs/plans/2026-04-21-request-binding-impl.md
-docs/plans/2026-04-22-item3-verify-binding-cleanup.md
-docs/security_audit_report_2026-04-08.md
-docs/technical_v2.md
-docs/v1-drs.md
-docs/v1-vs-drs-architecture-review.md
-docs/superpowers/
+reddit_post.md
 v1/
-docs/assessments/
-
-# Internal documentation — kept local, not published
 docs/
+**/docs/
+!docs-site/
+**/SPEC.md
+
+# ── Locally built verifier binary (never commit build output) ────────────────
+/drs-verify/server

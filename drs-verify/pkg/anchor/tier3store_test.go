@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/drs-protocol/drs-verify/pkg/anchor"
-	"github.com/drs-protocol/drs-verify/pkg/store"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/anchor"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/store"
 )
 
 // newTestMemory creates a MemoryStore for use in tests.

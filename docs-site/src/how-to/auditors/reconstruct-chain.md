@@ -22,8 +22,12 @@ Or assemble a bundle manually from JWT strings:
 ## Step 2: Verify the chain
 
 ```bash
-pnpm exec drs verify evidence.json
+pnpm exec drs verify --body request.json evidence.json
 ```
+
+For after-the-fact verification, `--body` is the executed request recorded
+alongside the bundle (the tool call's arguments). Without it `drs-verify`
+returns `BINDING_REQUIRED`.
 
 This verifies the chain through `drs-verify`. The verifier reads the issuer DIDs
 from the JWTs and resolves `did:key` locally from the DID bytes.

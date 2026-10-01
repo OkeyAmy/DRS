@@ -1,17 +1,17 @@
-export { drsMcpMiddleware } from "./middleware.js";
-export { createDrsHttpMiddleware } from "./http.js";
+export {
+  createDrsGate,
+  pickForwardedHeaders,
+  FORWARDED_HEADERS,
+} from "./gate.js";
 export type {
-  DrsServerConfig,
-  VerificationResult,
+  DrsGate,
+  DrsGateConfig,
+  GateDecision,
+  GateProtocol,
+  GateRequest,
   VerificationContext,
-  VerificationError,
-  DrsVerifiedRequest,
-} from "./middleware.js";
-export type {
-  DrsHttpConfig,
-  DrsHttpNext,
-  DrsHttpPass,
-  DrsHttpReject,
-  DrsHttpRequest,
-  DrsHttpResult,
-} from "./http.js";
+} from "./gate.js";
+export { withDrsGate } from "./node.js";
+export type { GatedRequest } from "./node.js";
+export { DrsGatedServerTransport } from "./stdio.js";
+export type { JsonRpcMessage, McpTransport } from "./stdio.js";

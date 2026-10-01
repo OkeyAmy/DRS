@@ -63,7 +63,7 @@ the upstream timeline.
 
 - denial of service that requires already-exhausted rate limits or
   unbounded resource allocation already documented as a pilot-only
-  limitation (see `docs/production-readiness-checklist.md`)
+  limitation (see "Known weaknesses" below)
 - social engineering of maintainers
 - vulnerabilities in third-party dependencies already tracked by upstream
   CVE databases unless they affect DRS in a way that is not obvious from
@@ -83,9 +83,10 @@ legal action as long as you:
 
 Treat these as confirmed gaps, not findings:
 
-- **Process-local nonce store**: `drs-verify` keeps replay state in memory.
-  A restart loses it, and multiple replicas do not share it. Single-
-  instance deployments only until [#40 in the tracker](./docs/production-readiness-checklist.md) lands.
+- **Process-local nonce store by default**: `drs-verify` keeps replay state
+  in memory unless `NONCE_STORE_BACKEND=redis` and `REDIS_URL` are set. With
+  the default, a restart loses it and multiple replicas do not share it, so
+  run multi-replica deployments with the Redis backend.
 - **Local emergency revocation durability depends on configuration**:
   `POST /admin/revoke` is process-local by default. Set
   `REVOCATION_STORE_PATH` for restart durability, and use the remote W3C

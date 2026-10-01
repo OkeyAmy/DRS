@@ -10,7 +10,7 @@ EU AI Act evidence today, assemble it from three artifacts:
 ## Current workflow
 
 ```bash
-pnpm exec drs verify bundle.json > verify.txt
+pnpm exec drs verify --body request.json bundle.json > verify.txt
 pnpm exec drs audit bundle.json > audit.txt
 cp bundle.json eu-ai-act-bundle.json
 ```

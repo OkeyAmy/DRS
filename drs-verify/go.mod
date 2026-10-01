@@ -1,4 +1,4 @@
-module github.com/drs-protocol/drs-verify
+module github.com/OkeyAmy/DRS/drs-verify
 
 go 1.25.12
 

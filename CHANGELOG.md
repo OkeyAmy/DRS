@@ -6,6 +6,69 @@ bumps may contain breaking changes (always listed under **Breaking**).
 
 ## Unreleased
 
+### Protocol gate (MCP, A2A, HTTP) — drs-verify, @drs/mcp-server, @drs/mcp-client
+
+A real-wire audit (2026-10-01) against the official MCP SDKs (1.31, 2.2 in both
+the `2025-11-25` and `2026-07-28` protocol versions, Go SDK 1.8.0) and
+`@a2a-js/sdk` 1.3.0 found the protocol edge broken while the verifier core was
+sound. See the [Protocol Gate reference](https://okeyamy.github.io/DRS/reference/protocol-gate.html).
+
+**Breaking — read before upgrading:**
+
+- Go module path is now `github.com/OkeyAmy/DRS/drs-verify` (the previous
+  `github.com/drs-protocol/drs-verify` could not be fetched with `go get`).
+  Release tags for this submodule must be prefixed `drs-verify/v`.
+- `pkg/middleware.MCPMiddleware`, `A2AMiddleware`, their `Optional*` variants and
+  `GetVerificationContext` are removed. Use `pkg/gate`:
+  `gate.Middleware(cfg, gate.MCP{} | gate.A2A{} | gate.HTTP{}, next)` and
+  `gate.VerificationContext(ctx)`. The old MCP middleware compared the whole
+  JSON-RPC envelope with the signed args, so it refused every real signed call.
+- `POST /verify` requires `body` by default (`DRS_REQUIRE_BINDING=true`): an
+  omitted body is `valid:false` / `BINDING_REQUIRED`, and a mismatch is now
+  `valid:false` / `BINDING_MISMATCH` (previously `valid:true` with
+  `binding:"mismatch"`). Set `DRS_REQUIRE_BINDING=false` for the old behaviour.
+- `@drs/mcp-server`: `drsMcpMiddleware` and `createDrsHttpMiddleware` are
+  replaced by `createDrsGate` + `withDrsGate` (HTTP) and
+  `DrsGatedServerTransport` (stdio), thin clients of `POST /v1/gate`.
+- `@drs/mcp-client`: `DrsTransportWrapper` (not a valid MCP Transport) is
+  replaced by `createDrsFetch` and `DrsClientTransport`, signing each call with
+  the arguments it actually sends (`createChainSigner`).
+- The MCP `_meta` bundle key is now `xyz.okeyamy.drs/bundle`.
+
+**Added:**
+
+- `POST /v1/gate` — protocol-aware allow/deny decisions for non-Go gates.
+- MCP adapter: gates `tools/call` only; signed args are
+  `params.arguments + {tool: params.name}` under `cmd /mcp/tools/call`;
+  bundle in `X-DRS-Bundle` or `params._meta`; `Mcp-Method`/`Mcp-Name`
+  cross-checked against the body.
+- A2A adapter: gates every JSON-RPC method under `cmd /a2a/<method>` with
+  `{...params, tool: method}`, so `allowed_tools` policies apply to A2A. The
+  bundle travels only in the `X-DRS-Bundle` header.
+- `verify.NewDefaultDeps(serverIdentity)` and the `testkit` package (real
+  signed chains for tests).
+- Live test suites: `integration-tests/tests/protocols.live.test.mjs` (official
+  MCP v1/v2 HTTP + stdio and A2A SDKs, attack matrix) and
+  `integration-tests/go` (official Go MCP SDK through `gate.Middleware`).
+
+**Fixed (security):**
+
+- Binding-mode strings other than exactly `"enforced"` silently passed
+  mismatches; modes are now typed and unknown values are configuration errors.
+- Numbers beyond 2^53 collapsed during canonicalisation, so a signed `amount`
+  of 9007199254740992 bound to an executed 9007199254740993 (in integer, decimal
+  or exponent notation). Such values are now refused.
+- MCP/A2A gates now refuse methods other than POST/GET/DELETE/HEAD/OPTIONS
+  (405) instead of passing them ungated.
+- A binding mismatch consumed the invocation's jti; the nonce is now committed
+  only after binding passes.
+- MCP gates answered a missing bundle with 401, which MCP clients treat as an
+  OAuth challenge; JSON-RPC gates now answer 403 with a JSON-RPC error.
+- An argument named `tool` could overwrite the signed tool name; it is now
+  refused (`RESERVED_ARGUMENT`). Bundles scoped to another protocol are refused
+  (`CMD_MISMATCH`). JSON-RPC batches fail closed.
+- The Node `_meta` middleware crashed on body-less GET requests.
+
 ### drs-verify
 
 **Breaking — read before upgrading a deployment:**

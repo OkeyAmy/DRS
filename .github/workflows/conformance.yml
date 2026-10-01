@@ -9,6 +9,7 @@ on:
       - 'drs-sdk/**'
       - 'drs-verify/**'
       - 'packages/**'
+      - 'integration-tests/go/**'
       - '.github/workflows/conformance.yml'
   pull_request:
     paths:
@@ -17,6 +18,7 @@ on:
       - 'drs-sdk/**'
       - 'drs-verify/**'
       - 'packages/**'
+      - 'integration-tests/go/**'
       - '.github/workflows/conformance.yml'
   workflow_dispatch:
 
@@ -57,6 +59,22 @@ jobs:
 
       - name: Run all tests (includes conformance)
         working-directory: drs-verify
+        run: go test ./... -v
+
+  go-protocol-live:
+    name: Go — live MCP suite (official Go MCP SDK through pkg/gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: integration-tests/go/go.mod
+          cache-dependency-path: integration-tests/go/go.sum
+
+      - name: Run live suite
+        working-directory: integration-tests/go
         run: go test ./... -v
 
   typescript-sdk:
@@ -103,6 +121,14 @@ jobs:
         working-directory: packages/drs-mcp-client
         run: pnpm install
 
+      # The client signs with @okeyamy/drs-sdk, consumed through its dist build.
+      - name: Build drs-sdk
+        run: pnpm --filter @okeyamy/drs-sdk build
+
+      - name: Typecheck
+        working-directory: packages/drs-mcp-client
+        run: pnpm exec tsc --noEmit -p tsconfig.json
+
       - name: Run tests
         working-directory: packages/drs-mcp-client
         run: npx vitest run
@@ -126,6 +152,10 @@ jobs:
       - name: Install dependencies
         working-directory: packages/drs-mcp-server
         run: pnpm install
+
+      - name: Typecheck
+        working-directory: packages/drs-mcp-server
+        run: pnpm exec tsc --noEmit -p tsconfig.json
 
       - name: Run tests
         working-directory: packages/drs-mcp-server

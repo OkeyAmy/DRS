@@ -1,6 +1,19 @@
 package binding
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
+
+// Check adapts the historical map-based cases to CheckRaw: args are
+// marshalled to the raw JSON an invocation JWT would carry.
+func Check(body []byte, args interface{}) error {
+	raw, err := json.Marshal(args)
+	if err != nil {
+		return err
+	}
+	return CheckRaw(body, raw)
+}
 
 func TestCheckMatchesIdenticalBodyAndArgs(t *testing.T) {
 	body := []byte(`{"to":"amara@example.com","subject":"hi"}`)

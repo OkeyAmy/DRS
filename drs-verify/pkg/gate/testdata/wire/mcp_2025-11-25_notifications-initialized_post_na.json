@@ -1,0 +1,12 @@
+{
+  "body": {
+    "jsonrpc": "2.0",
+    "method": "notifications/initialized"
+  },
+  "headers": {
+    "accept": "application/json, text/event-stream",
+    "content-type": "application/json",
+    "mcp-protocol-version": "2025-11-25"
+  },
+  "http_method": "POST"
+}

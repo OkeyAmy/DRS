@@ -14,7 +14,7 @@ What are you building?
 │
 ├─ A tool server or gateway that ACCEPTS requests from agents
 │    → Run ghcr.io/okeyamy/drs-verify (verification service)
-│    → OR embed pkg/middleware in your Go server
+│    → OR embed pkg/gate in your Go server
 │
 ├─ A human-consent UI (user clicks "Approve", you mint a root delegation)
 │    → Install @okeyamy/drs-sdk
@@ -56,12 +56,14 @@ Run the verification service. Two shapes:
 
 Run `ghcr.io/okeyamy/drs-verify:latest` next to your tool server. In your
 server's request handler, before doing real work, call
-`POST /verify` with the incoming bundle. If `result.valid` is true, proceed.
+`POST /v1/gate` with the method, the `X-DRS-Bundle` header and the parsed
+body (or `POST /verify` with the bundle plus the executed request as `body`).
+If the decision allows the call, proceed.
 
 ```
 ┌─────────────────┐          ┌─────────────────┐
 │  your tool      │  POST    │  drs-verify     │
-│  server (any    │──/verify─▶ :8080 (sidecar) │
+│  server (any    │/v1/gate─▶ :8080 (sidecar) │
 │  language)      │  ◀─json─ │                 │
 └─────────────────┘          └─────────────────┘
 ```
@@ -74,9 +76,10 @@ If your tool server is in Go, import the middleware package directly.
 Faster path (no extra hop), but Go-only.
 
 ```go
-import "github.com/drs-protocol/drs-verify/pkg/middleware"
+import "github.com/OkeyAmy/DRS/drs-verify/pkg/gate"
 
-mux.Handle("/tools/call", middleware.MCPMiddleware(deps, nonceStore, "enforced", yourHandler))
+cfg, err := gate.NewConfig(deps, nonceStore, binding.ModeEnforced)
+mux.Handle("/mcp", gate.Middleware(cfg, gate.MCP{}, yourMCPHandler)) // or gate.A2A{}, gate.HTTP{}
 ```
 
 Best for: Go MCP servers, Go A2A servers.
@@ -105,7 +108,8 @@ pnpm add @okeyamy/drs-sdk
 import { VerifyClient } from "@okeyamy/drs-sdk";
 
 const client = new VerifyClient({ baseUrl: "https://drs-verify.internal" });
-const result = await client.verify(bundle);
+// body: the parsed request your server is about to execute
+const result = await client.verify(bundle, { body: requestBody });
 ```
 
 ### Role: Rust tooling builder

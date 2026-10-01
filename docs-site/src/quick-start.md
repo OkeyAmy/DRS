@@ -108,10 +108,15 @@ const bundle = await createInvocationBundle({
 });
 
 writeFileSync("bundle.json", serialiseBundle(bundle));
+// The request the tool server executes. drs-verify checks it equals the signed args.
+writeFileSync(
+  "request.json",
+  JSON.stringify({ tool: "web_search", query: "hello", estimated_cost_usd: 0.01 }),
+);
 ```
 
 ```bash
-DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify bundle.json
+DRS_VERIFY_URL=http://localhost:8080 pnpm exec drs verify --body request.json bundle.json
 ```
 
 Expected successful output starts with:

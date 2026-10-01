@@ -1,0 +1,8 @@
+{
+  "body": null,
+  "headers": {
+    "accept": "text/event-stream",
+    "mcp-protocol-version": "2025-11-25"
+  },
+  "http_method": "GET"
+}

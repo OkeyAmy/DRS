@@ -20,20 +20,24 @@ pnpm exec drs <command>
 Verify a bundle against a running `drs-verify` service.
 
 ```bash
-drs verify [--include-timestamps] <bundle.json>
+drs verify [--include-timestamps] [--body <request.json>] <bundle.json>
 ```
 
 The CLI reads the verifier base URL from `DRS_VERIFY_URL`. If unset, it uses
 `http://localhost:8080`.
 
+`--body` supplies the executed request body that the invocation's signed `args`
+must match. `drs-verify` requires it by default (`DRS_REQUIRE_BINDING=true`);
+without it the result is `valid:false` with `BINDING_REQUIRED`.
+
 **Examples:**
 
 ```bash
-# Verify against local drs-verify
-DRS_VERIFY_URL=http://localhost:8080 drs verify bundle.json
+# Verify against local drs-verify, binding the executed request body
+DRS_VERIFY_URL=http://localhost:8080 drs verify --body request.json bundle.json
 
 # Ask the server to retrieve and verify RFC 3161 timestamp tokens
-drs verify --include-timestamps bundle.json
+drs verify --include-timestamps --body request.json bundle.json
 ```
 
 **Exit codes:** `0` = valid, `1` = invalid or command error.

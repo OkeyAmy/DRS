@@ -3,3 +3,5 @@ packages:
   - "packages/*"
   - "examples/*"
   - "integration-tests"
+allowBuilds:
+  esbuild: set this to true or false

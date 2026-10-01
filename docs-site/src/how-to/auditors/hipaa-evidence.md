@@ -16,7 +16,7 @@ not yet a dedicated HIPAA export pipeline.
 ## Current evidence workflow
 
 ```bash
-pnpm exec drs verify bundle.json > verify.txt
+pnpm exec drs verify --body request.json bundle.json > verify.txt
 pnpm exec drs audit bundle.json > audit.txt
 ```
 
@@ -32,7 +32,6 @@ and TSA failures are best-effort.
 See:
 
 - [Storage Tiers](../operators/storage-tiers.md)
-- `docs/storage-tiers.md`
 
 ## What is not implemented
 

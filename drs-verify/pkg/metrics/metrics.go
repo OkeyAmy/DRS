@@ -74,7 +74,7 @@ var NonceChecks = promauto.NewCounterVec(prometheus.CounterOpts{
 //     are indistinguishable from "no body field" (which skips the check
 //     entirely and does not increment the counter).
 //
-//  2. pkg/middleware.checkRequestBinding, used by Go in-process tool-server
+//  2. pkg/gate.Decide, used by the Go gate middleware and POST /v1/gate
 //     integrations. Labels: match | mismatch | empty_match | invalid_body |
 //     (plus the off / mismatch_lenient / mismatch_enforced labels when an
 //     integrator wires the middleware with those modes — those modes live
