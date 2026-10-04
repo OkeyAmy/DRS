@@ -49,6 +49,47 @@ several times. All of it is internal except the two SDK breaks below.
 - Dropped the unconfigured eslint devDependency and its lockfile entries;
   prettier and `tsc` remain the enforced checks.
 
+### Scalable storage tiers — drs-verify
+
+Four storage tiers selected at boot from the environment (see
+`docs-site/src/how-to/operators/storage-tiers.md`): 0 memory, 1 filesystem,
+2 S3 durable, 3 S3 WORM (Object Lock) + RFC 3161.
+
+**Breaking — read before upgrading:**
+
+- **Tier 3 now requires S3 with Object Lock.** `TSA_URL` without `S3_BUCKET` +
+  `S3_OBJECT_LOCK=true` (and credentials) is a boot error. Previously
+  `STORE_DIR` + `TSA_URL` ran as "Tier 3" on local disk with the 48-hour default
+  TTL, so compliance evidence silently expired. A deployment that set both must
+  move to S3 or drop `TSA_URL`.
+- `STORE_TTL_SECS` (default 172800) controls Tier-1 retention; it must be > 0.
+  `NewFilesystemStore(dir, negative)` now means never-expire (Tier 3 helper).
+- With `S3_OBJECT_LOCK=true` the server also refuses to boot unless the bucket
+  actually has Object Lock enabled.
+- `S3_USE_SSL` / `S3_OBJECT_LOCK` accept `true`/`false` (also `1`/`0`, any case);
+  anything else is a boot error instead of silently meaning false.
+
+**Added:**
+
+- `pkg/store`: `IntegrityStore` (content-hash check on every read), `AsyncStore`
+  (non-blocking writes, read-after-write buffer, bounded queue, `ErrQueueFull`),
+  `S3Store` (minio-go, COMPLIANCE-mode Object Lock, Delete is a logged no-op under
+  WORM), filesystem janitor, `NeverExpire`.
+- Failed durable writes are retried (every 30 s, plus a final attempt on shutdown)
+  instead of being left in memory forever; the buffer is capped at 16,384 receipts
+  (overflow is dropped and counted).
+- Metrics: `drs_store_write_queue_dropped_total`, `drs_store_flush_errors_total`,
+  `drs_store_writes_total{result}`, and two gauges: `drs_store_pending_writes`
+  (everything not yet durable; rises within seconds of an outage) and
+  `drs_store_failed_pending` (retries exhausted; alert when it stays above zero).
+- The S3 client retries at most twice itself (library default is ten); measured
+  against a dead endpoint the default made each receipt take 15–20 s to be
+  reported as failed, 66 s for ten receipts on four workers.
+- `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`,
+  `S3_USE_SSL`, `S3_OBJECT_LOCK`, `S3_RETENTION_DAYS` (default 2555),
+  `S3_OP_TIMEOUT_SECS` (default 30; bounds every S3 request), `ASYNC_QUEUE_SIZE`,
+  `ASYNC_WORKERS`, `STORE_TTL_SECS`.
+
 ### Protocol gate (MCP, A2A, HTTP) — drs-verify, @drs/mcp-server, @drs/mcp-client
 
 A real-wire audit (2026-10-01) against the official MCP SDKs (1.31, 2.2 in both

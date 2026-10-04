@@ -10,6 +10,7 @@
 - [What is DRS?](./explanation/what-is-drs.md)
 - [Why DRS Exists](./explanation/why-drs-exists.md)
 - [The Five Actors](./explanation/five-actors.md)
+- [A Live Deployment, End to End](./explanation/live-deployment.md)
 - [Data Model](./explanation/data-model.md)
 - [Verification Algorithm](./explanation/verification-algorithm.md)
 - [Architecture](./explanation/architecture.md)

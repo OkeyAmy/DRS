@@ -258,8 +258,10 @@ All configuration is environment-variable driven. No hard-coded URLs, ports, or 
 | `NONCE_STORE_TTL_SECS` | `900` | Replay protection TTL (15 min) — also bounds the invocation replay window; raise only if legitimate invocation latency exceeds 15 minutes |
 | `DRS_ADMIN_TOKEN` | — | Bearer token for `POST /admin/revoke` |
 | `REVOCATION_STORE_PATH` | — | Optional durable local revocation log path |
-| `STORE_DIR` | — | Filesystem store base directory (Tier 1/3) |
-| `TSA_URL` | — | RFC 3161 TSA endpoint — enables Tier 3 store |
+| `STORE_DIR` | — | Filesystem store base directory (Tier 1); `STORE_TTL_SECS` (default 48 h) sets retention |
+| `S3_BUCKET` (+ `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`) | — | S3-compatible object store (Tier 2); wins over `STORE_DIR` |
+| `S3_OBJECT_LOCK` / `S3_RETENTION_DAYS` | `false` / `2555` | WORM Object Lock on every receipt; the bucket must be created with Object Lock enabled (checked at boot) |
+| `TSA_URL` | — | RFC 3161 TSA endpoint — Tier 3; requires `S3_BUCKET` + `S3_OBJECT_LOCK=true`, otherwise the server refuses to boot |
 | `MAX_BODY_BYTES` | `1048576` | Maximum `/verify` request body size (1 MiB); the protocol gate cap is hard-coded at 64 KiB and is not affected by this variable |
 | `LOG_LEVEL` | `info` | Log level: debug / info / warn / error |
 | `LOG_FORMAT` | `text` | Log format: `text` or `json` |
@@ -270,12 +272,12 @@ All configuration is environment-variable driven. No hard-coded URLs, ports, or 
 | Tier | Backend | Use case |
 |---|---|---|
 | 0 | In-memory LRU | Development and testing (default) |
-| 1 | Filesystem | Standard production (`STORE_DIR`) |
-| 2 | S3-compatible | Long-term retention (roadmap) |
-| 3 | WORM + RFC 3161 | Regulated deployments (`STORE_DIR` + `TSA_URL`) |
+| 1 | Filesystem | Dev / staging (`STORE_DIR`, 48 h default retention, integrity-checked reads) |
+| 2 | S3-compatible | Durable production storage (`S3_BUCKET`; async, non-blocking writes) |
+| 3 | S3 WORM + RFC 3161 | Regulated deployments (`S3_BUCKET` + `S3_OBJECT_LOCK=true` + `TSA_URL`) |
 | 5 | Ethereum mainnet | Blockchain-native enterprise (opt-in only, roadmap) |
 
-Tier 3 uses RFC 3161 trusted timestamping — legally recognized under EU eIDAS and admissible in US federal courts. Supported TSA providers: FreeTSA (free), DigiCert, GlobalSign.
+Details, failure behaviour and monitoring: [Storage Tiers](docs-site/src/how-to/operators/storage-tiers.md). Tier 3 uses RFC 3161 trusted timestamping — legally recognized under EU eIDAS and admissible in US federal courts. Supported TSA providers: FreeTSA (free), DigiCert, GlobalSign.
 
 ## Verification Algorithm
 
@@ -331,7 +333,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for open work and how to get involved.
 
 - EU AI Act / HIPAA / SOX audit export formats
 - KMS/HSM signing integration
-- Durable object-store backend (Tier 2)
 - Ethereum mainnet anchor (Tier 5 — opt-in only)
 
 ## Contributing

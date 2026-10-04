@@ -59,8 +59,9 @@ Relevant financial regulations: SR 11-7 (Federal Reserve model risk management),
 |---|---|---|---|
 | Session | `0` | In-memory | Implemented |
 | Ephemeral | `1` | Local filesystem | Implemented |
-| Durable | `2` | S3-compatible object store | Roadmap |
-| Compliant | `3` | Filesystem + RFC 3161 timestamping | Partial |
-| Timestamped | `4` | Tier 3 deployment posture | Partial |
+| Durable | `2` | S3-compatible object store | Implemented |
+| Compliant | `3` | S3 Object Lock (WORM) + RFC 3161 timestamping | Implemented |
 | On-chain | `5` | Ethereum anchor | Roadmap |
 
+The tier is selected by drs-verify's environment at boot — see
+[Storage Tiers](../how-to/operators/storage-tiers.md).
