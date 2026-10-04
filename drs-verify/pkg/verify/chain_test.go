@@ -12,6 +12,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/metrics"
+	"github.com/OkeyAmy/DRS/drs-verify/testkit"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -95,37 +98,8 @@ func newTestKey(t *testing.T) testKey {
 	}
 	// Encode as did:key
 	multicodec := append([]byte{0xed, 0x01}, pub...)
-	did := "did:key:z" + base58Encode(multicodec)
+	did := "did:key:z" + testkit.Base58(multicodec)
 	return testKey{pub: pub, prv: prv, did: did}
-}
-
-// base58Encode is copied from did_test.go to keep the test self-contained.
-func base58Encode(b []byte) string {
-	const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-	digits := []int{0}
-	for _, by := range b {
-		carry := int(by)
-		for j := len(digits) - 1; j >= 0; j-- {
-			carry += 256 * digits[j]
-			digits[j] = carry % 58
-			carry /= 58
-		}
-		for carry > 0 {
-			digits = append([]int{carry % 58}, digits...)
-			carry /= 58
-		}
-	}
-	result := []byte{}
-	for _, by := range b {
-		if by != 0 {
-			break
-		}
-		result = append(result, '1')
-	}
-	for _, d := range digits {
-		result = append(result, alphabet[d])
-	}
-	return string(result)
 }
 
 func signJWT(prv ed25519.PrivateKey, payload interface{}) string {
@@ -137,8 +111,6 @@ func signJWT(prv ed25519.PrivateKey, payload interface{}) string {
 	sig := ed25519.Sign(prv, []byte(input))
 	return input + "." + base64.RawURLEncoding.EncodeToString(sig)
 }
-
-func int64Ptr(v int64) *int64 { return &v }
 
 func makeReceipt(iss, sub, aud string, now int64, prevHash *string, key testKey) (types.DelegationReceipt, string) {
 	exp := now + 3600
@@ -408,6 +380,7 @@ func TestLocalRevocationBlocksChain(t *testing.T) {
 		ServerIdentity:  "mcp://tools/server",
 	}
 
+	revokedLookups := testutil.ToFloat64(metrics.RevocationLookups.WithLabelValues("local_admin", "true"))
 	result := Chain(context.Background(), bundle, deps)
 
 	if result.Valid {
@@ -415,6 +388,20 @@ func TestLocalRevocationBlocksChain(t *testing.T) {
 	}
 	if result.Error.Code != "REVOKED" {
 		t.Errorf("expected error code REVOKED, got %q", result.Error.Code)
+	}
+	// blindfold: contract — metrics.RevocationLookups doc: one local_admin lookup that found the receipt revoked.
+	if got := testutil.ToFloat64(metrics.RevocationLookups.WithLabelValues("local_admin", "true")) - revokedLookups; got != 1 {
+		t.Errorf("revocation lookup metric: want +1 local_admin/true, got %+v", got)
+	}
+
+	// The same chain with nothing revoked is looked up and counted as not revoked.
+	clearLookups := testutil.ToFloat64(metrics.RevocationLookups.WithLabelValues("local_admin", "false"))
+	deps.LocalRevocation = revocation.NewLocalRevocationStore()
+	if r := Chain(context.Background(), bundle, deps); r.Valid {
+		t.Log("chain verified once revocation is lifted (expected)")
+	}
+	if got := testutil.ToFloat64(metrics.RevocationLookups.WithLabelValues("local_admin", "false")) - clearLookups; got != 1 {
+		t.Errorf("revocation lookup metric: want +1 local_admin/false, got %+v", got)
 	}
 }
 
@@ -501,7 +488,18 @@ func TestStoreNotCalledOnFailedVerification(t *testing.T) {
 	}
 }
 
-// TestVerifyJWTSignatureAlgCheck verifies that verifyJWTSignature rejects JWTs
+// verifyResolvedSignature resolves the issuer through the real resolver and
+// runs the production signature check (the one Chain calls in Block C).
+func verifyResolvedSignature(t *testing.T, jwt, did string, res *resolver.Resolver) error {
+	t.Helper()
+	pub, err := res.Resolve(context.Background(), did)
+	if err != nil {
+		t.Fatalf("resolve %s: %v", did, err)
+	}
+	return verifyJWTSignatureWithKey(jwt, did, map[string][32]byte{did: pub})
+}
+
+// TestVerifyJWTSignatureAlgCheck verifies that the production signature check rejects JWTs
 // whose alg header is anything other than "EdDSA".
 func TestVerifyJWTSignatureAlgCheck(t *testing.T) {
 	k := newTestKey(t)
@@ -538,7 +536,7 @@ func TestVerifyJWTSignatureAlgCheck(t *testing.T) {
 	for _, tc := range cases {
 		t.Run("alg="+tc.alg, func(t *testing.T) {
 			jwt := signJWTWithAlg(tc.alg)
-			err := verifyJWTSignature(context.Background(), jwt, k.did, res)
+			err := verifyResolvedSignature(t, jwt, k.did, res)
 			if tc.wantErr && err == nil {
 				t.Errorf("alg=%q: expected error, got nil", tc.alg)
 			}
@@ -595,9 +593,6 @@ func TestChainDepthLimitBoundary(t *testing.T) {
 		t.Error("16-receipt bundle must not trigger CHAIN_TOO_DEEP")
 	}
 }
-
-// int64Ptr is used in other test files; kept here to avoid re-declaration.
-var _ = int64Ptr
 
 // TestTimestampVerificationUsesTrustedPath is a compile-check and field-wiring
 // test that verifies Deps.TSARootPool exists and can be set. It also verifies
@@ -737,7 +732,7 @@ func TestStrictEd25519FunctionRejectsNonCanonicalS(t *testing.T) {
 }
 
 func TestStrictEd25519RejectsNonCanonicalS(t *testing.T) {
-	// Integration path: verifyJWTSignature must reject a JWT with S >= L.
+	// Integration path: the production signature check must reject a JWT with S >= L.
 	// In Go 1.13+, ed25519.Verify itself rejects non-canonical S; this test
 	// confirms the full verification path correctly surfaces an error.
 	k := newTestKey(t)
@@ -775,7 +770,7 @@ func TestStrictEd25519RejectsNonCanonicalS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolver.New: %v", err)
 	}
-	err = verifyJWTSignature(context.Background(), nonCanonicalJWT, k.did, res)
+	err = verifyResolvedSignature(t, nonCanonicalJWT, k.did, res)
 	if err == nil {
 		t.Error("strict verifier must reject non-canonical S (S >= L), got nil error")
 	}
@@ -792,7 +787,7 @@ func TestStrictEd25519AcceptsValidSignatures(t *testing.T) {
 		"iss": k.did,
 		"exp": int64(9999999999),
 	})
-	if err := verifyJWTSignature(context.Background(), jwt, k.did, res); err != nil {
+	if err := verifyResolvedSignature(t, jwt, k.did, res); err != nil {
 		t.Errorf("strict verifier rejected a valid canonical signature: %v", err)
 	}
 }
@@ -845,7 +840,7 @@ func TestChainClassifiesNonCanonicalReceiptSignatureAsMalleability(t *testing.T)
 	issuer := testKey{
 		pub: publicKey,
 		prv: privateKey,
-		did: "did:key:z" + base58Encode(append([]byte{0xed, 0x01}, publicKey...)),
+		did: "did:key:z" + testkit.Base58(append([]byte{0xed, 0x01}, publicKey...)),
 	}
 	leaf := newTestKey(t)
 	now := time.Now().Unix()

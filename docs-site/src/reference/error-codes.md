@@ -16,7 +16,6 @@ an invalid chain cannot be created.
 | `MALFORMED_JWT` | `issueSubDelegation`, `issueInvocation` | A parent receipt passed in could not be decoded as a 3-part JWT | Pass the exact JWT strings returned by the issuance functions |
 | `EMPTY_CHAIN` | `buildBundle`, `createInvocationBundle` | No delegation receipts were supplied | Include at least the root delegation receipt |
 | `MISSING_INVOCATION` | `buildBundle` | No invocation receipt was supplied | Include the signed invocation receipt |
-| `INVALID_OPERATOR_CONFIG` | `validateOperatorConfig`, `parseOperatorConfig` | Missing required field or invalid value | Check the field named in the error message |
 
 > The SDK does **not** throw `TEMPORAL_BOUNDS_VIOLATION` at issuance. Temporal
 > nesting is enforced by the verifier (see the Go table, Block D).

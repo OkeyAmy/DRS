@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/OkeyAmy/DRS/drs-verify/pkg/binding"
 	"github.com/OkeyAmy/DRS/drs-verify/pkg/metrics"
@@ -175,22 +174,51 @@ func checkBinding(mode binding.Mode, body, signed []byte) *Denial {
 	return nil
 }
 
+// CommitInvocationNonce records the invocation's jti in the replay store. It
+// is the single replay check shared by the gate and POST /verify; call it
+// only after the chain and the request binding have passed, so a forged or
+// tampered request can never consume a legitimate jti. A nil store fails
+// closed.
+func CommitInvocationNonce(ns nonce.Checker, invocationJWT string) *Denial {
+	var claims struct {
+		Jti string `json:"jti"`
+	}
+	if err := verify.DecodePayload(invocationJWT, &claims); err != nil {
+		metrics.NonceChecks.WithLabelValues("decode_error").Inc()
+		return deny(http.StatusBadRequest, "MALFORMED_INVOCATION", "invocation payload could not be decoded", "")
+	}
+	return commitNonce(ns, claims.Jti)
+}
+
 func commitNonce(ns nonce.Checker, jti string) *Denial {
+	if ns == nil {
+		metrics.NonceChecks.WithLabelValues("disabled").Inc()
+		return deny(http.StatusServiceUnavailable, "NONCE_STORE_UNAVAILABLE", "replay protection is not configured",
+			"Configure a memory or Redis nonce store.")
+	}
 	if jti == "" {
+		metrics.NonceChecks.WithLabelValues("missing_jti").Inc()
 		return deny(http.StatusBadRequest, "MISSING_JTI", "invocation has no jti", "Issue invocations with a unique jti.")
 	}
-	if err := ns.Check(jti); err != nil {
-		if errors.Is(err, nonce.ErrReplayDetected) {
-			metrics.NonceChecks.WithLabelValues("replay").Inc()
-			return deny(http.StatusConflict, "REPLAY_DETECTED", "invocation jti already consumed",
-				"Sign a new invocation with a unique jti.")
-		}
+	err := ns.Check(jti)
+	switch {
+	case err == nil:
+		metrics.NonceChecks.WithLabelValues("accepted").Inc()
+		return nil
+	case errors.Is(err, nonce.ErrReplayDetected):
+		metrics.NonceChecks.WithLabelValues("replay").Inc()
+		return deny(http.StatusConflict, "REPLAY_DETECTED", "invocation jti already consumed",
+			"Sign a new invocation with a unique jti.")
+	case errors.Is(err, nonce.ErrStoreExhausted):
 		metrics.NonceChecks.WithLabelValues("exhausted").Inc()
-		return deny(http.StatusServiceUnavailable, "NONCE_STORE_UNAVAILABLE", "nonce store unavailable",
+		return deny(http.StatusServiceUnavailable, "NONCE_STORE_EXHAUSTED", "replay store at capacity",
+			"Retry shortly.")
+	default:
+		metrics.NonceChecks.WithLabelValues("unavailable").Inc()
+		slog.Warn("nonce store check failed", "error", err)
+		return deny(http.StatusServiceUnavailable, "NONCE_STORE_UNAVAILABLE", "replay store unavailable",
 			"Retry shortly.")
 	}
-	metrics.NonceChecks.WithLabelValues("accepted").Inc()
-	return nil
 }
 
 func refuse(a Adapter, id json.RawMessage, d *Denial, gated bool) Decision {
@@ -230,17 +258,9 @@ type invocationClaims struct {
 // decodeInvocation reads the claims of an invocation JWT that verify.Chain
 // has already authenticated. Args stay raw so large integers keep precision.
 func decodeInvocation(jwt string) (invocationClaims, error) {
-	parts := strings.Split(jwt, ".")
-	if len(parts) != 3 {
-		return invocationClaims{}, errors.New("invocation is not a compact JWT")
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return invocationClaims{}, errors.New("invocation payload is not base64url")
-	}
 	var c invocationClaims
-	if err := json.Unmarshal(payload, &c); err != nil {
-		return invocationClaims{}, errors.New("invocation payload is not JSON")
+	if err := verify.DecodePayload(jwt, &c); err != nil {
+		return invocationClaims{}, errors.New("invocation payload is not a decodable JWT")
 	}
 	return c, nil
 }

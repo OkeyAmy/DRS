@@ -13,6 +13,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -24,6 +25,8 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/metrics"
 )
 
 const (
@@ -58,6 +61,10 @@ type resolveResult struct {
 	key [ed25519PublicKeyBytes]byte
 	err error
 }
+
+// ErrCircuitOpen is returned while a did:web endpoint is in its cool-down after
+// repeated failures; no network request is made.
+var ErrCircuitOpen = errors.New("did:web circuit open")
 
 // circuitState tracks per-DID failure history for the circuit breaker.
 type circuitState struct {
@@ -334,6 +341,7 @@ func (r *Resolver) Resolve(ctx context.Context, did string) ([ed25519PublicKeyBy
 	if entry, ok := r.cache.Get(did); ok {
 		if time.Now().Before(entry.expiry) {
 			r.cacheMu.Unlock()
+			metrics.DIDResolutions.WithLabelValues(didMethod(did), "hit").Inc()
 			return entry.key, nil
 		}
 		r.cache.Remove(did)
@@ -358,6 +366,7 @@ func (r *Resolver) Resolve(ctx context.Context, did string) ([ed25519PublicKeyBy
 	r.inflightMu.Unlock()
 
 	key, err := r.resolveUncached(ctx, did)
+	metrics.DIDResolutions.WithLabelValues(didMethod(did), missResult(err)).Inc()
 	e.res = resolveResult{key: key, err: err}
 	close(e.done)
 
@@ -372,6 +381,28 @@ func (r *Resolver) Resolve(ctx context.Context, did string) ([ed25519PublicKeyBy
 	}
 
 	return key, err
+}
+
+// didMethod is the metrics label for a DID's method.
+func didMethod(did string) string {
+	switch {
+	case strings.HasPrefix(did, didKeyPrefix):
+		return "key"
+	case strings.HasPrefix(did, didWebPrefix):
+		return "web"
+	}
+	return "unknown"
+}
+
+// missResult is the metrics label for an uncached resolution outcome.
+func missResult(err error) string {
+	switch {
+	case err == nil:
+		return "miss_success"
+	case errors.Is(err, ErrCircuitOpen):
+		return "circuit_open"
+	}
+	return "miss_error"
 }
 
 // resolveUncached performs the actual resolution without holding any lock.
@@ -448,7 +479,7 @@ func (r *Resolver) resolveDidWeb(ctx context.Context, did string) ([ed25519Publi
 	// Circuit breaker: fail fast for recently-broken did:web endpoints.
 	cs := r.getCircuitState(did)
 	if cs.isOpen(time.Now()) {
-		return zero, fmt.Errorf("did:web circuit open for %q — endpoint was recently unreachable", did)
+		return zero, fmt.Errorf("%w for %q — endpoint was recently unreachable", ErrCircuitOpen, did)
 	}
 
 	// SSRF protection: resolve the hostname and reject private/reserved ranges.

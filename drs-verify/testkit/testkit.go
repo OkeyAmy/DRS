@@ -30,7 +30,13 @@ func NewKey() (Key, error) {
 	if err != nil {
 		return Key{}, fmt.Errorf("generate key: %w", err)
 	}
-	return Key{Private: prv, DID: "did:key:z" + base58(append([]byte{0xed, 0x01}, pub...))}, nil
+	return Key{Private: prv, DID: DIDKey(pub)}, nil
+}
+
+// DIDKey returns the did:key for an Ed25519 public key (multicodec 0xed01,
+// base58btc, multibase prefix "z").
+func DIDKey(pub ed25519.PublicKey) string {
+	return "did:key:z" + Base58(append([]byte{0xed, 0x01}, pub...))
 }
 
 // Issuer holds a one-hop chain (human root → agent) and signs invocations.
@@ -126,7 +132,8 @@ func randomID(prefix string) (string, error) {
 	return prefix + ":" + hex.EncodeToString(b), nil
 }
 
-func base58(b []byte) string {
+// Base58 encodes b with the Bitcoin base58 alphabet (as used by did:key).
+func Base58(b []byte) string {
 	const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 	digits := []int{0}
 	for _, by := range b {

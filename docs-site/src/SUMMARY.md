@@ -46,7 +46,6 @@
 
 ## For Operators
 - [Deploy drs-verify](./how-to/operators/deploy-drs-verify.md)
-- [Operator Configuration](./how-to/operators/operator-config.md)
 - [Storage Tiers](./how-to/operators/storage-tiers.md)
 - [Key Management](./how-to/operators/key-management.md)
 - [Revocation](./how-to/operators/revocation.md)

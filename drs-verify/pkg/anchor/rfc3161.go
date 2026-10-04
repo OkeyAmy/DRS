@@ -40,9 +40,6 @@ var (
 	oidECDSAWithSHA384 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 3}
 	oidECDSAWithSHA512 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 4}
 
-	// id-kp-timeStamping from RFC 3161 §2.3
-	oidTimestampingEKU = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 8}
-
 	// CMS signed-attribute OIDs per RFC 5652 §11
 	oidContentTypeAttr   = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 3}
 	oidMessageDigestAttr = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 4}
@@ -187,87 +184,88 @@ func (c *TSAClient) Timestamp(hash []byte) (token []byte, err error) {
 	return tokenBytes, nil
 }
 
-// VerifyTimestamp parses a raw DER TimeStampResp and verifies:
+// signedTimestamp is a TimeStampResp whose structure, message imprint and TSA
+// signature have been verified. Whether the signer is trusted is decided
+// separately, by VerifyTimestampTrusted.
+type signedTimestamp struct {
+	genTime time.Time
+	signer  *x509.Certificate
+	certs   asn1.RawValue
+}
+
+// verifyTimestampSignature parses a raw DER TimeStampResp and verifies:
 //  1. PKIStatus is granted (0)
 //  2. The messageImprint SHA-256 hash matches expectedHash
-//  3. The TSA certificate signature over the signed content is valid
+//  3. The TSA certificate's signature over the signed content is valid
 //
-// Returns the timestamp's GeneralizedTime on success.
-// token is the raw DER bytes returned by Timestamp().
-func VerifyTimestamp(token []byte, expectedHash []byte) (time.Time, error) {
-	// 1. Parse the outer TimeStampResp
+// It does not establish trust in the signing certificate.
+func verifyTimestampSignature(token []byte, expectedHash []byte) (signedTimestamp, error) {
 	var resp timeStampResp
 	rest, err := asn1.Unmarshal(token, &resp)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: parse TimeStampResp: %w", err)
+		return signedTimestamp{}, fmt.Errorf("rfc3161: parse TimeStampResp: %w", err)
 	}
 	if len(rest) != 0 {
-		return time.Time{}, fmt.Errorf("rfc3161: %d trailing bytes in TimeStampResp", len(rest))
+		return signedTimestamp{}, fmt.Errorf("rfc3161: %d trailing bytes in TimeStampResp", len(rest))
 	}
 	if resp.Status.Status != pkiStatusGranted {
-		return time.Time{}, fmt.Errorf("rfc3161: TSA status not granted, PKIStatus=%d", resp.Status.Status)
+		return signedTimestamp{}, fmt.Errorf("rfc3161: TSA status not granted, PKIStatus=%d", resp.Status.Status)
 	}
 	if len(resp.TimeStampToken.FullBytes) == 0 {
-		return time.Time{}, fmt.Errorf("rfc3161: TimeStampResp has no timeStampToken")
+		return signedTimestamp{}, fmt.Errorf("rfc3161: TimeStampResp has no timeStampToken")
 	}
 
-	// 2. Parse ContentInfo
 	var ci contentInfo
 	if _, err := asn1.Unmarshal(resp.TimeStampToken.FullBytes, &ci); err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: parse ContentInfo: %w", err)
+		return signedTimestamp{}, fmt.Errorf("rfc3161: parse ContentInfo: %w", err)
 	}
 	if !ci.ContentType.Equal(oidSignedData) {
-		return time.Time{}, fmt.Errorf("rfc3161: ContentInfo type is not SignedData, got %v", ci.ContentType)
+		return signedTimestamp{}, fmt.Errorf("rfc3161: ContentInfo type is not SignedData, got %v", ci.ContentType)
 	}
 
-	// 3. Parse SignedData
 	var sd signedData
 	if _, err := asn1.Unmarshal(ci.Content.Bytes, &sd); err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: parse SignedData: %w", err)
+		return signedTimestamp{}, fmt.Errorf("rfc3161: parse SignedData: %w", err)
 	}
 	if !sd.EncapContentInfo.EContentType.Equal(oidTSTInfo) {
-		return time.Time{}, fmt.Errorf("rfc3161: EncapContentInfo type is not id-ct-TSTInfo, got %v", sd.EncapContentInfo.EContentType)
+		return signedTimestamp{}, fmt.Errorf("rfc3161: EncapContentInfo type is not id-ct-TSTInfo, got %v", sd.EncapContentInfo.EContentType)
 	}
 
-	// 4. Extract TSTInfo bytes from the eContent OCTET STRING
 	var tstBytes []byte
 	if _, err := asn1.Unmarshal(sd.EncapContentInfo.EContent.Bytes, &tstBytes); err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: parse eContent OCTET STRING: %w", err)
+		return signedTimestamp{}, fmt.Errorf("rfc3161: parse eContent OCTET STRING: %w", err)
 	}
 
-	// 5. Parse TSTInfo
 	var tst tstInfo
 	if _, err := asn1.Unmarshal(tstBytes, &tst); err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: parse TSTInfo: %w", err)
+		return signedTimestamp{}, fmt.Errorf("rfc3161: parse TSTInfo: %w", err)
 	}
 
-	// 6. Verify messageImprint algorithm and hash value
 	if !tst.MessageImprint.HashAlgorithm.Algorithm.Equal(sha256OID) {
-		return time.Time{}, fmt.Errorf("rfc3161: messageImprint uses unexpected algorithm %v", tst.MessageImprint.HashAlgorithm.Algorithm)
+		return signedTimestamp{}, fmt.Errorf("rfc3161: messageImprint uses unexpected algorithm %v", tst.MessageImprint.HashAlgorithm.Algorithm)
 	}
 	if subtle.ConstantTimeCompare(tst.MessageImprint.HashedMessage, expectedHash) != 1 {
-		return time.Time{}, fmt.Errorf("rfc3161: messageImprint hash mismatch")
+		return signedTimestamp{}, fmt.Errorf("rfc3161: messageImprint hash mismatch")
 	}
 
-	// 7. Verify the TSA signature
 	if len(sd.SignerInfos) == 0 {
-		return time.Time{}, fmt.Errorf("rfc3161: SignedData has no signerInfos")
+		return signedTimestamp{}, fmt.Errorf("rfc3161: SignedData has no signerInfos")
 	}
 	si := sd.SignerInfos[0]
 
 	cert, err := extractSignerCert(sd.Certificates, si)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: extract signer certificate: %w", err)
+		return signedTimestamp{}, fmt.Errorf("rfc3161: extract signer certificate: %w", err)
 	}
-
 	if err := verifySignerInfoSignature(si, tstBytes, cert); err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: TSA signature invalid: %w", err)
+		return signedTimestamp{}, fmt.Errorf("rfc3161: TSA signature invalid: %w", err)
 	}
-
-	return tst.GenTime, nil
+	return signedTimestamp{genTime: tst.GenTime, signer: cert, certs: sd.Certificates}, nil
 }
 
-// VerifyTimestampTrusted is like VerifyTimestamp but additionally validates:
+// VerifyTimestampTrusted verifies an RFC 3161 TimeStampResp for expectedHash
+// and returns its generation time. On top of the structure, imprint and
+// signature checks it requires that:
 //  1. The signer certificate chains to a root in trustedRoots
 //  2. The signer certificate has the id-kp-timeStamping EKU
 //  3. The signer certificate was valid at the time the token was generated (RFC 3161 §2.3)
@@ -282,86 +280,24 @@ func VerifyTimestampTrusted(token []byte, expectedHash []byte, trustedRoots *x50
 	if trustedRoots == nil {
 		return time.Time{}, fmt.Errorf("rfc3161: no TSA trust anchor configured (set TSA_ROOT_CERT_PEM); refusing to fall back to system roots")
 	}
-	var resp timeStampResp
-	rest, err := asn1.Unmarshal(token, &resp)
+	ts, err := verifyTimestampSignature(token, expectedHash)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: parse TimeStampResp: %w", err)
-	}
-	if len(rest) != 0 {
-		return time.Time{}, fmt.Errorf("rfc3161: %d trailing bytes in TimeStampResp", len(rest))
-	}
-	if resp.Status.Status != pkiStatusGranted {
-		return time.Time{}, fmt.Errorf("rfc3161: TSA status not granted, PKIStatus=%d", resp.Status.Status)
-	}
-	if len(resp.TimeStampToken.FullBytes) == 0 {
-		return time.Time{}, fmt.Errorf("rfc3161: TimeStampResp has no timeStampToken")
+		return time.Time{}, err
 	}
 
-	var ci contentInfo
-	if _, err := asn1.Unmarshal(resp.TimeStampToken.FullBytes, &ci); err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: parse ContentInfo: %w", err)
-	}
-	if !ci.ContentType.Equal(oidSignedData) {
-		return time.Time{}, fmt.Errorf("rfc3161: ContentInfo type is not SignedData, got %v", ci.ContentType)
-	}
-
-	var sd signedData
-	if _, err := asn1.Unmarshal(ci.Content.Bytes, &sd); err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: parse SignedData: %w", err)
-	}
-	if !sd.EncapContentInfo.EContentType.Equal(oidTSTInfo) {
-		return time.Time{}, fmt.Errorf("rfc3161: EncapContentInfo type is not id-ct-TSTInfo")
-	}
-
-	var tstBytes []byte
-	if _, err := asn1.Unmarshal(sd.EncapContentInfo.EContent.Bytes, &tstBytes); err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: parse eContent OCTET STRING: %w", err)
-	}
-
-	var tst tstInfo
-	if _, err := asn1.Unmarshal(tstBytes, &tst); err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: parse TSTInfo: %w", err)
-	}
-
-	if !tst.MessageImprint.HashAlgorithm.Algorithm.Equal(sha256OID) {
-		return time.Time{}, fmt.Errorf("rfc3161: messageImprint uses unexpected algorithm %v", tst.MessageImprint.HashAlgorithm.Algorithm)
-	}
-	if subtle.ConstantTimeCompare(tst.MessageImprint.HashedMessage, expectedHash) != 1 {
-		return time.Time{}, fmt.Errorf("rfc3161: messageImprint hash mismatch")
-	}
-
-	if len(sd.SignerInfos) == 0 {
-		return time.Time{}, fmt.Errorf("rfc3161: SignedData has no signerInfos")
-	}
-	si := sd.SignerInfos[0]
-
-	cert, err := extractSignerCert(sd.Certificates, si)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: extract signer certificate: %w", err)
-	}
-
-	if err := verifySignerInfoSignature(si, tstBytes, cert); err != nil {
-		return time.Time{}, fmt.Errorf("rfc3161: TSA signature invalid: %w", err)
-	}
-
-	// Trust validation: certificate chain
-	intermediates := extractIntermediateCerts(sd.Certificates, cert)
 	opts := x509.VerifyOptions{
 		Roots:         trustedRoots,
-		Intermediates: intermediates,
-		CurrentTime:   tst.GenTime,
+		Intermediates: extractIntermediateCerts(ts.certs, ts.signer),
+		CurrentTime:   ts.genTime,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageTimeStamping},
 	}
-	if _, err := cert.Verify(opts); err != nil {
+	if _, err := ts.signer.Verify(opts); err != nil {
 		return time.Time{}, fmt.Errorf("rfc3161: certificate chain validation failed: %w", err)
 	}
-
-	// Trust validation: EKU must include id-kp-timeStamping
-	if !hasTimestampingEKU(cert) {
+	if !hasTimestampingEKU(ts.signer) {
 		return time.Time{}, fmt.Errorf("rfc3161: signer certificate does not have timestamping EKU (id-kp-timeStamping)")
 	}
-
-	return tst.GenTime, nil
+	return ts.genTime, nil
 }
 
 // hasTimestampingEKU returns true if cert has the id-kp-timeStamping extended key usage.

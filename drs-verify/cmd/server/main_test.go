@@ -16,6 +16,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/OkeyAmy/DRS/drs-verify/testkit"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -43,36 +44,7 @@ func newTestKey(t *testing.T) testKey {
 		t.Fatalf("ed25519.GenerateKey: %v", err)
 	}
 	multicodec := append([]byte{0xed, 0x01}, pub...)
-	return testKey{pub: pub, prv: prv, did: "did:key:z" + base58Encode(multicodec)}
-}
-
-// base58Encode mirrors the did:key encoding used elsewhere in the repo.
-func base58Encode(b []byte) string {
-	const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-	digits := []int{0}
-	for _, by := range b {
-		carry := int(by)
-		for j := len(digits) - 1; j >= 0; j-- {
-			carry += 256 * digits[j]
-			digits[j] = carry % 58
-			carry /= 58
-		}
-		for carry > 0 {
-			digits = append([]int{carry % 58}, digits...)
-			carry /= 58
-		}
-	}
-	result := []byte{}
-	for _, by := range b {
-		if by != 0 {
-			break
-		}
-		result = append(result, '1')
-	}
-	for _, d := range digits {
-		result = append(result, alphabet[d])
-	}
-	return string(result)
+	return testKey{pub: pub, prv: prv, did: "did:key:z" + testkit.Base58(multicodec)}
 }
 
 func signJWT(prv ed25519.PrivateKey, payload interface{}) string {

@@ -103,15 +103,10 @@ as success on its own — read `result.valid`.
 ### Verification
 SDK verification is an HTTP client (`VerifyClient`) against a running
 [drs-verify](../drs-verify) service — full stop. There is no supported
-in-process/WASM verification path; the `src/wasm` loader is an unpublished
-experiment and is not exported from the package root.
+in-process or WASM verification path.
 
 - `new VerifyClient({ baseUrl, timeoutMs? })`
 - `client.verify(bundle, { includeTimestamps?, body? })` → `VerificationResult`
-
-### Operator config
-- `validateOperatorConfig`, `parseOperatorConfig` — machine-to-machine standing-delegation
-  trust model.
 
 All exported types (`Policy`, `ChainBundle`, `VerificationResult`, `DrsError`, …) are
 available from the package root.
@@ -136,9 +131,9 @@ drs audit <...>            # audit a receipt chain
 | Crypto core | [`drs-core`](https://crates.io/crates/drs-core) (Rust/WASM) | JCS, SHA-256 chain hash, Ed25519 |
 | Verification | [`drs-verify`](https://github.com/OkeyAmy/DRS/tree/main/drs-verify) (Go) | the `/verify` service + MCP/A2A/HTTP protocol gate (`/v1/gate`) |
 
-The Rust core compiles to both native and WASM, so issuance (SDK) and verification
-(`drs-verify`) share one canonicalization implementation — chains cannot diverge across
-languages.
+The SDK (TypeScript), `drs-verify` (Go) and `drs-core` (Rust) each implement RFC 8785
+canonicalization and the chain hash; the shared conformance vectors in
+`fixtures/conformance/` are what keep them from diverging.
 
 ## License
 

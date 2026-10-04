@@ -398,8 +398,16 @@ func verifyHandler(deps verify.Deps, nonceStore nonce.Checker, maxBodyBytes int6
 		if result.Valid {
 			result = applyBinding(result, req.Body, req.Invocation, requireBinding)
 		}
-		if result.Valid && middleware.CheckNonceReplay(w, req.Invocation, nonceStore) {
-			return
+		if result.Valid {
+			if d := gate.CommitInvocationNonce(nonceStore, req.Invocation); d != nil {
+				status, body := gate.HTTP{}.Reject(nil, d)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				if _, err := w.Write(body); err != nil {
+					slog.Warn("write replay refusal failed", "error", err)
+				}
+				return
+			}
 		}
 		if result.Valid {
 			metrics.Verifications.WithLabelValues("valid").Inc()

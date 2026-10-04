@@ -14,6 +14,41 @@ bumps may contain breaking changes (always listed under **Breaking**).
 - `pnpm-workspace.yaml` sets `allowBuilds.esbuild: false` (pnpm 11 rejects the
   placeholder that was committed).
 
+### Dead-code and duplication cleanup — drs-verify, drs-sdk
+
+Removes code that had no callers and merges logic that had been written
+several times. All of it is internal except the two SDK breaks below.
+
+**Breaking (drs-sdk):**
+
+- Removed `validateOperatorConfig` / `parseOperatorConfig` and the
+  `OperatorConfig` types from the package entry point. Server configuration
+  is environment-variable driven
+  (`docs-site/src/reference/configuration.md`); the operator-config how-to
+  page is deleted.
+- Deleted `src/wasm` (`loader.ts`, `wasm-module.d.ts`) entirely. The
+  entry-point exports were already removed in the 0.2.0 notes below; no
+  standalone WASM artifact was ever published, so the module was dead code.
+
+**Changed / removed (drs-verify, drs-sdk):**
+
+- `pkg/operator` (config parsing, CLI validate command) deleted — no caller
+  outside its own test.
+- `middleware.CheckNonceReplay` deleted; `gate.CommitInvocationNonce` is the
+  single replay check, used by `POST /verify` and the gate alike.
+- The weak, always-truthy `VerifyTimestamp` copy is gone; tests exercise
+  `VerifyTimestampTrusted` through an in-package export.
+- JWT payload decoding has one implementation (`verify.DecodePayload`);
+  `gate.decodeInvocation` and the CLI both go through it.
+- `middleware/decode.go` (duplicate verifier adapter) deleted.
+- `DIDResolutions` and `RevocationLookups` metrics are now incremented
+  (resolver cache hit/miss, revocation lookups) instead of always 0.
+- did:key / base58: the SDK exports `didKeyFromPublicKey`,
+  `didKeyFromSigningKey`, `base58Encode`; the Go tests use
+  `testkit.DIDKey` / `testkit.Base58` instead of local copies.
+- Dropped the unconfigured eslint devDependency and its lockfile entries;
+  prettier and `tsc` remain the enforced checks.
+
 ### Protocol gate (MCP, A2A, HTTP) — drs-verify, @drs/mcp-server, @drs/mcp-client
 
 A real-wire audit (2026-10-01) against the official MCP SDKs (1.31, 2.2 in both
@@ -108,8 +143,8 @@ sound. See the [Protocol Gate reference](https://okeyamy.github.io/DRS/reference
 - Removed the WASM loader exports (`initWasm`, `getWasmModule`, `isWasmReady`)
   from the package entry point. The loader was advertised but no standalone
   WASM artifact was ever published, so `initWasm()` could never succeed. The
-  module remains in the source tree (deprecated) as an integration path for a
-  future WASM release.
+  `src/wasm` module has since been deleted from the source tree (see the
+  Unreleased cleanup section above).
 - `verifyWithService` no longer sends the redundant `X-DRS-Bundle` header;
   the bundle travels only in the request body. drs-verify never read the
   header, so no server-side change is needed.

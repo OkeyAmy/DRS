@@ -7,6 +7,7 @@ package gate_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -536,5 +537,66 @@ func TestBundleExactlyAtSizeCapIsNotRefusedForSize(t *testing.T) {
 	d := gate.Decide(context.Background(), cfg, gate.MCP{}, withHeaderBundle(w, strings.Repeat("A", 87_381)).inbound(t))
 	if d.Allow || strings.Contains(string(d.Body), "exceeds maximum size") {
 		t.Fatalf("a bundle at exactly the cap must be decoded, not size-refused, got %s", d.Body)
+	}
+}
+
+// ── CommitInvocationNonce: the single replay check shared with POST /verify ──
+
+func signedInvocation(t *testing.T) string {
+	t.Helper()
+	b, err := newIssuer(t, "/api", types.Policy{}).Bundle("/api/x", []byte(`{"tool":"x"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b.Invocation
+}
+
+func TestCommitInvocationNonceAcceptsOnceThenRefusesReplay(t *testing.T) {
+	ns := nonce.New(10, time.Hour)
+	inv := signedInvocation(t)
+	if d := gate.CommitInvocationNonce(ns, inv); d != nil {
+		t.Fatalf("first use must be accepted, got %+v", d)
+	}
+	d := gate.CommitInvocationNonce(ns, inv)
+	// blindfold: contract — error contract table: replay is 409 REPLAY_DETECTED
+	if d == nil || d.Status != http.StatusConflict || d.Code != "REPLAY_DETECTED" {
+		t.Fatalf("second use must be 409 REPLAY_DETECTED, got %+v", d)
+	}
+}
+
+func TestCommitInvocationNonceFailsClosed(t *testing.T) {
+	inv := signedInvocation(t)
+	full := nonce.New(1, time.Hour)
+	if d := gate.CommitInvocationNonce(full, signedInvocation(t)); d != nil {
+		t.Fatal(d)
+	}
+	cases := []struct {
+		name   string
+		ns     nonce.Checker
+		jwt    string
+		status int
+		code   string
+	}{
+		// blindfold: contract — CLAUDE.md fail-closed: no replay store means refuse, never allow.
+		{"nil store", nil, inv, http.StatusServiceUnavailable, "NONCE_STORE_UNAVAILABLE"},
+		// blindfold: contract — a store at capacity with nothing expired refuses rather than forgetting jtis.
+		{"store full", full, inv, http.StatusServiceUnavailable, "NONCE_STORE_EXHAUSTED"},
+		// blindfold: contract — an undecodable invocation is a client error.
+		{"malformed", nonce.New(10, time.Hour), "not-a-jwt", http.StatusBadRequest, "MALFORMED_INVOCATION"},
+	}
+	for _, c := range cases {
+		d := gate.CommitInvocationNonce(c.ns, c.jwt)
+		if d == nil || d.Status != c.status || d.Code != c.code {
+			t.Errorf("%s: want %d %s, got %+v", c.name, c.status, c.code, d)
+		}
+	}
+}
+
+func TestCommitInvocationNonceRefusesMissingJTI(t *testing.T) {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"cmd":"/api/x"}`))
+	d := gate.CommitInvocationNonce(nonce.New(10, time.Hour), "e30."+payload+".c2ln")
+	// blindfold: contract — replay protection needs a jti; its absence is a 400 MISSING_JTI.
+	if d == nil || d.Status != http.StatusBadRequest || d.Code != "MISSING_JTI" {
+		t.Fatalf("an invocation without jti must be refused, got %+v", d)
 	}
 }

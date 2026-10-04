@@ -55,7 +55,7 @@ Relevant financial regulations: SR 11-7 (Federal Reserve model risk management),
 
 ## Storage tiers and retention
 
-| Tier | `storage_tier` | Backend | Status |
+| Tier | Env var | Backend | Status |
 |---|---|---|---|
 | Session | `0` | In-memory | Implemented |
 | Ephemeral | `1` | Local filesystem | Implemented |
@@ -64,4 +64,3 @@ Relevant financial regulations: SR 11-7 (Federal Reserve model risk management),
 | Timestamped | `4` | Tier 3 deployment posture | Partial |
 | On-chain | `5` | Ethereum anchor | Roadmap |
 
-Configure via `storage_tier` in the [Operator Configuration](../how-to/operators/operator-config.md).

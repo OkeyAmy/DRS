@@ -71,6 +71,6 @@ As of SDK 0.2.0 the package no longer exports a WASM loader
 (`initWasm` / `getWasmModule` / `isWasmReady` were removed from the entry
 point — no standalone WASM artifact was ever published, so the loader could
 never succeed). All verification goes through `VerifyClient` against a
-running `drs-verify` HTTP service. The deprecated loader module remains in
-the source tree as an integration path if a WASM artifact is released in
-the future.
+running `drs-verify` HTTP service. The unused loader module has been removed
+from the source tree; a browser verifier, if it is ever built, will ship as its
+own package.

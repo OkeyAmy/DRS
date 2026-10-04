@@ -16,7 +16,9 @@ work are now implemented.
 
 ## Phase 2 — Production hardening
 
-- secure-by-default Node HTTP enforcement middleware (`@drs/mcp-server`)
+- Node enforcement is a documented, copy-paste fail-closed gate against
+  `/verify` — **decided against a bundled npm middleware** (a second gate
+  implementation would only drift from the normative Go verifier)
 - HSM / KMS integration in the verifier
 - durable object-store backend (Tier 2 roadmap)
 - stronger retention / immutability story for regulated deployments

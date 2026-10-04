@@ -24,10 +24,9 @@ pnpm exec drs keygen --out ./operator-dev.signing.key
 **Production operator keys:**
 
 Use a KMS/HSM-backed signer or another reviewed external signing service for
-operator keys with regulatory significance. The current repository parses
-`operator_key_management` values such as `"aws-kms"` and `"gcp-kms"` in
-configuration, but it does not include built-in KMS signing code. Do not assume
-that setting those values alone moves signing out of local process memory.
+operator keys with regulatory significance. DRS does not include built-in KMS
+signing code: the SDK signs with whatever 32-byte key you pass it, so keeping that
+key out of process memory is your signer's job.
 
 ## DID method choices
 
@@ -40,7 +39,7 @@ that setting those values alone moves signing out of local process memory.
 For `did:key` DIDs, rotating the key means generating a new key and a new DID. The process:
 
 1. Generate new key and DID
-2. Update `operator_did` in your `OperatorConfig`
+2. Issue root delegations with the new DID as `issuerDid`
 3. New root delegations are issued under the new DID
 4. Old delegations (signed with the previous key) remain valid until they expire
 5. After old delegations expire, the old key can be decommissioned
