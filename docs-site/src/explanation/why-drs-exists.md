@@ -32,12 +32,12 @@ Three fundamental errors:
 2. Applied a binary Merkle tree to a linear chain (CVE-2012-2459 risk)
 3. Under-specified security model
 
-**v1 was scrapped.** The document is preserved in `docs/DRS_architecture_v1.md`.
+**v1 was scrapped.** Its design documents are kept in the maintainers' internal archive.
 
 ### v2 — UCAN profile (against wrong version)
 Correctly identified DRS should be a UCAN Profile — but built against UCAN 0.x (JWT) while the actual spec was UCAN v1.0-rc.1 (CBOR/IPLD). Additional problems: TypeScript-only verification with V8 GC pauses destroying the <5ms latency requirement, unbounded DID resolver cache, status list race condition, O(n·m) policy check.
 
-**v2 was scrapped.** The document is preserved in `docs/Drs_architecture_v2.md`.
+**v2 was scrapped.** Its design documents are kept in the maintainers' internal archive.
 
 ### v3/v4 — JWT-based DRS for OAuth/MCP ecosystems (current implementation)
 

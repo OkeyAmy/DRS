@@ -6,11 +6,9 @@ Read this before touching the crypto layer or the verification path.
 
 Before making changes to the core verification logic:
 
-1. `docs/Drs_language&algorithms.md` — authoritative reference for language choices and corrected algorithms
-2. `docs/drs-source-of-truth.md` — current implementation contract
+1. [Verification Algorithm](../../explanation/verification-algorithm.md) — the corrected algorithms the verifier implements
+2. [Architecture](../../explanation/architecture.md) and [Security Model](../../explanation/security-model.md) — the current implementation contract
 3. [False Positives: What We Tried](./false-positives.md) — the v1 and v2 failures
-
-`docs/Drs_architecture_v2.md` is still useful, but as a historical prior-working-path document rather than the live implementation spec.
 
 ## Module boundaries
 
@@ -25,7 +23,8 @@ Each module has exactly one responsibility. Do not write code that crosses these
 | `drs-core/src/did/` | `did:key` decode to public key bytes | DID resolution with caching |
 | `drs-verify/pkg/resolver/` | DID resolution + LRU cache | Chain verification |
 | `drs-verify/pkg/verify/` | `verify_chain` (6 blocks) | DID resolution, HTTP I/O |
-| `drs-verify/pkg/middleware/` | HTTP request/response handling | Verification logic |
+| `drs-verify/pkg/gate/` | MCP / A2A / HTTP protocol adapters, binding, nonce commit | Chain verification logic |
+| `drs-verify/pkg/middleware/` | Rate limiting, nonce replay check for `/verify` | Verification logic |
 | `drs-verify/pkg/policy/` | Policy field evaluation | Signing, serialisation |
 | `drs-sdk/src/sdk/` | Issuance (sign + build JWTs) | Verification |
 | `drs-sdk/src/verify/` | HTTP client to drs-verify | Verification logic itself |

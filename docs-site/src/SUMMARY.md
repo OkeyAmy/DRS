@@ -10,6 +10,7 @@
 - [What is DRS?](./explanation/what-is-drs.md)
 - [Why DRS Exists](./explanation/why-drs-exists.md)
 - [The Five Actors](./explanation/five-actors.md)
+- [A Live Deployment, End to End](./explanation/live-deployment.md)
 - [Data Model](./explanation/data-model.md)
 - [Verification Algorithm](./explanation/verification-algorithm.md)
 - [Architecture](./explanation/architecture.md)
@@ -46,7 +47,6 @@
 
 ## For Operators
 - [Deploy drs-verify](./how-to/operators/deploy-drs-verify.md)
-- [Operator Configuration](./how-to/operators/operator-config.md)
 - [Storage Tiers](./how-to/operators/storage-tiers.md)
 - [Key Management](./how-to/operators/key-management.md)
 - [Revocation](./how-to/operators/revocation.md)
@@ -73,6 +73,7 @@
 - [Error Codes](./reference/error-codes.md)
 - [CLI Commands](./reference/cli-commands.md)
 - [API Endpoints](./reference/api-endpoints.md)
+- [Protocol Gate (MCP, A2A, HTTP)](./reference/protocol-gate.md)
 - [Configuration](./reference/configuration.md)
 - [DRS vs Alternatives](./reference/comparison.md)
 - [Roadmap](./reference/roadmap.md)

@@ -67,7 +67,9 @@ export function jcsSerialise(value: unknown, depth = 0): string {
     const sortedKeys = Object.keys(obj)
       .filter((k) => obj[k] !== undefined)
       .sort(compareKeysByCodePoint);
-    const entries = sortedKeys.map((k) => `${JSON.stringify(k)}:${jcsSerialise(obj[k], depth + 1)}`);
+    const entries = sortedKeys.map(
+      (k) => `${JSON.stringify(k)}:${jcsSerialise(obj[k], depth + 1)}`,
+    );
     return `{${entries.join(",")}}`;
   }
   return "null";

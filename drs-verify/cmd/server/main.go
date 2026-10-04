@@ -21,18 +21,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/anchor"
-	"github.com/drs-protocol/drs-verify/pkg/binding"
-	"github.com/drs-protocol/drs-verify/pkg/config"
-	"github.com/drs-protocol/drs-verify/pkg/health"
-	"github.com/drs-protocol/drs-verify/pkg/metrics"
-	"github.com/drs-protocol/drs-verify/pkg/middleware"
-	"github.com/drs-protocol/drs-verify/pkg/nonce"
-	"github.com/drs-protocol/drs-verify/pkg/resolver"
-	"github.com/drs-protocol/drs-verify/pkg/revocation"
-	"github.com/drs-protocol/drs-verify/pkg/store"
-	"github.com/drs-protocol/drs-verify/pkg/types"
-	"github.com/drs-protocol/drs-verify/pkg/verify"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/anchor"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/binding"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/config"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/gate"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/health"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/metrics"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/middleware"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/nonce"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/resolver"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/revocation"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/store"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/verify"
 )
 
 // shutdownTimeout is how long the server waits for in-flight requests to drain
@@ -120,20 +121,58 @@ func main() {
 	}
 
 	var drStore store.Store
-	if cfg.StoreDir != "" {
-		fsStore, err := store.NewFilesystemStore(cfg.StoreDir, 0)
+	var asyncStore *store.AsyncStore // non-nil only for the durable (S3) tiers; drained on shutdown
+
+	switch {
+	case cfg.S3Bucket != "":
+		// Tier 2/3: durable object store. Wrap in integrity verification, then
+		// the async write pipeline so S3 latency never lands on the verify path.
+		s3, err := store.NewS3Store(context.Background(), store.S3Config{
+			Endpoint: cfg.S3Endpoint, Bucket: cfg.S3Bucket,
+			AccessKey: cfg.S3AccessKey, SecretKey: cfg.S3SecretKey,
+			Region: cfg.S3Region, UseSSL: cfg.S3UseSSL,
+			ObjectLock: cfg.S3ObjectLock, RetentionDays: cfg.S3RetentionDays,
+			OpTimeout: time.Duration(cfg.S3OpTimeoutSecs) * time.Second,
+		})
 		if err != nil {
 			slog.Error("store init failed", "error", err)
 			os.Exit(1)
 		}
+		asyncStore = store.NewAsyncStore(store.NewIntegrityStore(s3), store.AsyncConfig{
+			QueueSize: cfg.AsyncQueueSize, Workers: cfg.AsyncWorkers,
+			OnDrop: func(string) {
+				metrics.StoreWriteQueueDropped.Inc()
+				metrics.StoreWritesTotal.WithLabelValues("dropped").Inc()
+			},
+			OnFlushError: func(string, error) {
+				metrics.StoreFlushErrors.Inc()
+				metrics.StoreWritesTotal.WithLabelValues("error").Inc()
+			},
+			OnFlushSuccess: func(string) { metrics.StoreWritesTotal.WithLabelValues("flushed").Inc() },
+		})
+		metrics.RegisterStoreGauges(asyncStore.PendingCount, asyncStore.FailedCount)
 		if cfg.TSAURL != "" {
-			drStore = anchor.NewTier3Store(fsStore, anchor.NewTSAClient(cfg.TSAURL))
-			slog.Info("store initialized", "tier", 3, "tsa_url", cfg.TSAURL)
+			drStore = anchor.NewTier3Store(asyncStore, anchor.NewTSAClient(cfg.TSAURL))
+			slog.Info("store initialized", "tier", 3, "backend", "s3+worm", "retention_days", cfg.S3RetentionDays)
 		} else {
-			drStore = fsStore
-			slog.Info("store initialized", "tier", 1)
+			drStore = asyncStore
+			slog.Info("store initialized", "tier", 2, "backend", "s3")
 		}
-	} else {
+
+	case cfg.StoreDir != "":
+		// Tier 1: local filesystem, ephemeral. Configurable TTL + background janitor.
+		fsStore, err := store.NewFilesystemStore(cfg.StoreDir, time.Duration(cfg.StoreTTLSecs)*time.Second)
+		if err != nil {
+			slog.Error("store init failed", "error", err)
+			os.Exit(1)
+		}
+		janitorCtx, stopJanitor := context.WithCancel(context.Background())
+		defer stopJanitor()
+		fsStore.StartJanitor(janitorCtx)
+		drStore = store.NewIntegrityStore(fsStore)
+		slog.Info("store initialized", "tier", 1, "ttl_secs", cfg.StoreTTLSecs)
+
+	default:
 		s, err := store.NewMemoryStore(0)
 		if err != nil {
 			slog.Error("store init failed", "error", err)
@@ -215,7 +254,17 @@ func main() {
 	mux.Handle("/readyz", healthMux)
 
 	// Verification endpoint — accepts a ChainBundle JSON body and returns VerificationResult.
-	mux.Handle("/verify", verifyHandler(deps, nonceStore, cfg.MaxBodyBytes))
+	mux.Handle("/verify", verifyHandler(deps, nonceStore, cfg.MaxBodyBytes, cfg.RequireBinding))
+
+	// Protocol gate — out-of-process enforcement points (Node, stdio) forward
+	// the MCP / A2A / HTTP request and receive an allow/deny decision. All
+	// protocol rules live in pkg/gate.
+	gateCfg, err := gate.NewConfig(deps, nonceStore, binding.ModeEnforced)
+	if err != nil {
+		slog.Error("gate init failed", "error", err)
+		os.Exit(1)
+	}
+	mux.Handle("/v1/gate", gate.Handler(gateCfg, cfg.MaxBodyBytes))
 
 	// Admin revocation endpoint — marks a local status list index as revoked immediately.
 	// Requires DRS_ADMIN_TOKEN to be set; responds 503 otherwise.
@@ -310,6 +359,13 @@ func main() {
 			slog.Error("metrics server shutdown failed", "error", err)
 		}
 	}
+	if asyncStore != nil {
+		drainCtx, drainCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer drainCancel()
+		if err := asyncStore.Close(drainCtx); err != nil {
+			slog.Warn("async store did not fully drain before deadline", "error", err)
+		}
+	}
 	// Drain the background goroutine's final error (should be nil after Shutdown).
 	if err := <-serverErr; err != nil {
 		slog.Error("post-shutdown server error", "error", err)
@@ -338,7 +394,7 @@ func warnIfServerIdentityUnset(serverIdentity string) bool {
 	return true
 }
 
-func verifyHandler(deps verify.Deps, nonceStore nonce.Checker, maxBodyBytes int64) http.Handler {
+func verifyHandler(deps verify.Deps, nonceStore nonce.Checker, maxBodyBytes int64, requireBinding bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		defer func() {
@@ -381,24 +437,25 @@ func verifyHandler(deps verify.Deps, nonceStore nonce.Checker, maxBodyBytes int6
 		reqDeps := deps
 		reqDeps.IncludeTimestamps = req.IncludeTimestamps
 
-		// Verify first, commit nonce only on a valid chain. Committing the
-		// nonce from an unsigned payload would let an attacker with a known
-		// JTI pre-consume legitimate nonces by submitting an invalid signature.
+		// Order: chain → binding → nonce. The nonce is committed last so an
+		// unsigned payload or a mismatched body never consumes a legitimate jti.
 		result := verify.Chain(r.Context(), req.ChainBundle, reqDeps)
 		if result.Valid {
-			metrics.Verifications.WithLabelValues("valid").Inc()
-
-			// Binding check runs only after chain verification succeeds AND
-			// only when the caller provided a body. Skipping on valid=false
-			// avoids emitting binding telemetry for unauthorised bundles.
-			if len(req.Body) > 0 {
-				result.Binding = computeBindingResult(req.Body, req.Invocation)
-				metrics.BindingChecks.WithLabelValues(result.Binding).Inc()
-			}
-
-			if middleware.CheckNonceReplay(w, req.Invocation, nonceStore) {
+			result = applyBinding(result, req.Body, req.Invocation, requireBinding)
+		}
+		if result.Valid {
+			if d := gate.CommitInvocationNonce(nonceStore, req.Invocation); d != nil {
+				status, body := gate.HTTP{}.Reject(nil, d)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				if _, err := w.Write(body); err != nil {
+					slog.Warn("write replay refusal failed", "error", err)
+				}
 				return
 			}
+		}
+		if result.Valid {
+			metrics.Verifications.WithLabelValues("valid").Inc()
 		} else {
 			metrics.Verifications.WithLabelValues("invalid").Inc()
 		}
@@ -410,31 +467,38 @@ func verifyHandler(deps verify.Deps, nonceStore nonce.Checker, maxBodyBytes int6
 	})
 }
 
-// computeBindingResult runs the body↔invocation.args binding check and
-// returns the result label that goes into VerificationResult.Binding and the
-// drs_binding_checks_total metric.
-//
-// Assumes the chain has already verified — binding is meaningless otherwise.
-// Only called when the caller included a body field (len > 0), so the
-// "empty_match" label is unreachable here: the /verify JSON surface requires
-// some bytes under "body" to deserialise. empty_match still fires via the
-// pkg/middleware in-process path that sees raw HTTP bodies.
-//
-// Label semantics:
-//   - "match"        — body JCS-equals invocation.args
-//   - "mismatch"     — both valid JSON but canonical forms differ
-//   - "invalid_body" — body is not parseable as JSON (or invocation JWT decode failed)
+// applyBinding compares the caller-supplied body with the signed
+// invocation.args. With requireBinding, an absent body or anything other
+// than a match makes the result invalid (fail closed).
+func applyBinding(result types.VerificationResult, body json.RawMessage, invocationJWT string, requireBinding bool) types.VerificationResult {
+	if len(body) == 0 {
+		if requireBinding {
+			return types.Invalid("BINDING_REQUIRED",
+				"no body was supplied, so the executed request cannot be bound to the signed args.",
+				"Send the exact request body the tool server received under \"body\", or use POST /v1/gate.")
+		}
+		return result
+	}
+	result.Binding = computeBindingResult(body, invocationJWT)
+	metrics.BindingChecks.WithLabelValues(result.Binding).Inc()
+	if requireBinding && result.Binding != "match" {
+		bound := types.Invalid("BINDING_MISMATCH",
+			"the request body does not equal the signed invocation.args after RFC 8785 canonicalisation.",
+			"Execute only the arguments the agent signed.")
+		bound.Binding = result.Binding
+		return bound
+	}
+	return result
+}
+
+// computeBindingResult labels the body/args relationship:
+// "match", "mismatch", or "invalid_body" (unparseable body or invocation).
 func computeBindingResult(body json.RawMessage, invocationJWT string) string {
-	args, err := middleware.DecodeInvocationArgs(invocationJWT)
-	if err != nil {
-		// Normally caught earlier by verify.Chain — surfacing as
-		// invalid_body keeps the metric meaningful when it does slip through.
+	args, err := gate.SignedArgs(invocationJWT)
+	if err != nil || !isValidJSON(body) {
 		return "invalid_body"
 	}
-	if !isValidJSON(body) {
-		return "invalid_body"
-	}
-	if err := binding.Check(body, args); err != nil {
+	if err := binding.CheckRaw(body, args); err != nil {
 		return "mismatch"
 	}
 	return "match"

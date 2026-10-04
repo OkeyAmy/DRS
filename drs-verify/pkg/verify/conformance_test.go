@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/drs-protocol/drs-verify/pkg/policy"
-	"github.com/drs-protocol/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/policy"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
 )
 
 func fixturesDir() string {
@@ -273,7 +273,7 @@ func TestConformanceReceiptSignatures(t *testing.T) {
 				t.Fatalf("parse fixture: %v", err)
 			}
 
-			err := verifyJWTSignature(context.Background(), compactJWT(fix), fix.Payload.Iss, deps.Resolver)
+			err := verifyResolvedSignature(t, compactJWT(fix), fix.Payload.Iss, deps.Resolver)
 			if err != nil {
 				t.Errorf("signature verification failed: %v", err)
 			}

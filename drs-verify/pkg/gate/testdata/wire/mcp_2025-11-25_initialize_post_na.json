@@ -1,0 +1,20 @@
+{
+  "body": {
+    "id": 0,
+    "jsonrpc": "2.0",
+    "method": "initialize",
+    "params": {
+      "capabilities": {},
+      "clientInfo": {
+        "name": "drs-e2e-client",
+        "version": "1.0.0"
+      },
+      "protocolVersion": "2025-11-25"
+    }
+  },
+  "headers": {
+    "accept": "application/json, text/event-stream",
+    "content-type": "application/json"
+  },
+  "http_method": "POST"
+}

@@ -28,14 +28,14 @@ Anyone with the DID can derive the public key and verify the signature. No regis
 ## Verification
 
 ```bash
-DRS_VERIFY_URL=http://your-drs-verify-instance:8080 pnpm exec drs verify bundle.json
+DRS_VERIFY_URL=http://your-drs-verify-instance:8080 pnpm exec drs verify --body request.json bundle.json
 ```
 
 Or run your own verifier and point the CLI at it:
 
 ```bash
 cd drs-verify && go run ./cmd/server &
-pnpm exec drs verify bundle.json
+pnpm exec drs verify --body request.json bundle.json
 ```
 
 ## Signature model

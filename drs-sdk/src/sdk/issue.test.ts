@@ -1,3 +1,4 @@
+import { didKeyFromSigningKey } from "./did.js";
 import { describe, it, expect } from "vitest";
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2.js";
@@ -22,34 +23,7 @@ function generateKey(): Uint8Array {
 }
 
 function didFromKey(privKey: Uint8Array): string {
-  const pub = derivePublicKey(privKey);
-  const multicodec = new Uint8Array([0xed, 0x01, ...pub]);
-  const encoded = base58Encode(multicodec);
-  return `did:key:z${encoded}`;
-}
-
-function base58Encode(bytes: Uint8Array): string {
-  const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  const digits: number[] = [0];
-  for (const byte of bytes) {
-    let carry = byte;
-    for (let j = digits.length - 1; j >= 0; j--) {
-      carry += 256 * (digits[j] ?? 0);
-      digits[j] = carry % 58;
-      carry = Math.floor(carry / 58);
-    }
-    while (carry > 0) {
-      digits.unshift(carry % 58);
-      carry = Math.floor(carry / 58);
-    }
-  }
-  let result = "";
-  for (const byte of bytes) {
-    if (byte !== 0) break;
-    result += "1";
-  }
-  for (const d of digits) result += ALPHABET[d];
-  return result;
+  return didKeyFromSigningKey(privKey);
 }
 
 function decodeJwtPayload(jwt: string): Record<string, unknown> {

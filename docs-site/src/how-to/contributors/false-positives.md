@@ -20,8 +20,6 @@ This is a research project. Three architectural approaches were designed and dis
 
 **The lesson:** Check whether the problem is already solved before designing a solution. Read the existing standards. Read the CVE history of similar approaches.
 
-**v1 documents:** `docs/DRS_architecture_v1.md`
-
 ---
 
 ## v2: UCAN Profile (wrong version)
@@ -45,8 +43,6 @@ This is a research project. Three architectural approaches were designed and dis
 **Error 6 — Wrong canonicalisation:** We used JCS on JSON for JWT signing, but UCAN v1.0 uses CBOR encoding, not JSON. The JWT payloads were valid JSON but the wrong format for the specification we were implementing against.
 
 **The lesson:** Read the specification you are implementing against before writing any code. Check the encoding format. Check the version number. Validate against a reference implementation early.
-
-**v2 documents:** `docs/Drs_architecture_v2.md`
 
 ---
 

@@ -45,7 +45,7 @@ Rust is important for protocol correctness, but it is not linked into
 The Go service is the production verification path today. It handles:
 
 - `verify.Chain()` (Blocks A-F)
-- `MCPMiddleware` / `A2AMiddleware`
+- `pkg/gate` — MCP, A2A and HTTP adapters, `gate.Middleware` and `POST /v1/gate`
 - DID resolution with LRU caching
 - Bitstring Status List caching with mutex + re-check guard (failed fetches are retryable)
 - health and readiness endpoints

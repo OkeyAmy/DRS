@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/store"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/store"
 )
 
 func testStoreContract(t *testing.T, s store.Store) {

@@ -93,6 +93,11 @@ type Config struct {
 	// Set via TRUST_PROXY=true.
 	TrustProxy bool
 
+	// RequireBinding makes POST /verify refuse a request without a body, and
+	// mark a body mismatch as invalid. Set via DRS_REQUIRE_BINDING (default
+	// true; "false" disables; any other value is a boot error).
+	RequireBinding bool
+
 	// CircuitBreakerThreshold is the number of consecutive did:web failures before
 	// the circuit opens for that DID. Default: 5. Set via CIRCUIT_BREAKER_THRESHOLD.
 	CircuitBreakerThreshold int
@@ -130,6 +135,33 @@ type Config struct {
 	//   :9090               — all interfaces (dev)
 	//   127.0.0.1:9090      — loopback only (production / Kubernetes sidecar)
 	MetricsAddr string
+
+	// StoreTTLSecs is the Tier-1 (local filesystem) retention window in seconds.
+	// Entries older than this are removed by the background janitor and by lazy
+	// Get-path expiry. Default 172800 (48h). Must be > 0. Tier 3 ignores this
+	// (compliance evidence never auto-expires). Set via STORE_TTL_SECS.
+	StoreTTLSecs int64
+
+	// S3* configure the durable object-store backend (Tier 2/3). When S3Bucket
+	// is set the durable backend is selected. Works with any S3-compatible
+	// endpoint (AWS S3, GCS, Cloudflare R2, Backblaze, self-hosted MinIO).
+	S3Endpoint   string // host:port, e.g. "s3.amazonaws.com" or "minio:9000"
+	S3Bucket     string
+	S3AccessKey  string
+	S3SecretKey  string
+	S3Region     string // default "us-east-1"
+	S3UseSSL     bool   // S3_USE_SSL=true
+	S3ObjectLock bool   // S3_OBJECT_LOCK=true — required for Tier 3
+	// S3RetentionDays is the Object Lock retention applied to each stored object
+	// when S3ObjectLock is true. Default 2555 (~7 years). Set via S3_RETENTION_DAYS.
+	S3RetentionDays int64
+	// S3OpTimeoutSecs bounds every S3 request. Default 30. Set via S3_OP_TIMEOUT_SECS.
+	S3OpTimeoutSecs int64
+
+	// AsyncQueueSize / AsyncWorkers configure the async write pipeline that
+	// keeps durable-backend latency off the verify hot path.
+	AsyncQueueSize int // ASYNC_QUEUE_SIZE, default 4096
+	AsyncWorkers   int // ASYNC_WORKERS, default 4
 }
 
 // Load reads all configuration from environment variables.
@@ -168,6 +200,65 @@ func Load() (Config, error) {
 	storeDir := os.Getenv("STORE_DIR")
 	serverIdentity := os.Getenv("SERVER_IDENTITY")
 
+	storeTTL, err := getEnvInt64("STORE_TTL_SECS", 172800)
+	if err != nil {
+		return Config{}, fmt.Errorf("STORE_TTL_SECS: %w", err)
+	}
+	if storeTTL <= 0 {
+		return Config{}, fmt.Errorf("STORE_TTL_SECS must be a positive number of seconds, got %d", storeTTL)
+	}
+
+	s3Endpoint := os.Getenv("S3_ENDPOINT")
+	s3Bucket := os.Getenv("S3_BUCKET")
+	s3AccessKey := os.Getenv("S3_ACCESS_KEY")
+	s3SecretKey := os.Getenv("S3_SECRET_KEY")
+	s3Region := getEnvOrDefault("S3_REGION", "us-east-1")
+	s3UseSSL, err := getEnvBool("S3_USE_SSL", false)
+	if err != nil {
+		return Config{}, fmt.Errorf("S3_USE_SSL: %w", err)
+	}
+	s3ObjectLock, err := getEnvBool("S3_OBJECT_LOCK", false)
+	if err != nil {
+		return Config{}, fmt.Errorf("S3_OBJECT_LOCK: %w", err)
+	}
+	s3OpTimeout, err := getEnvInt64("S3_OP_TIMEOUT_SECS", 30)
+	if err != nil {
+		return Config{}, fmt.Errorf("S3_OP_TIMEOUT_SECS: %w", err)
+	}
+	if s3OpTimeout <= 0 {
+		return Config{}, fmt.Errorf("S3_OP_TIMEOUT_SECS must be a positive number of seconds, got %d", s3OpTimeout)
+	}
+	s3RetentionDays, err := getEnvInt64("S3_RETENTION_DAYS", 2555)
+	if err != nil {
+		return Config{}, fmt.Errorf("S3_RETENTION_DAYS: %w", err)
+	}
+
+	asyncQueue, err := getEnvInt("ASYNC_QUEUE_SIZE", 4096)
+	if err != nil {
+		return Config{}, fmt.Errorf("ASYNC_QUEUE_SIZE: %w", err)
+	}
+	asyncWorkers, err := getEnvInt("ASYNC_WORKERS", 4)
+	if err != nil {
+		return Config{}, fmt.Errorf("ASYNC_WORKERS: %w", err)
+	}
+
+	if s3Bucket != "" && (s3Endpoint == "" || s3AccessKey == "" || s3SecretKey == "") {
+		return Config{}, fmt.Errorf("S3_BUCKET requires S3_ENDPOINT, S3_ACCESS_KEY, and S3_SECRET_KEY")
+	}
+	// Tier 3 = durable + RFC 3161. Compliance evidence must be WORM-immutable,
+	// so require Object Lock. Local-filesystem compliance is no longer allowed.
+	if tsaURL != "" {
+		if s3Bucket == "" {
+			return Config{}, fmt.Errorf("TSA_URL (Tier 3) requires the S3 durable backend: set S3_BUCKET and credentials")
+		}
+		if !s3ObjectLock {
+			return Config{}, fmt.Errorf("TSA_URL (Tier 3) requires S3_OBJECT_LOCK=true for WORM-immutable compliance evidence")
+		}
+	}
+	if s3ObjectLock && s3RetentionDays <= 0 {
+		return Config{}, fmt.Errorf("S3_RETENTION_DAYS must be a positive number of days when S3_OBJECT_LOCK=true, got %d", s3RetentionDays)
+	}
+
 	nonceMax, err := getEnvInt("NONCE_STORE_MAX_ENTRIES", 100_000)
 	if err != nil {
 		return Config{}, fmt.Errorf("NONCE_STORE_MAX_ENTRIES: %w", err)
@@ -189,6 +280,16 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("RATE_LIMIT_GLOBAL: %w", err)
 	}
 	trustProxy := os.Getenv("TRUST_PROXY") == "true"
+
+	var requireBinding bool
+	switch v := os.Getenv("DRS_REQUIRE_BINDING"); v {
+	case "", "true":
+		requireBinding = true
+	case "false":
+		requireBinding = false
+	default:
+		return Config{}, fmt.Errorf("DRS_REQUIRE_BINDING: want true or false, got %q", v)
+	}
 
 	cbThreshold, err := getEnvInt("CIRCUIT_BREAKER_THRESHOLD", 5)
 	if err != nil {
@@ -244,13 +345,41 @@ func Load() (Config, error) {
 		RateLimitPerIP:             rateLimitPerIP,
 		RateLimitGlobal:            rateLimitGlobal,
 		TrustProxy:                 trustProxy,
+		RequireBinding:             requireBinding,
 		CircuitBreakerThreshold:    cbThreshold,
 		CircuitBreakerCooldownSecs: cbCooldown,
 		RevocationStorePath:        revocationStorePath,
 		NonceStoreBackend:          nonceBackend,
 		RedisURL:                   redisURL,
 		MetricsAddr:                metricsAddr,
+		StoreTTLSecs:               storeTTL,
+		S3Endpoint:                 s3Endpoint,
+		S3Bucket:                   s3Bucket,
+		S3AccessKey:                s3AccessKey,
+		S3SecretKey:                s3SecretKey,
+		S3Region:                   s3Region,
+		S3UseSSL:                   s3UseSSL,
+		S3ObjectLock:               s3ObjectLock,
+		S3RetentionDays:            s3RetentionDays,
+		S3OpTimeoutSecs:            s3OpTimeout,
+		AsyncQueueSize:             asyncQueue,
+		AsyncWorkers:               asyncWorkers,
 	}, nil
+}
+
+// getEnvBool parses a boolean environment variable. Unset returns def; a value
+// strconv.ParseBool does not accept is an error, so a typo such as "ture" can
+// never silently disable a security setting.
+func getEnvBool(key string, def bool) (bool, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return def, nil
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return false, fmt.Errorf("want true or false, got %q", v)
+	}
+	return b, nil
 }
 
 func getEnvOrDefault(key, def string) string {

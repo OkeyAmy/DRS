@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/OkeyAmy/DRS/drs-verify/testkit"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -24,43 +25,7 @@ var ed25519TestKey = [32]byte{
 // encodeDIDKey mirrors the Rust encode_did_key — used to build test DIDs.
 func encodeDIDKey(pub [32]byte) string {
 	multicodec := append([]byte{multicodecEd25519Hi, multicodecEd25519Lo}, pub[:]...)
-	return didKeyPrefix + base58Encode(multicodec)
-}
-
-// base58Encode encodes bytes using the Bitcoin alphabet.
-func base58Encode(b []byte) string {
-	const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-
-	n := new([64]byte)
-	_ = n
-
-	// Convert bytes to a large integer, then encode in base58
-	digits := []int{0}
-	for _, by := range b {
-		carry := int(by)
-		for j := len(digits) - 1; j >= 0; j-- {
-			carry += 256 * digits[j]
-			digits[j] = carry % 58
-			carry /= 58
-		}
-		for carry > 0 {
-			digits = append([]int{carry % 58}, digits...)
-			carry /= 58
-		}
-	}
-
-	// Add leading '1' for each leading zero byte
-	result := []byte{}
-	for _, by := range b {
-		if by != 0 {
-			break
-		}
-		result = append(result, '1')
-	}
-	for _, d := range digits {
-		result = append(result, alphabet[d])
-	}
-	return string(result)
+	return didKeyPrefix + testkit.Base58(multicodec)
 }
 
 // ── did:key resolution ────────────────────────────────────────────────────────
@@ -87,7 +52,7 @@ func TestUnsupportedDidMethodReturnsError(t *testing.T) {
 func TestWrongMulticodecPrefixReturnsError(t *testing.T) {
 	// Use sha2-256 multicodec (0x12 0x00) instead of ed25519
 	raw := append([]byte{0x12, 0x00}, make([]byte, 32)...)
-	did := didKeyPrefix + base58Encode(raw)
+	did := didKeyPrefix + testkit.Base58(raw)
 	_, err := resolveDidKey(did)
 	if err == nil {
 		t.Fatal("expected error for wrong multicodec prefix, got nil")
@@ -97,7 +62,7 @@ func TestWrongMulticodecPrefixReturnsError(t *testing.T) {
 func TestTruncatedKeyReturnsError(t *testing.T) {
 	// Only 5 bytes — far too short
 	raw := []byte{0xed, 0x01, 0x00, 0x01, 0x02}
-	did := didKeyPrefix + base58Encode(raw)
+	did := didKeyPrefix + testkit.Base58(raw)
 	_, err := resolveDidKey(did)
 	if err == nil {
 		t.Fatal("expected error for truncated key, got nil")
@@ -196,7 +161,7 @@ func TestDidWebDocumentURL_MissingDomainReturnsError(t *testing.T) {
 func TestExtractEd25519_PublicKeyMultibase(t *testing.T) {
 	// Build a DID document with Ed25519VerificationKey2020 + publicKeyMultibase
 	multicodec := append([]byte{multicodecEd25519Hi, multicodecEd25519Lo}, ed25519TestKey[:]...)
-	encoded := "z" + base58Encode(multicodec)
+	encoded := "z" + testkit.Base58(multicodec)
 
 	doc := []byte(`{
 		"verificationMethod": [{
@@ -248,7 +213,7 @@ func TestExtractEd25519_NoMatchingMethodReturnsError(t *testing.T) {
 func TestExtractEd25519_WrongMulticodecInMultibaseReturnsError(t *testing.T) {
 	// publicKeyMultibase with wrong multicodec prefix (sha2-256 instead of ed25519)
 	wrongPrefix := append([]byte{0x12, 0x00}, make([]byte, 32)...)
-	encoded := "z" + base58Encode(wrongPrefix)
+	encoded := "z" + testkit.Base58(wrongPrefix)
 	doc := []byte(`{
 		"verificationMethod": [{
 			"type": "Ed25519VerificationKey2020",

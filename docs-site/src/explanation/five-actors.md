@@ -73,7 +73,7 @@ Reconstructs delegation chains after the fact to produce evidence for regulators
 
 **What they do:**
 ```bash
-drs verify bundle.json
+drs verify --body request.json bundle.json
 drs audit bundle.json
 ```
 

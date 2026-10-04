@@ -20,16 +20,18 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/anchor"
-	"github.com/drs-protocol/drs-verify/pkg/policy"
-	"github.com/drs-protocol/drs-verify/pkg/resolver"
-	"github.com/drs-protocol/drs-verify/pkg/revocation"
-	"github.com/drs-protocol/drs-verify/pkg/store"
-	"github.com/drs-protocol/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/anchor"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/metrics"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/policy"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/resolver"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/revocation"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/store"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
 )
 
 var errSignatureMalleability = errors.New("signature malleability")
@@ -55,21 +57,35 @@ type jwtHeader struct {
 	Alg string `json:"alg"`
 }
 
-// decodeJWTHeader base64url-decodes the JWT header (parts[0]) into a jwtHeader.
-func decodeJWTHeader(jwt string) (jwtHeader, error) {
+// splitJWT splits a compact JWT into its three segments.
+func splitJWT(jwt string) ([3]string, error) {
 	parts := strings.SplitN(jwt, ".", 4)
 	if len(parts) != 3 {
-		return jwtHeader{}, fmt.Errorf("expected 3 dot-separated JWT parts, got %d", len(parts))
+		return [3]string{}, fmt.Errorf("expected 3 dot-separated JWT parts, got %d", len(parts))
 	}
-	headerBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
+	return [3]string{parts[0], parts[1], parts[2]}, nil
+}
+
+// decodeSegment base64url-decodes one JWT segment and unmarshals it into dst.
+func decodeSegment(segment, name string, dst interface{}) error {
+	raw, err := base64.RawURLEncoding.DecodeString(segment)
 	if err != nil {
-		return jwtHeader{}, fmt.Errorf("JWT header base64 decode: %w", err)
+		return fmt.Errorf("JWT %s base64 decode: %w", name, err)
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		return fmt.Errorf("JWT %s JSON unmarshal: %w", name, err)
+	}
+	return nil
+}
+
+// decodeJWTHeader decodes the JWT header into a jwtHeader.
+func decodeJWTHeader(jwt string) (jwtHeader, error) {
+	parts, err := splitJWT(jwt)
+	if err != nil {
+		return jwtHeader{}, err
 	}
 	var hdr jwtHeader
-	if err := json.Unmarshal(headerBytes, &hdr); err != nil {
-		return jwtHeader{}, fmt.Errorf("JWT header JSON unmarshal: %w", err)
-	}
-	return hdr, nil
+	return hdr, decodeSegment(parts[0], "header", &hdr)
 }
 
 // Deps bundles the I/O dependencies needed for Block C, Block F, and DR storage.
@@ -130,7 +146,7 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 	receipts := make([]types.DelegationReceipt, 0, len(bundle.Receipts))
 	for i, jwt := range bundle.Receipts {
 		var dr types.DelegationReceipt
-		if err := decodeJWTPayload(jwt, &dr); err != nil {
+		if err := DecodePayload(jwt, &dr); err != nil {
 			return types.Invalid("MALFORMED_RECEIPT",
 				fmt.Sprintf("receipt[%d] JWT decoding failed: %v", i, err),
 				"Ensure all receipts are valid JWTs.")
@@ -141,7 +157,7 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 	// ── Decode invocation payload ────────────────────────────────────────────
 
 	var invocation types.InvocationReceipt
-	if err := decodeJWTPayload(bundle.Invocation, &invocation); err != nil {
+	if err := DecodePayload(bundle.Invocation, &invocation); err != nil {
 		return types.Invalid("MALFORMED_INVOCATION",
 			fmt.Sprintf("invocation JWT decoding failed: %v", err),
 			"Ensure the invocation receipt is a valid JWT.")
@@ -443,6 +459,9 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 		for i, r := range receipts {
 			if r.DrsStatusListIndex != nil {
 				revoked, err := deps.Revocation.IsRevoked(ctx, *r.DrsStatusListIndex)
+				if err == nil {
+					metrics.RevocationLookups.WithLabelValues("remote_statuslist", strconv.FormatBool(revoked)).Inc()
+				}
 				if err != nil {
 					return types.Invalid("REVOCATION_CHECK_FAILED",
 						fmt.Sprintf("receipt[%d] revocation check failed: %v", i, err),
@@ -459,7 +478,12 @@ func Chain(ctx context.Context, bundle types.ChainBundle, deps Deps) types.Verif
 
 	if deps.LocalRevocation != nil {
 		for i, r := range receipts {
-			if r.DrsStatusListIndex != nil && deps.LocalRevocation.IsRevoked(*r.DrsStatusListIndex) {
+			if r.DrsStatusListIndex == nil {
+				continue
+			}
+			revoked := deps.LocalRevocation.IsRevoked(*r.DrsStatusListIndex)
+			metrics.RevocationLookups.WithLabelValues("local_admin", strconv.FormatBool(revoked)).Inc()
+			if revoked {
 				return types.Invalid("REVOKED",
 					fmt.Sprintf("receipt[%d] has been locally revoked (status list index %d).", i, *r.DrsStatusListIndex),
 					"The delegation has been revoked — request a new delegation from the issuer.")
@@ -554,20 +578,15 @@ func computeChainHash(jwt string) string {
 	return fmt.Sprintf("sha256:%x", digest)
 }
 
-// decodeJWTPayload decodes the base64url payload of a JWT into dst.
-func decodeJWTPayload(jwt string, dst interface{}) error {
-	parts := strings.SplitN(jwt, ".", 4)
-	if len(parts) != 3 {
-		return fmt.Errorf("expected 3 dot-separated parts, got %d", len(parts))
-	}
-	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+// DecodePayload decodes the payload of a compact JWT into dst. It does not
+// check the signature: use it only on JWTs that Chain has already verified,
+// or to read claims for diagnostics.
+func DecodePayload(jwt string, dst interface{}) error {
+	parts, err := splitJWT(jwt)
 	if err != nil {
-		return fmt.Errorf("base64 decode: %w", err)
+		return err
 	}
-	if err := json.Unmarshal(payloadBytes, dst); err != nil {
-		return fmt.Errorf("JSON unmarshal: %w", err)
-	}
-	return nil
+	return decodeSegment(parts[1], "payload", dst)
 }
 
 // resolveIssuersParallel resolves each unique DID in dids using at most
@@ -645,9 +664,9 @@ func verifyJWTSignatureWithKey(jwt string, issuerDID string, resolvedKeys map[st
 		return fmt.Errorf("DID resolution failed: no key found for %s", issuerDID)
 	}
 
-	parts := strings.SplitN(jwt, ".", 4)
-	if len(parts) != 3 {
-		return fmt.Errorf("malformed JWT")
+	parts, err := splitJWT(jwt)
+	if err != nil {
+		return err
 	}
 	signingInput := parts[0] + "." + parts[1]
 	sigBytes, err := base64.RawURLEncoding.DecodeString(parts[2])
@@ -657,49 +676,6 @@ func verifyJWTSignatureWithKey(jwt string, issuerDID string, resolvedKeys map[st
 	if err := strictVerifyEd25519(sigBytes); err != nil {
 		return fmt.Errorf("Ed25519 strict check failed: %w", err)
 	}
-	pubKey := ed25519.PublicKey(pubKeyBytes[:])
-	if !ed25519.Verify(pubKey, []byte(signingInput), sigBytes) {
-		return fmt.Errorf("Ed25519 signature verification failed")
-	}
-	return nil
-}
-
-// verifyJWTSignature resolves the issuer DID and verifies the JWT's Ed25519 signature.
-// Uses Go stdlib crypto/ed25519 — no CGO required.
-func verifyJWTSignature(ctx context.Context, jwt string, issuerDID string, res *resolver.Resolver) error {
-	hdr, err := decodeJWTHeader(jwt)
-	if err != nil {
-		return fmt.Errorf("JWT header decode failed: %w", err)
-	}
-	if hdr.Alg != "EdDSA" {
-		return fmt.Errorf("unsupported JWT algorithm %q: DRS receipts must use EdDSA", hdr.Alg)
-	}
-
-	pubKeyBytes, err := res.Resolve(ctx, issuerDID)
-	if err != nil {
-		return fmt.Errorf("DID resolution failed: %w", err)
-	}
-
-	parts := strings.SplitN(jwt, ".", 4)
-	if len(parts) != 3 {
-		return fmt.Errorf("malformed JWT")
-	}
-
-	signingInput := parts[0] + "." + parts[1]
-	sigBytes, err := base64.RawURLEncoding.DecodeString(parts[2])
-	if err != nil {
-		return fmt.Errorf("signature base64 decode: %w", err)
-	}
-
-	// Strict S-range check: reject non-canonical signatures that Go's stdlib
-	// either rejects generically or accepted in older/alternate implementations.
-	// Running this before ed25519.Verify lets DRS surface the documented
-	// SIGNATURE_MALLEABILITY code instead of collapsing the failure into a
-	// generic INVALID_SIGNATURE.
-	if err := strictVerifyEd25519(sigBytes); err != nil {
-		return fmt.Errorf("Ed25519 strict check failed: %w", err)
-	}
-
 	pubKey := ed25519.PublicKey(pubKeyBytes[:])
 	if !ed25519.Verify(pubKey, []byte(signingInput), sigBytes) {
 		return fmt.Errorf("Ed25519 signature verification failed")

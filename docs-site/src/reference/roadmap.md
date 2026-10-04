@@ -16,10 +16,14 @@ work are now implemented.
 
 ## Phase 2 — Production hardening
 
-- secure-by-default Node HTTP enforcement middleware (`@drs/mcp-server`)
+- Node enforcement is a documented, copy-paste fail-closed gate against
+  `/verify` — **decided against a bundled npm middleware** (a second gate
+  implementation would only drift from the normative Go verifier)
 - HSM / KMS integration in the verifier
-- durable object-store backend (Tier 2 roadmap)
-- stronger retention / immutability story for regulated deployments
+- ✓ durable object-store backend (Tier 2) — S3-compatible, tier-aware
+  selection at boot (`docs-site/src/how-to/operators/storage-tiers.md`)
+- ✓ stronger retention / immutability story — S3 Object Lock (WORM) in
+  COMPLIANCE mode with configurable retention, RFC 3161 timestamping
 - external security review
 - repeatable performance benchmarks
 - workspace-level release and CI orchestration

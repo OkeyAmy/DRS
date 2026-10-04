@@ -35,6 +35,9 @@ export type {
   CreateInvocationBundleParams,
 } from "./sdk/issue.js";
 
+// did:key
+export { didKeyFromPublicKey, didKeyFromSigningKey, base58Encode } from "./sdk/did.js";
+
 // Bundle assembly
 export { buildBundle, serialiseBundle, parseBundle } from "./sdk/bundle.js";
 
@@ -47,7 +50,3 @@ export { checkPolicyAttenuation, translatePolicy } from "./sdk/policy.js";
 // Verification client
 export { VerifyClient } from "./verify/client.js";
 export type { VerifyClientOptions } from "./verify/client.js";
-
-// Operator config (machine-to-machine trust model)
-export { validateOperatorConfig, parseOperatorConfig } from "./sdk/operator.js";
-export type { OperatorConfig, RenewalRules, Escalation, DrsRootType } from "./sdk/operator.js";

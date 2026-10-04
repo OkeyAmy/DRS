@@ -104,14 +104,17 @@ func (s *RedisStore) Check(jti string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), s.ctxTimeout)
 	defer cancel()
 
-	ok, err := s.client.SetNX(ctx, s.prefix+jti, "1", s.ttl).Result()
-	if err != nil {
-		return fmt.Errorf("nonce: redis SETNX: %w", err)
-	}
-	if !ok {
+	// SET key 1 NX EX ttl: atomically claims the jti only if it is new.
+	// Redis answers nil (redis.Nil) when the key already exists.
+	err := s.client.SetArgs(ctx, s.prefix+jti, "1", redis.SetArgs{Mode: "NX", TTL: s.ttl}).Err()
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, redis.Nil):
 		return ErrReplayDetected
+	default:
+		return fmt.Errorf("nonce: redis SET NX: %w", err)
 	}
-	return nil
 }
 
 // Close releases the Redis client connections.

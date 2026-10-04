@@ -74,7 +74,7 @@ var NonceChecks = promauto.NewCounterVec(prometheus.CounterOpts{
 //     are indistinguishable from "no body field" (which skips the check
 //     entirely and does not increment the counter).
 //
-//  2. pkg/middleware.checkRequestBinding, used by Go in-process tool-server
+//  2. pkg/gate.Decide, used by the Go gate middleware and POST /v1/gate
 //     integrations. Labels: match | mismatch | empty_match | invalid_body |
 //     (plus the off / mismatch_lenient / mismatch_enforced labels when an
 //     integrator wires the middleware with those modes — those modes live
@@ -93,6 +93,63 @@ var BindingChecks = promauto.NewCounterVec(prometheus.CounterOpts{
 	Subsystem: "binding",
 	Name:      "checks_total",
 	Help:      "Request-body binding check outcomes.",
+}, []string{"result"})
+
+// StoreWriteQueueDropped counts receipt writes dropped because the async
+// write queue was full. A non-zero value means evidence is being lost and
+// the backend cannot keep pace with ingress.
+var StoreWriteQueueDropped = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "drs",
+	Subsystem: "store",
+	Name:      "write_queue_dropped_total",
+	Help:      "Receipt writes dropped because the async queue was full (evidence gap).",
+})
+
+// StoreFlushErrors counts receipt writes that exhausted all retries against
+// the durable backend. The receipt is not lost yet: it stays in memory and is
+// redriven until the backend recovers (see the drs_store_failed_pending gauge). It is lost only
+// if the process exits first or the failed-write buffer overflows
+// (StoreWriteQueueDropped).
+var StoreFlushErrors = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "drs",
+	Subsystem: "store",
+	Name:      "flush_errors_total",
+	Help:      "Receipt writes that exhausted retries against the durable backend (they are redriven until the backend recovers).",
+})
+
+// RegisterStoreGauges exposes two live gauges about receipts that are not yet
+// durable. Call once at startup.
+//
+//   - drs_store_pending_writes: queued, in flight, retrying or failed. Alert when
+//     it stays high — the durable backend is not keeping up.
+//   - drs_store_failed_pending: the subset whose retries are exhausted and that
+//     are waiting for the backend to recover. Alert when it stays above zero.
+func RegisterStoreGauges(pending, failed func() int) {
+	promauto.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: "drs",
+		Subsystem: "store",
+		Name:      "pending_writes",
+		Help:      "Receipts not yet durable: queued, being flushed, retrying, or failed and awaiting redrive.",
+	}, func() float64 { return float64(pending()) })
+	promauto.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: "drs",
+		Subsystem: "store",
+		Name:      "failed_pending",
+		Help:      "Receipts whose durable write exhausted its retries and await redrive. Non-zero means evidence is not yet durable.",
+	}, func() float64 { return float64(failed()) })
+}
+
+// StoreWritesTotal counts store write attempts by outcome.
+//
+// result labels:
+//   - flushed — write succeeded and was committed to the backend
+//   - dropped — write was shed at the queue boundary (correlates with StoreWriteQueueDropped)
+//   - error   — write reached the backend but the backend returned an error
+var StoreWritesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "drs",
+	Subsystem: "store",
+	Name:      "writes_total",
+	Help:      "Receipt store write outcomes.",
 }, []string{"result"})
 
 // RequestDuration times HTTP handlers.

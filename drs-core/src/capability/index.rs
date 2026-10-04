@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 /// Capability index built at delegation issuance time.
 ///
-/// Implements the corrected O(1) lookup algorithm from `docs/Drs_language&algorithms.md`
+/// Implements the corrected O(1) lookup algorithm from docs-site/src/explanation/verification-algorithm.md
 /// Correction 1. Building the index is O(n log n) (happens once at issuance).
 /// Lookup is O(1) for exact matches, O(k) for wildcard patterns where k is
 /// typically 2–5. In practice this is O(1).

@@ -175,16 +175,25 @@ Accepts a `ChainBundle` JSON body. Runs all six verification blocks. Returns `Ve
 
 ### MCP, A2A, and Node app middleware
 
-`drs-verify` exposes `POST /verify`; it is not a transparent MCP/A2A proxy. For
-Node tool servers, use the workspace `@drs/mcp-server` HTTP middleware to extract the `X-DRS-Bundle` header,
-send the bundle plus the parsed request body to `/verify`, reject invalid chains
-or body-binding mismatches, and call your handler with `VerificationContext`
-attached. For Go tool servers, import the reusable Go middleware and mount it
-inside your own server.
+`drs-verify` is not a transparent MCP/A2A proxy; your tool server stays in
+front. All protocol rules live in `drs-verify/pkg/gate` (MCP `2025-11-25` and
+`2026-07-28`, A2A v1.0 JSON-RPC, plain HTTP JSON):
+
+- **Go tool servers** mount `gate.Middleware(cfg, gate.MCP{}, handler)` (or
+  `gate.A2A{}`, `gate.HTTP{}`) in-process.
+- **Node and other languages** forward each request to `POST /v1/gate` via
+  `@drs/mcp-server` (`withDrsGate`, `DrsGatedServerTransport` for stdio) and
+  apply the allow/deny decision. Agents sign with `@drs/mcp-client`.
+
+Only MCP `tools/call` is gated; handshakes, discovery and list calls pass. A
+refused call gets a JSON-RPC error (`-32010`) — HTTP 403, never 401.
 
 ```go
-mux.Handle("/mcp/", middleware.MCPMiddleware(deps, nonceStore, "enforced", yourHandler))
+cfg, err := gate.NewConfig(deps, nonceStore, binding.ModeEnforced)
+mux.Handle("/mcp", gate.Middleware(cfg, gate.MCP{}, yourMCPHandler))
 ```
+
+See the [Protocol Gate reference](https://okeyamy.github.io/DRS/reference/protocol-gate.html) for the normative mapping.
 
 ### `POST /admin/revoke`
 
@@ -197,13 +206,13 @@ Kubernetes and Docker health probes.
 ## Security Properties
 
 - **Ed25519** via `ed25519-dalek` 2.x — RUSTSEC-2022-0093 patched, `verify_strict` semantics in Rust core
-- **Nonce replay protection** — invocation JTIs checked against a bounded TTL-evicting store before chain verification; replays get `409 Conflict`
+- **Nonce replay protection** — invocation JTIs are committed to a bounded TTL-evicting store only after the chain and the request binding pass (so a forged or tampered request cannot burn a legitimate jti); replays get `409 Conflict`
 - **Fail-closed** — any verification error denies the capability; there is no partial success
 - **Constant-time comparisons** — multicodec prefix checks and bearer token validation use `crypto/subtle`
 - **RFC 8785 JCS canonicalization** — no shallow `JSON.stringify` key sort; conformance vectors guard cross-language canonicalization behavior
 - **LRU-bounded DID resolver cache** — hard cap at 10,000 entries (~640 KB)
 - **W3C Bitstring Status List revocation** — mutex + re-check concurrency guard prevents thundering herd on cache miss (`sync.Once` is deliberately avoided: a failed fetch must be retryable)
-- **MCP/A2A binding middleware body capped** at 64 KiB — hard-coded (`maxBindingBodyBytes`), not env-var controlled; the `/verify` endpoint body limit is separately configurable via `MAX_BODY_BYTES` (default 1 MiB)
+- **Protocol gate body capped** at 64 KiB — hard-coded (`gate.MaxBodyBytes`), not env-var controlled; the `/verify` endpoint body limit is separately configurable via `MAX_BODY_BYTES` (default 1 MiB)
 - **DID resolver** supports `did:key` (self-authenticating, no network I/O) and `did:web` (HTTPS + TLS)
 
 ## Performance
@@ -249,9 +258,11 @@ All configuration is environment-variable driven. No hard-coded URLs, ports, or 
 | `NONCE_STORE_TTL_SECS` | `900` | Replay protection TTL (15 min) — also bounds the invocation replay window; raise only if legitimate invocation latency exceeds 15 minutes |
 | `DRS_ADMIN_TOKEN` | — | Bearer token for `POST /admin/revoke` |
 | `REVOCATION_STORE_PATH` | — | Optional durable local revocation log path |
-| `STORE_DIR` | — | Filesystem store base directory (Tier 1/3) |
-| `TSA_URL` | — | RFC 3161 TSA endpoint — enables Tier 3 store |
-| `MAX_BODY_BYTES` | `1048576` | Maximum `/verify` request body size (1 MiB); MCP/A2A binding middleware cap is hard-coded at 64 KiB and is not affected by this variable |
+| `STORE_DIR` | — | Filesystem store base directory (Tier 1); `STORE_TTL_SECS` (default 48 h) sets retention |
+| `S3_BUCKET` (+ `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`) | — | S3-compatible object store (Tier 2); wins over `STORE_DIR` |
+| `S3_OBJECT_LOCK` / `S3_RETENTION_DAYS` | `false` / `2555` | WORM Object Lock on every receipt; the bucket must be created with Object Lock enabled (checked at boot) |
+| `TSA_URL` | — | RFC 3161 TSA endpoint — Tier 3; requires `S3_BUCKET` + `S3_OBJECT_LOCK=true`, otherwise the server refuses to boot |
+| `MAX_BODY_BYTES` | `1048576` | Maximum `/verify` request body size (1 MiB); the protocol gate cap is hard-coded at 64 KiB and is not affected by this variable |
 | `LOG_LEVEL` | `info` | Log level: debug / info / warn / error |
 | `LOG_FORMAT` | `text` | Log format: `text` or `json` |
 | `METRICS_ADDR` | — | Separate Prometheus listener; empty disables metrics |
@@ -261,12 +272,12 @@ All configuration is environment-variable driven. No hard-coded URLs, ports, or 
 | Tier | Backend | Use case |
 |---|---|---|
 | 0 | In-memory LRU | Development and testing (default) |
-| 1 | Filesystem | Standard production (`STORE_DIR`) |
-| 2 | S3-compatible | Long-term retention (roadmap) |
-| 3 | WORM + RFC 3161 | Regulated deployments (`STORE_DIR` + `TSA_URL`) |
+| 1 | Filesystem | Dev / staging (`STORE_DIR`, 48 h default retention, integrity-checked reads) |
+| 2 | S3-compatible | Durable production storage (`S3_BUCKET`; async, non-blocking writes) |
+| 3 | S3 WORM + RFC 3161 | Regulated deployments (`S3_BUCKET` + `S3_OBJECT_LOCK=true` + `TSA_URL`) |
 | 5 | Ethereum mainnet | Blockchain-native enterprise (opt-in only, roadmap) |
 
-Tier 3 uses RFC 3161 trusted timestamping — legally recognized under EU eIDAS and admissible in US federal courts. Supported TSA providers: FreeTSA (free), DigiCert, GlobalSign.
+Details, failure behaviour and monitoring: [Storage Tiers](docs-site/src/how-to/operators/storage-tiers.md). Tier 3 uses RFC 3161 trusted timestamping — legally recognized under EU eIDAS and admissible in US federal courts. Supported TSA providers: FreeTSA (free), DigiCert, GlobalSign.
 
 ## Verification Algorithm
 
@@ -290,7 +301,8 @@ drs-verify/         Go  — verification server, middleware, caches
   pkg/verify/       Six-block verification algorithm
   pkg/resolver/     DID resolver (did:key, did:web)
   pkg/revocation/   Status list cache and local revocation store
-  pkg/middleware/   MCP and A2A HTTP middleware
+  pkg/gate/         MCP, A2A and HTTP protocol gate (adapters, binding, /v1/gate)
+  pkg/middleware/   Rate limiting and /verify replay check
   pkg/anchor/       RFC 3161 trusted timestamp client and verifier
   pkg/policy/       Capability policy evaluation and attenuation
   pkg/store/        Tiered receipt storage (memory, filesystem, Tier3)
@@ -310,7 +322,7 @@ examples/           DRS wired into real agentic systems (contributions welcome)
 - W3C Bitstring Status List revocation with concurrency guard
 - Local revocation store with `POST /admin/revoke`, optionally file-backed
 - RFC 3161 trusted timestamp anchor (Tier 3 store)
-- TypeScript SDK: issuance, CLI (`drs keygen`, `drs issue`, `drs verify`, `drs audit`)
+- TypeScript SDK: issuance, CLI (`drs keygen`, `drs verify`, `drs audit`, `drs policy`, `drs translate`)
 - Structured logging via `log/slog`
 - Docker deployment (distroless image, static binary)
 - Human-rooted consent records with session ID, policy hash, and locale
@@ -321,7 +333,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for open work and how to get involved.
 
 - EU AI Act / HIPAA / SOX audit export formats
 - KMS/HSM signing integration
-- Durable object-store backend (Tier 2)
 - Ethereum mainnet anchor (Tier 5 — opt-in only)
 
 ## Contributing

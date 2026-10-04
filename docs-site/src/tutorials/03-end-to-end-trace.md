@@ -176,7 +176,7 @@ Amara's activity feed updates: *"Research agent used web_search — £0.02 of £
 Three months later, a compliance officer wants evidence:
 
 ```bash
-pnpm exec drs verify bundle.json
+pnpm exec drs verify --body request.json bundle.json
 pnpm exec drs audit bundle.json
 ```
 

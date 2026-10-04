@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/types"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/types"
 )
 
 // These tests lock in the auth-bypass fixes from the VULN-FINDINGS pass:

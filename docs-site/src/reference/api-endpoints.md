@@ -39,7 +39,7 @@ Body is capped at `MAX_BODY_BYTES` (default 1 MiB).
 
 **Response — invalid chain (200):**
 
-> `/verify` always returns HTTP 200. Check the `valid` field to determine the outcome. HTTP 403 is only returned by the MCP/A2A middleware routes, not by `/verify` directly.
+> `/verify` always returns HTTP 200. Check the `valid` field to determine the outcome. HTTP 403 is only returned by the protocol gate (`pkg/gate` routes and `/v1/gate` decisions), not by `/verify` directly.
 
 ```json
 {
@@ -59,29 +59,32 @@ Body is capped at `MAX_BODY_BYTES` (default 1 MiB).
 {"error": "invalid character 'x' looking for beginning of value"}
 ```
 
-### Optional: request-body binding check
+### Request-body binding (required by default)
 
-`POST /verify` accepts an optional `body` field in the JSON request — the
-parsed request body the tool server received from its client. When present,
-drs-verify canonicalises both the body and `invocation.args` using
-RFC 8785 (JCS) and reports the relationship in `result.binding`:
+`POST /verify` takes a `body` field: the parsed request the tool server is
+about to execute. drs-verify canonicalises it and `invocation.args` with
+RFC 8785 (JCS). Numbers outside the I-JSON range (|n| > 2^53−1, in any
+notation) are refused, because they can round to the same double; fractional
+differences below double precision are not detected.
 
-| `binding` value | Meaning |
+With `DRS_REQUIRE_BINDING=true` (the default):
+
+| Situation | Response |
 |---|---|
-| `"match"` | Body canonically equals `invocation.args`. The body is bound to what was signed. |
-| `"mismatch"` | Chain verified but body diverges from args. Likely tampering between signing and execution. |
-| `"invalid_body"` | Body was included but could not be parsed as JSON. |
-| (field absent) | Body was not sent; no binding check ran. |
+| body canonically equals `invocation.args` | `valid: true`, `binding: "match"`; jti committed |
+| body differs | `valid: false`, `error.code: "BINDING_MISMATCH"`, `binding: "mismatch"`; jti **not** committed |
+| body not valid JSON | `valid: false`, `error.code: "BINDING_MISMATCH"`, `binding: "invalid_body"` |
+| `body` omitted | `valid: false`, `error.code: "BINDING_REQUIRED"` |
 
-`result.valid` stays cryptographic truth (chain + policy + signature).
-`binding` is a distinct signal; the tool server decides what to do with
-`"mismatch"`. A common pattern:
+The jti is committed only after chain and binding pass, so a tampered request
+cannot burn a legitimate invocation and an honest retry still succeeds.
 
-```js
-if (!result.valid) return reject(result.error);
-if (result.binding === "mismatch") return reject({ code: "BINDING_MISMATCH" });
-// proceed to execute the tool against the verified body
-```
+With `DRS_REQUIRE_BINDING=false`, `/verify` reverts to chain-only verification:
+an omitted body is not checked and a mismatch is reported in `binding` while
+`valid` reflects the chain alone.
+
+For MCP and A2A traffic prefer `POST /v1/gate`, which also knows which part of
+a JSON-RPC message is the signed payload.
 
 **Example request:**
 
@@ -105,14 +108,49 @@ POST /verify
 }
 ```
 
+## POST /v1/gate
+
+Protocol-aware enforcement decision for out-of-process tool servers (Node,
+Python, stdio). The caller forwards the request; drs-verify applies the MCP,
+A2A or HTTP adapter (see [Protocol Gate](./protocol-gate.md)).
+
+**Request:**
+
+```json
+{
+  "protocol": "mcp",
+  "method": "POST",
+  "headers": { "x-drs-bundle": "eyJ…", "mcp-name": "web_search" },
+  "body": { "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": { "name": "web_search", "arguments": { "query": "weather" } } }
+}
+```
+
+`protocol` is `mcp`, `a2a` or `http`. Only these headers are read:
+`X-DRS-Bundle`, `Mcp-Method`, `Mcp-Name`, `Mcp-Protocol-Version`,
+`A2A-Version`, `A2A-Extensions` — never send credentials.
+
+**Response (always HTTP 200):**
+
+```json
+{ "allow": false, "gated": true, "status": 403,
+  "response": { "jsonrpc": "2.0", "id": 1,
+                "error": { "code": -32010, "message": "DRS: BINDING_MISMATCH",
+                           "data": { "code": "BINDING_MISMATCH", "detail": "…", "suggestion": "…" } } } }
+```
+
+When `allow` is false, answer the client with `status` and `response`
+verbatim. When `allow` is true and `gated` is true, `context` carries the
+verified `VerificationContext`. `gated: false` means the message carries no
+tool action (MCP handshake, discovery, list calls, stream GETs).
+
 ### What drs-verify does NOT do
 
 drs-verify is a verification service only. It does not proxy, transform,
 or execute MCP/A2A traffic. Tool servers own their own endpoints and call
-`POST /verify` on a local drs-verify instance for each request. See
-`examples/drs-expense-agent/src/tool-server.ts` for the canonical
-tool-server pattern, or import `github.com/drs-protocol/drs-verify/pkg/middleware`
-for in-process Go integrations.
+`POST /v1/gate` (or `POST /verify` with `body`) on a local drs-verify instance
+for each request, or import `github.com/OkeyAmy/DRS/drs-verify/pkg/gate` for
+in-process Go integrations.
 
 ---
 

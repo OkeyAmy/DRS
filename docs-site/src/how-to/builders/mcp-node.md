@@ -1,8 +1,9 @@
 # Integrate DRS with an MCP server (Node / TypeScript)
 
-Your MCP server runs on Node. Agents send tool-call requests with a
-`X-DRS-Bundle` header. You want the bundle verified before your business
-logic runs. This is the sidecar pattern.
+Your MCP server runs on Node with the official MCP TypeScript SDK. Agents sign
+each `tools/call` with DRS. You want every tool call verified before it runs.
+This is the sidecar pattern: protocol rules live in `drs-verify`, your server
+holds none.
 
 No Go code, no forking DRS, no rebuilding containers.
 
@@ -11,31 +12,100 @@ No Go code, no forking DRS, no rebuilding containers.
 ```
 Agent (React Native, web, Node, etc.)
    │
-   │  POST /tools/call
-   │  X-DRS-Bundle: eyJ...
+   │  POST /mcp   (JSON-RPC tools/call)
+   │  X-DRS-Bundle: eyJ...   or params._meta["xyz.okeyamy.drs/bundle"]
    │
    ▼
 ┌────────────────────────────┐       ┌───────────────────────┐
 │  Your MCP server (Node)    │──────▶│  drs-verify (Docker)  │
-│  1. read bundle from header│ POST  │  ghcr.io/okeyamy/     │
-│  2. POST /verify           │ /verify│  drs-verify:latest    │
-│  3. if valid → run tool    │       │                       │
-│  4. else → 403             │◀──────│                       │
+│  1. forward the request    │ POST  │  ghcr.io/okeyamy/     │
+│  2. POST /v1/gate          │/v1/gate│  drs-verify:latest    │
+│  3. allow → MCP SDK        │       │                       │
+│  4. deny → JSON-RPC error  │◀──────│                       │
 └────────────────────────────┘       └───────────────────────┘
 ```
 
-## Install the enforcement middleware
-
-The secure default path is the reusable HTTP middleware in the workspace
-`@drs/mcp-server` package. It extracts `X-DRS-Bundle`, sends the decoded bundle
-plus the actual request body to `drs-verify`, rejects invalid chains, rejects
-body-binding mismatches, and only then lets your handler run.
+## Install
 
 ```bash
-# On your MCP server
-# Once published: pnpm add @drs/mcp-server
-# Today: vendor packages/drs-mcp-server from this repository or use a workspace dependency.
+pnpm add @drs/mcp-server @modelcontextprotocol/server @modelcontextprotocol/node
+# Until @drs/mcp-server is published, use it as a workspace dependency from this repo.
 ```
+
+## Gate the official MCP server
+
+```ts
+import { createServer } from "node:http";
+import { McpServer, createMcpHandler } from "@modelcontextprotocol/server";
+import { toNodeHandler } from "@modelcontextprotocol/node";
+import { createDrsGate, withDrsGate } from "@drs/mcp-server";
+
+const gate = createDrsGate({
+  verifyUrl: process.env.DRS_VERIFY_URL ?? "http://localhost:8080",
+  protocol: "mcp",
+});
+
+function makeServer() {
+  const server = new McpServer({ name: "tools", version: "1.0.0" });
+  // server.registerTool(...) — your tools, unchanged.
+  return server;
+}
+
+// createMcpHandler serves MCP 2025-11-25 and 2026-07-28 clients.
+const mcp = toNodeHandler(createMcpHandler(makeServer));
+createServer(withDrsGate(gate, (req, res, body) => mcp(req, res, body))).listen(3000);
+```
+
+What passes without a bundle: `initialize`, `server/discover`, `tools/list`,
+notifications and stream `GET`s. What needs one: every `tools/call`, signed for
+`{ ...arguments, tool: name }` under `cmd: "/mcp/tools/call"`.
+
+A refused call is answered with the JSON-RPC error drs-verify produced
+(`error.code` `-32010`, `error.data.code` e.g. `BINDING_MISMATCH`), HTTP 403 —
+never 401, which MCP clients would treat as an OAuth challenge. If drs-verify is
+unreachable the gate fails closed with 503.
+
+Inside a tool, the verified context (root principal, leaf policy) is on
+`req.drs` in the Node handler.
+
+## stdio servers
+
+```ts
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { createDrsGate, DrsGatedServerTransport } from "@drs/mcp-server";
+
+const gate = createDrsGate({ verifyUrl: process.env.DRS_VERIFY_URL!, protocol: "mcp" });
+await makeServer().connect(new DrsGatedServerTransport(new StdioServerTransport(), gate));
+```
+
+## The agent side
+
+```ts
+import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
+import { createChainSigner, createDrsFetch } from "@drs/mcp-client";
+
+const signer = createChainSigner({ receipts, signingKey, issuerDid, subjectDid, toolServer });
+const client = new Client({ name: "agent", version: "1.0.0" });
+await client.connect(
+  new StreamableHTTPClientTransport(new URL("http://tools.example/mcp"), {
+    fetch: createDrsFetch({ signer, protocol: "mcp" }),
+  }),
+);
+await client.callTool({ name: "web_search", arguments: { query: "weather" } });
+```
+
+Each call is signed with the arguments it actually sends and a fresh `jti`. For
+stdio, wrap the client transport: `new DrsClientTransport(new StdioClientTransport(...), signer)`.
+
+## Performance notes
+
+- One localhost round-trip to `drs-verify` per gated call; handshakes and
+  discovery are decided without cryptography. Measured `/verify` p95 is
+  5.4 ms at 300 rps (see the drs-bench repo).
+- Every request, including handshakes, reaches the sidecar from your server's
+  single IP. Raise `RATE_LIMIT_PER_IP` on the sidecar to cover your total
+  traffic, or the verifier's per-IP limit becomes your server's limit.
+- If that hop matters, use the [embedded Go middleware](../developers/mcp-middleware.md).
 
 ## Docker Compose for local dev
 
@@ -56,6 +126,8 @@ services:
     environment:
       LISTEN_ADDR: ":8080"
       LOG_FORMAT: json
+      # Required: invocations addressed to another tool server are refused.
+      SERVER_IDENTITY: did:web:tools.example
       # Optional: replay protection that survives restart and scales horizontally
       NONCE_STORE_BACKEND: redis
       REDIS_URL: redis://redis:6379/0
@@ -65,107 +137,6 @@ services:
   redis:
     image: redis:7-alpine
 ```
-
-## Middleware for your MCP server
-
-Express / Fastify / raw `http.Server` — the pattern is the same.
-
-```ts
-// drs-middleware.ts
-import { createDrsHttpMiddleware } from "@drs/mcp-server";
-
-const VERIFY_URL = process.env.DRS_VERIFY_URL ?? "http://localhost:8080";
-
-const drs = createDrsHttpMiddleware({ verifyUrl: VERIFY_URL });
-
-export async function drsVerify(req, res, next) {
-  const result = await drs(
-    {
-      headers: req.headers,
-      body: req.body,
-    },
-    (verifiedReq) => {
-      req.drs = verifiedReq.drs;
-      next();
-    },
-  );
-
-  if (!result.ok) {
-    return res.status(result.status).json({ drs_error: result.error });
-  }
-}
-```
-
-## Wiring it in Express
-
-```ts
-import express from "express";
-import { drsVerify } from "./drs-middleware.js";
-
-const app = express();
-app.use(express.json());
-
-app.post("/tools/call", drsVerify, async (req, res) => {
-  // req.drs is set — it contains RootPrincipal, LeafPolicy, etc.
-  const { tool, ...args } = req.body;
-
-  // Enforce policy at the tool layer. `drs-verify` has already checked
-  // attenuation; here you enforce execution-time limits.
-  const maxCost = req.drs.leaf_policy?.max_cost_usd;
-  if (maxCost != null && args.estimated_cost_usd > maxCost) {
-    return res.status(403).json({ error: "Exceeds policy.max_cost_usd" });
-  }
-
-  const result = await runTool(tool, args);
-  res.json(result);
-});
-
-app.listen(3000);
-```
-
-## Wiring it in Fastify
-
-```ts
-import Fastify from "fastify";
-import { drsVerify } from "./drs-middleware.js";
-
-const app = Fastify();
-
-app.post(
-  "/tools/call",
-  {
-    preHandler: async (req, reply) => {
-      // Adapt the Express-shaped middleware to Fastify.
-      const next = () => {};
-      const expressRes = {
-        status: (n: number) => ({ json: (x: unknown) => reply.code(n).send(x) }),
-      };
-      await drsVerify(req as any, expressRes as any, next);
-    },
-  },
-  async (req) => {
-    return { ok: true, drs: (req as any).drs };
-  },
-);
-
-app.listen({ port: 3000 });
-```
-
-## Performance notes
-
-- `drs-verify` handles DID resolution caching, nonce replay checking,
-  and revocation lookups in one round-trip. Typical /verify latency
-  against a local container is **5–15 ms** (single-digit when caches
-  are warm).
-- If the 5–15 ms hop matters, switch to the
-  [embedded Go middleware pattern](../developers/mcp-middleware.md) —
-  but that forces your tool server to be in Go.
-
-## Request-binding behavior
-
-`createDrsHttpMiddleware` passes the actual parsed request body to `/verify`.
-The verifier compares that body with the signed `invocation.args` using JCS. If
-they differ, the middleware rejects the request before your handler runs.
 
 ## Related
 

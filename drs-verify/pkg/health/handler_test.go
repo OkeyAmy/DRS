@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/revocation"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/revocation"
 )
 
 func TestLivenessReturns200Always(t *testing.T) {

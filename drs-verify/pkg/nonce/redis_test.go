@@ -3,6 +3,7 @@ package nonce
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -103,4 +104,31 @@ func TestRedisStore_RejectsZeroTTL(t *testing.T) {
 func TestRedisStore_SatisfiesCheckerInterface(t *testing.T) {
 	var _ Checker = (*RedisStore)(nil)
 	var _ Checker = (*Store)(nil)
+}
+
+// TestRedisStore_AppliesTTLToConsumedJTI proves a consumed jti expires: without
+// the TTL, Redis would keep every jti ever seen and grow without bound.
+func TestRedisStore_AppliesTTLToConsumedJTI(t *testing.T) {
+	url := os.Getenv("REDIS_TEST_URL")
+	if url == "" {
+		t.Skip("REDIS_TEST_URL not set")
+	}
+	s, err := NewRedisStore(context.Background(), RedisConfig{URL: url, TTL: 90 * time.Second})
+	if err != nil {
+		t.Fatalf("NewRedisStore: %v", err)
+	}
+	defer s.Close()
+
+	jti := fmt.Sprintf("ttl-test-%d", time.Now().UnixNano())
+	if err := s.Check(jti); err != nil {
+		t.Fatalf("first Check: %v", err)
+	}
+	ttl, err := s.client.TTL(context.Background(), s.prefix+jti).Result()
+	if err != nil {
+		t.Fatalf("TTL: %v", err)
+	}
+	// blindfold: contract — RedisConfig.TTL (90s here) is applied to every consumed jti.
+	if ttl <= 0 || ttl > 90*time.Second {
+		t.Fatalf("consumed jti must expire within the configured 90s TTL, got %v", ttl)
+	}
 }

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/drs-protocol/drs-verify/pkg/anchor"
+	"github.com/OkeyAmy/DRS/drs-verify/pkg/anchor"
 )
 
 // ── Test-local ASN.1 types ────────────────────────────────────────────────────
@@ -253,14 +253,14 @@ func buildTestTimestampResp(t *testing.T, hashForImprint []byte, pkiStatus int) 
 // ── VerifyTimestamp tests ─────────────────────────────────────────────────────
 
 func TestVerifyTimestamp_EmptyInput(t *testing.T) {
-	_, err := anchor.VerifyTimestamp([]byte{}, []byte("somehash"))
+	_, err := anchor.VerifyTimestampSignature([]byte{}, []byte("somehash"))
 	if err == nil {
 		t.Fatal("expected error for empty input, got nil")
 	}
 }
 
 func TestVerifyTimestamp_TruncatedDER(t *testing.T) {
-	_, err := anchor.VerifyTimestamp([]byte{0x30, 0x82, 0x01}, []byte("somehash"))
+	_, err := anchor.VerifyTimestampSignature([]byte{0x30, 0x82, 0x01}, []byte("somehash"))
 	if err == nil {
 		t.Fatal("expected error for truncated DER, got nil")
 	}
@@ -272,7 +272,7 @@ func TestVerifyTimestamp_PKIStatusNotGranted(t *testing.T) {
 	_, _ = rand.Read(hash)
 	der := buildTestTimestampResp(t, hash, 2)
 
-	_, err := anchor.VerifyTimestamp(der, hash)
+	_, err := anchor.VerifyTimestampSignature(der, hash)
 	if err == nil {
 		t.Fatal("expected error for PKIStatus=2 (rejection), got nil")
 	}
@@ -295,7 +295,7 @@ func TestVerifyTimestamp_HashMismatch(t *testing.T) {
 
 	der := buildTestTimestampResp(t, embeddedHash, 0)
 
-	_, err := anchor.VerifyTimestamp(der, differentHash)
+	_, err := anchor.VerifyTimestampSignature(der, differentHash)
 	if err == nil {
 		t.Fatal("expected error for hash mismatch, got nil")
 	}
@@ -309,12 +309,12 @@ func TestVerifyTimestamp_ValidToken(t *testing.T) {
 	_, _ = rand.Read(hash)
 	der := buildTestTimestampResp(t, hash, 0)
 
-	ts, err := anchor.VerifyTimestamp(der, hash)
+	ts, err := anchor.VerifyTimestampSignature(der, hash)
 	if err != nil {
-		t.Fatalf("VerifyTimestamp: unexpected error: %v", err)
+		t.Fatalf("VerifyTimestampSignature: unexpected error: %v", err)
 	}
 	if ts.IsZero() {
-		t.Error("VerifyTimestamp returned a zero time on success")
+		t.Error("VerifyTimestampSignature returned a zero time on success")
 	}
 	if time.Since(ts) > time.Minute {
 		t.Errorf("returned timestamp is too old: %v", ts)
@@ -668,7 +668,7 @@ func TestVerifyTimestamp_SignedAttrs_Valid(t *testing.T) {
 	_, _ = rand.Read(hash)
 	der := buildTimestampRespWithSignedAttrs(t, hash, tamperNone)
 
-	ts, err := anchor.VerifyTimestamp(der, hash)
+	ts, err := anchor.VerifyTimestampSignature(der, hash)
 	if err != nil {
 		t.Fatalf("valid SignedAttrs token must verify, got: %v", err)
 	}
@@ -682,7 +682,7 @@ func TestVerifyTimestamp_SignedAttrs_TamperedMessageDigest(t *testing.T) {
 	_, _ = rand.Read(hash)
 	der := buildTimestampRespWithSignedAttrs(t, hash, tamperMessageDigest)
 
-	_, err := anchor.VerifyTimestamp(der, hash)
+	_, err := anchor.VerifyTimestampSignature(der, hash)
 	if err == nil {
 		t.Fatal("tampered message-digest must be rejected, got nil")
 	}
@@ -696,7 +696,7 @@ func TestVerifyTimestamp_SignedAttrs_TamperedContentType(t *testing.T) {
 	_, _ = rand.Read(hash)
 	der := buildTimestampRespWithSignedAttrs(t, hash, tamperContentType)
 
-	_, err := anchor.VerifyTimestamp(der, hash)
+	_, err := anchor.VerifyTimestampSignature(der, hash)
 	if err == nil {
 		t.Fatal("wrong content-type must be rejected, got nil")
 	}
@@ -710,7 +710,7 @@ func TestVerifyTimestamp_SignedAttrs_MissingMessageDigest(t *testing.T) {
 	_, _ = rand.Read(hash)
 	der := buildTimestampRespWithSignedAttrs(t, hash, tamperOmitMessageDigest)
 
-	_, err := anchor.VerifyTimestamp(der, hash)
+	_, err := anchor.VerifyTimestampSignature(der, hash)
 	if err == nil {
 		t.Fatal("missing message-digest attr must be rejected, got nil")
 	}
@@ -721,7 +721,7 @@ func TestVerifyTimestamp_SignedAttrs_MissingContentType(t *testing.T) {
 	_, _ = rand.Read(hash)
 	der := buildTimestampRespWithSignedAttrs(t, hash, tamperOmitContentType)
 
-	_, err := anchor.VerifyTimestamp(der, hash)
+	_, err := anchor.VerifyTimestampSignature(der, hash)
 	if err == nil {
 		t.Fatal("missing content-type attr must be rejected, got nil")
 	}
@@ -737,7 +737,7 @@ func TestVerifyTimestamp_SignedAttrs_SwappedTSTInfo(t *testing.T) {
 	_, _ = rand.Read(hash)
 	der := buildTimestampRespWithSignedAttrs(t, hash, tamperSwapTSTInfo)
 
-	_, err := anchor.VerifyTimestamp(der, hash)
+	_, err := anchor.VerifyTimestampSignature(der, hash)
 	if err == nil {
 		t.Fatal("swapped TSTInfo must be rejected, got nil — SignedAttrs binding is broken")
 	}
@@ -1047,7 +1047,7 @@ func TestVerifyTimestamp_SerialOnlyCollision(t *testing.T) {
 		t.Fatalf("marshal TimeStampResp: %v", err)
 	}
 
-	ts, err := anchor.VerifyTimestamp(respDER, hash)
+	ts, err := anchor.VerifyTimestampSignature(respDER, hash)
 	if err != nil {
 		t.Fatalf("issuer+serial match should select the correct cert and verify: %v", err)
 	}

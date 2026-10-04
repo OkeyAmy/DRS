@@ -1,3 +1,4 @@
+import { didKeyFromPublicKey } from "../../sdk/did.js";
 import { derivePublicKey } from "../../sdk/issue.js";
 import { mkdir, writeFile, chmod } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -11,9 +12,7 @@ export async function keygen(args: string[]): Promise<void> {
   globalThis.crypto.getRandomValues(privKey);
   const pubKey = derivePublicKey(privKey);
 
-  // Encode as did:key
-  const multicodec = new Uint8Array([0xed, 0x01, ...pubKey]);
-  const did = `did:key:z${base58Encode(multicodec)}`;
+  const did = didKeyFromPublicKey(pubKey);
 
   const privHex = Buffer.from(privKey).toString("hex");
   const pubHex = Buffer.from(pubKey).toString("hex");
@@ -45,28 +44,4 @@ async function writePrivateKey(path: string, privateKeyHex: string): Promise<voi
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   await writeFile(path, privateKeyHex + "\n", { encoding: "utf8", flag: "wx", mode: 0o600 });
   await chmod(path, 0o600);
-}
-
-function base58Encode(bytes: Uint8Array): string {
-  const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  const digits: number[] = [0];
-  for (const byte of bytes) {
-    let carry = byte;
-    for (let j = digits.length - 1; j >= 0; j--) {
-      carry += 256 * (digits[j] ?? 0);
-      digits[j] = carry % 58;
-      carry = Math.floor(carry / 58);
-    }
-    while (carry > 0) {
-      digits.unshift(carry % 58);
-      carry = Math.floor(carry / 58);
-    }
-  }
-  let result = "";
-  for (const byte of bytes) {
-    if (byte !== 0) break;
-    result += "1";
-  }
-  for (const d of digits) result += ALPHABET[d];
-  return result;
 }
