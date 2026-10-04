@@ -11,6 +11,8 @@ bumps may contain breaking changes (always listed under **Breaking**).
 - Go 1.25.12 → 1.25.13 (drs-verify, integration-tests, Dockerfile): fixes reachable
   stdlib advisories GO-2026-6218, GO-2026-6090, GO-2026-6089, GO-2026-5972, GO-2026-5026.
 - CI pins `govulncheck@v1.7.0`; v1.8.0 requires Go 1.26.
+- `pnpm-workspace.yaml` sets `allowBuilds.esbuild: false` (pnpm 11 rejects the
+  placeholder that was committed).
 
 ### Protocol gate (MCP, A2A, HTTP) — drs-verify, @drs/mcp-server, @drs/mcp-client
 
