@@ -13,6 +13,9 @@ bumps may contain breaking changes (always listed under **Breaking**).
 - CI pins `govulncheck@v1.7.0`; v1.8.0 requires Go 1.26.
 - `pnpm-workspace.yaml` sets `allowBuilds.esbuild: false` (pnpm 11 rejects the
   placeholder that was committed).
+- `golang.org/x/crypto` v0.54.0 → v0.55.0 (indirect, via the S3 store's
+  minio-go): fixes CVE-2026-56854 (Trivy HIGH). v0.56+ would force the Go 1.26
+  directive; 0.55.0 is the advisory's fix version and still targets Go 1.25.
 
 ### Dead-code and duplication cleanup — drs-verify, drs-sdk
 
